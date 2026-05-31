@@ -1,0 +1,112 @@
+import React from 'react';
+import { motion } from 'framer-motion';
+import * as FiIcons from 'react-icons/fi';
+import SafeIcon from '../common/SafeIcon';
+import { useWeather } from '../useWeather';
+import { getWeatherDescription, getWeatherIcon } from '../weatherApi';
+
+const { FiWind, FiDroplet, FiSun, FiThermometer } = FiIcons;
+
+const WeatherHero = ({ city }) => {
+  const cityName = typeof city === 'string' ? city : city.name;
+  const { data: weatherData, loading, error } = useWeather(cityName, typeof city === 'object' ? city : null);
+  if (loading) {
+    return (
+      <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-emerald-600 rounded-[2rem] p-8 lg:p-12 text-white shadow-2xl mb-8 animate-pulse">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-400/20 rounded-full -ml-20 -mb-20 blur-3xl"></div>
+        <div className="relative z-10 h-40 bg-white/10 rounded-lg"></div>
+      </div>
+    );
+  }
+
+  if (error || !weatherData) {
+    return (
+      <div className="relative overflow-hidden bg-gradient-to-br from-red-600 to-orange-600 rounded-[2rem] p-8 lg:p-12 text-white shadow-2xl mb-8">
+        <div className="relative z-10 text-center">
+          <p className="text-xl font-bold">خطأ في جلب بيانات الطقس</p>
+          <p className="text-sm opacity-80 mt-2">{error || 'حاول لاحقاً'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const temp = Math.round(weatherData.current.temperature_2m);
+  const weatherCode = weatherData.current.weather_code;
+  const condition = getWeatherDescription(weatherCode);
+  const icon = getWeatherIcon(weatherCode);
+  const wind = Math.round(weatherData.current.wind_speed_10m);
+  const humidity = weatherData.current.relative_humidity_2m;
+  const rainProb = weatherData.hourly.precipitation_probability[0]; // Current hour prob
+  const pressure = Math.round(weatherData.current.pressure_msl);
+
+  return (
+    <div className="relative overflow-hidden rounded-[2rem] p-8 lg:p-12 text-white shadow-2xl mb-8 group">
+      {/* Background Image from FB */}
+      <div className="absolute inset-0 z-0">
+        <div className="absolute inset-0 bg-blue-900/40 z-10"></div>
+        <img 
+          src="https://images.unsplash.com/photo-1536431311719-398b6704d4cc?auto=format&fit=crop&q=80&w=1200"
+          alt="خلفية جاتكم اسحاب"
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+        />
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-blue-800/60 to-transparent z-20"></div>
+      </div>
+
+      <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+        <div className="text-center md:text-right">
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex items-center justify-center md:justify-start gap-2 mb-2"
+          >
+            <span className="bg-white/20 px-4 py-1 rounded-full text-xs md:text-sm font-medium backdrop-blur-sm">
+              {city.isLocal ? 'موقعك الحالي' : 'رصد حي - موريتانيا'}
+            </span>
+          </motion.div>
+          <h1 className="text-4xl md:text-7xl font-black mb-4 break-words">{cityName}</h1>
+          <p className="text-lg md:text-xl opacity-90 mb-6 font-light">توقعات دقيقة لهطول الأمطار والحرارة</p>
+          
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+            <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl flex flex-col items-center border border-white/10">
+              <SafeIcon icon={FiDroplet} className="text-2xl mb-2 text-blue-300" />
+              <span className="text-sm opacity-80">احتمال المطر</span>
+              <span className="font-bold">{rainProb}%</span>
+            </div>
+            <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl flex flex-col items-center border border-white/10">
+              <SafeIcon icon={FiWind} className="text-2xl mb-2 text-blue-300" />
+              <span className="text-sm opacity-80">الرياح</span>
+              <span className="font-bold">{wind} كم/س</span>
+            </div>
+            <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl flex flex-col items-center border border-white/10">
+              <SafeIcon icon={FiDroplet} className="text-2xl mb-2 text-blue-300" />
+              <span className="text-sm opacity-80">الرطوبة</span>
+              <span className="font-bold">{humidity}%</span>
+            </div>
+            <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl flex flex-col items-center border border-white/10">
+              <SafeIcon icon={FiThermometer} className="text-2xl mb-2 text-blue-300" />
+              <span className="text-sm opacity-80">الضغط</span>
+              <span className="font-bold">{pressure} hPa</span>
+            </div>
+          </div>
+        </div>
+
+        <motion.div 
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="text-center"
+        >
+          <div className="text-[8rem] md:text-[10rem] font-bold leading-tight relative">
+            {temp}°
+            <div className="absolute -top-4 -right-12">
+               <span className="text-6xl">{icon}</span>
+            </div>
+          </div>
+          <p className="text-2xl font-medium tracking-wide uppercase">{condition}</p>
+        </motion.div>
+      </div>
+    </div>
+  );
+};
+
+export default WeatherHero;
