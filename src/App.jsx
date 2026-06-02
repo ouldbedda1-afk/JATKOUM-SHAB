@@ -6,7 +6,10 @@ import SatelliteViewer from './components/SatelliteViewer';
 import CityGrid from './components/CityGrid';
 import WeeklyForecast from './components/WeeklyForecast';
 import WeatherAlerts from './components/WeatherAlerts';
+import WeatherCharts from './components/WeatherCharts';
+import PrayerTimes from './components/PrayerTimes';
 import WeeklyForecastPage from './components/WeeklyForecastPage';
+import AlThalaPage from './components/AlThalaPage';
 import ErrorBoundary from './components/ErrorBoundary';
 
 function Home() {
@@ -49,16 +52,20 @@ function Home() {
           {/* Main Content */}
           <div className="lg:col-span-8 space-y-6 md:space-y-8">
             <WeatherHero city={selectedCity} />
+            
+            {/* التنبيهات الأوتوماتيكية في مكان بارز */}
+            <WeatherAlerts />
+            
+            <WeatherCharts city={selectedCity} />
             <SatelliteViewer />
             <CityGrid />
           </div>
 
           {/* Sidebar / Extra Info */}
           <div className="lg:col-span-4 space-y-6 md:space-y-8">
+            <PrayerTimes city={selectedCity} />
             <WeeklyForecast city={selectedCity} />
-
-            <WeatherAlerts />
-
+            
             <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-gray-100">
               <h3 className="text-lg font-bold text-gray-800 mb-4">تابعنا على فيسبوك</h3>
               <p className="text-sm text-gray-600 leading-relaxed mb-4">
@@ -98,6 +105,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/forecast" element={<WeeklyForecastPage />} />
+          <Route path="/althala" element={<AlThalaPage />} />
         </Routes>
       </Router>
     </ErrorBoundary>

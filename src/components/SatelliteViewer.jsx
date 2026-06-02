@@ -55,7 +55,7 @@ const SatelliteViewer = () => {
         </div>
       </div>
 
-      <div className="relative aspect-video rounded-2xl overflow-hidden bg-gray-900 group border border-gray-100">
+      <div className="relative aspect-[3/4] md:aspect-video rounded-2xl overflow-hidden bg-gray-900 group border border-gray-100">
         <iframe 
           src={`https://embed.windy.com/embed2.html?lat=18.0735&lon=-15.9582&zoom=5&level=surface&overlay=${activeLayer}&menu=&message=&marker=&calendar=&pressure=&type=map&location=coordinates&detail=&metricWind=km%2Fh&metricTemp=%C2%B0C&radarRange=-1`} 
           width="100%" 
@@ -77,23 +77,32 @@ const SatelliteViewer = () => {
           </button>
         </div>
 
-        <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs font-mono">
-          REAL-TIME: ECMWF 0.1° High-Res
+        <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-md text-white px-3 py-1 rounded-full text-[10px] md:text-xs font-mono z-10">
+          رصد حي: ECMWF 0.1°
         </div>
       </div>
       
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-          <h4 className="font-bold text-gray-700 text-sm mb-1">تطور الرياح</h4>
-          <p className="text-xs text-gray-500">هبوب رياح شمالية شرقية جافة على آدرار وتيرس زمور.</p>
+      <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
+          <h4 className="font-bold text-blue-900 text-xs mb-1 flex items-center gap-1">
+            <span className="w-1 h-1 bg-blue-600 rounded-full"></span>
+            تطور الرياح
+          </h4>
+          <p className="text-[10px] text-blue-700 leading-tight">هبوب رياح شمالية شرقية جافة على آدرار وتيرس زمور.</p>
         </div>
-        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-          <h4 className="font-bold text-gray-700 text-sm mb-1">الرؤية الأفقية</h4>
-          <p className="text-xs text-gray-500">تأثر الرؤية في الحوضين بسبب الغبار العالق.</p>
+        <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
+          <h4 className="font-bold text-blue-900 text-xs mb-1 flex items-center gap-1">
+            <span className="w-1 h-1 bg-blue-600 rounded-full"></span>
+            الرؤية الأفقية
+          </h4>
+          <p className="text-[10px] text-blue-700 leading-tight">تأثر الرؤية في الحوضين بسبب الغبار العالق الناتج عن نشاط الرياح.</p>
         </div>
-        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-          <h4 className="font-bold text-gray-700 text-sm mb-1">حالة البحر</h4>
-          <p className="text-xs text-gray-500">بحر قليل الاضطراب إلى مضطرب في سواحل نواذيبو.</p>
+        <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
+          <h4 className="font-bold text-blue-900 text-xs mb-1 flex items-center gap-1">
+            <span className="w-1 h-1 bg-blue-600 rounded-full"></span>
+            حالة البحر
+          </h4>
+          <p className="text-[10px] text-blue-700 leading-tight">بحر قليل الاضطراب إلى مضطرب في سواحل نواذيبو ونواكشوط.</p>
         </div>
       </div>
     </div>

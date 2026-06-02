@@ -14,6 +14,8 @@ export default defineConfig({
   },
 
   server: {
+    host: true, // يسمح بالوصول من الشبكة المحلية
+    port: 5173,
     historyApiFallback: true,
   },
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 import { searchCities } from '../weatherApi';
@@ -10,7 +11,7 @@ const Navbar = ({ onCitySelect }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [showResults, setShowResults] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const handleSearch = async (e) => {
     const query = e.target.value;
     setSearchQuery(query);
@@ -63,11 +64,27 @@ const Navbar = ({ onCitySelect }) => {
           </div>
         </Link>
 
+        {/* Mobile Menu Button */}
+        <div className="flex items-center gap-2 md:hidden">
+          <Link to="/althala" className="bg-amber-600 text-white p-2 rounded-xl shadow-lg animate-pulse">
+            <span className="text-xl">🐫</span>
+          </Link>
+          <button 
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className="p-2 text-gray-600 hover:bg-gray-100 rounded-xl"
+          >
+            <SafeIcon icon={isMenuOpen ? FiX : FiMenu} className="text-2xl" />
+          </button>
+        </div>
+
         <div className="hidden md:flex items-center gap-8 font-medium text-gray-700">
           <Link to="/" className="hover:text-blue-600 transition-colors">الرئيسية</Link>
+          <Link to="/althala" className="bg-amber-100 text-amber-900 px-4 py-2 rounded-xl font-bold hover:bg-amber-200 transition-all flex items-center gap-2 border border-amber-200 shadow-sm">
+            <span className="text-lg">🐫</span>
+            دليل الظالة
+          </Link>
           <a href="https://www.facebook.com/Beddetiii/" target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 transition-colors">فيسبوك</a>
           <Link to="/forecast" className="hover:text-blue-600 transition-colors">التوقعات الأسبوعية</Link>
-          <a href="#" className="hover:text-blue-600 transition-colors">عن المركز</a>
         </div>
 
         <div className="flex items-center gap-4 relative">
@@ -103,6 +120,23 @@ const Navbar = ({ onCitySelect }) => {
             <SafeIcon icon={FiSearch} className="text-xl" />
           </button>
         </div>
+
+        {/* Mobile Menu */}
+        {isMenuOpen && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute top-full left-0 right-0 bg-white border-b border-gray-100 shadow-xl p-6 flex flex-col gap-4 md:hidden"
+          >
+            <Link to="/" onClick={() => setIsMenuOpen(false)} className="text-gray-700 font-bold p-2 hover:bg-gray-50 rounded-xl">الرئيسية</Link>
+            <Link to="/althala" onClick={() => setIsMenuOpen(false)} className="bg-amber-100 text-amber-900 p-4 rounded-2xl font-black flex items-center justify-center gap-3 border border-amber-200">
+              <span className="text-2xl">🐫</span>
+              دليل الظالة (الماشية)
+            </Link>
+            <Link to="/forecast" onClick={() => setIsMenuOpen(false)} className="text-gray-700 font-bold p-2 hover:bg-gray-50 rounded-xl">التوقعات الأسبوعية</Link>
+            <a href="https://www.facebook.com/Beddetiii/" target="_blank" rel="noopener noreferrer" className="text-blue-600 font-bold p-2 hover:bg-blue-50 rounded-xl">صفحة فيسبوك</a>
+          </motion.div>
+        )}
       </div>
     </nav>
   );

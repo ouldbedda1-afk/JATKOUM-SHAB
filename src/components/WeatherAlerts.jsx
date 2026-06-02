@@ -8,14 +8,14 @@ const WeatherAlerts = () => {
 
   const alerts = [];
 
-  // 1. Check for Rain/Thunderstorms
+  // 1. Check for Current Rain/Thunderstorms
   const rainyCities = citiesWeather.filter(c => c.current.weather_code >= 80 || c.daily.precipitation_sum[0] > 5);
   if (rainyCities.length > 0) {
-    const cityNames = rainyCities.map(c => c.city).join('، ');
+    const cityNames = rainyCities.map(c => `${c.cityType} ${c.city}`).join('، ');
     alerts.push({
-      id: 'rain',
+      id: 'rain-now',
       type: 'danger',
-      title: 'تنبيه عاجل: أمطار وعواصف رعدية',
+      title: 'تنبيه عاجل: أمطار وعواصف رعدية الآن',
       message: `يُرصد حالياً نشاط للسحب الرعدية الممطرة في مناطق: ${cityNames}. يرجى توخي الحذر من الصواعق والسيول.`,
       icon: '⛈️',
       color: 'bg-red-600',
@@ -23,10 +23,37 @@ const WeatherAlerts = () => {
     });
   }
 
+  // 1b. Check for Future Rain (Next 7 days)
+  const futureRainyCities = citiesWeather.map(city => {
+    const rainDays = city.daily.time.filter((t, i) => i > 0 && city.daily.precipitation_sum[i] > 1);
+    if (rainDays.length > 0) {
+      const dates = rainDays.map(t => {
+        const d = new Date(t);
+        return `${d.getDate()}/${d.getMonth() + 1}`;
+      }).join('، ');
+      return { name: city.city, type: city.cityType, dates };
+    }
+    return null;
+  }).filter(Boolean);
+
+  if (futureRainyCities.length > 0) {
+    // Group by dates to make alerts cleaner
+    const alertMsg = futureRainyCities.map(c => `${c.type} ${c.name} (أيام: ${c.dates})`).join(' - ');
+    alerts.push({
+      id: 'rain-future',
+      type: 'success',
+      title: 'توقعات أمطار قادمة',
+      message: `بشائر الخير! تتشير التوقعات إلى هطول أمطار خلال الأيام القادمة في: ${alertMsg}.`,
+      icon: '🌧️',
+      color: 'bg-emerald-600',
+      tags: ['توقعات الأمطار', 'بشائر الخير']
+    });
+  }
+
   // 2. Check for High Temperature
   const hotCities = citiesWeather.filter(c => c.daily.temperature_2m_max[0] >= 42);
   if (hotCities.length > 0) {
-    const cityNames = hotCities.map(c => c.city).join('، ');
+    const cityNames = hotCities.map(c => `${c.cityType} ${c.city}`).join('، ');
     alerts.push({
       id: 'heat',
       type: 'warning',
@@ -41,7 +68,7 @@ const WeatherAlerts = () => {
   // 3. Check for Strong Winds
   const windyCities = citiesWeather.filter(c => c.current.wind_speed_10m >= 35);
   if (windyCities.length > 0) {
-    const cityNames = windyCities.map(c => c.city).join('، ');
+    const cityNames = windyCities.map(c => `${c.cityType} ${c.city}`).join('، ');
     alerts.push({
       id: 'wind',
       type: 'info',

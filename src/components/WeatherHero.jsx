@@ -40,6 +40,16 @@ const WeatherHero = ({ city }) => {
   const rainProb = weatherData.hourly.precipitation_probability[0]; // Current hour prob
   const pressure = Math.round(weatherData.current.pressure_msl);
 
+  const shareOnWhatsApp = () => {
+    const text = `حالة الطقس في ${cityName} الآن:
+- الحرارة: ${temp}°م
+- الحالة: ${condition}
+- احتمال المطر: ${rainProb}%
+- الرياح: ${wind} كم/س
+تابع التوقعات المباشرة عبر موقع جاتكم اسحاب: ${window.location.href}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
   return (
     <div className="relative overflow-hidden rounded-[2rem] p-8 lg:p-12 text-white shadow-2xl mb-8 group">
       {/* Background Image from FB */}
@@ -58,11 +68,18 @@ const WeatherHero = ({ city }) => {
           <motion.div 
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="flex items-center justify-center md:justify-start gap-2 mb-2"
+            className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-2"
           >
             <span className="bg-white/20 px-4 py-1 rounded-full text-xs md:text-sm font-medium backdrop-blur-sm">
               {city.isLocal ? 'موقعك الحالي' : 'رصد حي - موريتانيا'}
             </span>
+            <button 
+              onClick={shareOnWhatsApp}
+              className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 transition-colors shadow-lg"
+            >
+              <span className="text-sm">💬</span>
+              شارك عبر واتساب
+            </button>
           </motion.div>
           <h1 className="text-4xl md:text-7xl font-black mb-4 break-words">{cityName}</h1>
           <p className="text-lg md:text-xl opacity-90 mb-6 font-light">توقعات دقيقة لهطول الأمطار والحرارة</p>
