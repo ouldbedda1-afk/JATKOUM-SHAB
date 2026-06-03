@@ -21,7 +21,7 @@ const NewsTicker = () => {
         
         <div className="flex-1 overflow-hidden relative">
           <motion.div 
-            animate={{ x: ["100%", "-100%"] }}
+            animate={{ x: ["-100%", "100%"] }}
             transition={{ 
               duration: 30, 
               repeat: Infinity, 
