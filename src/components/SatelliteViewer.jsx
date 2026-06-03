@@ -10,6 +10,7 @@ const SatelliteViewer = () => {
   const layers = {
     rain: 'rain',
     clouds: 'clouds',
+    fires: 'fires',
     temp: 'temp',
     wind: 'wind'
   };
@@ -22,8 +23,8 @@ const SatelliteViewer = () => {
             <SafeIcon icon={FiLayers} className="text-xl" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-800">خريطة الأمطار والسحب المباشرة</h2>
-            <p className="text-sm text-gray-500">رصد حي وحصري لكافة مناطق موريتانيا</p>
+            <h2 className="text-xl font-bold text-gray-800">خريطة الرصد المباشر</h2>
+            <p className="text-sm text-gray-500">رصد حي للأمطار، السحب، والحرائق في موريتانيا</p>
           </div>
         </div>
         
@@ -39,6 +40,12 @@ const SatelliteViewer = () => {
             className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${activeLayer === 'clouds' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}
           >
             السحب
+          </button>
+          <button 
+            onClick={() => setActiveLayer('fires')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${activeLayer === 'fires' ? 'bg-white shadow-sm text-red-600' : 'text-gray-500'}`}
+          >
+            🔥 الحرائق
           </button>
           <button 
             onClick={() => setActiveLayer('temp')}
@@ -83,26 +90,26 @@ const SatelliteViewer = () => {
       </div>
       
       <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
-          <h4 className="font-bold text-blue-900 text-xs mb-1 flex items-center gap-1">
-            <span className="w-1 h-1 bg-blue-600 rounded-full"></span>
-            تطور الرياح
+        <div className="bg-red-50/50 p-3 rounded-xl border border-red-100/50">
+          <h4 className="font-bold text-red-900 text-xs mb-1 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse"></span>
+            رصد الحرائق
           </h4>
-          <p className="text-[10px] text-blue-700 leading-tight">هبوب رياح شمالية شرقية جافة على آدرار وتيرس زمور.</p>
+          <p className="text-[10px] text-red-700 leading-tight font-bold">حريق نشط جنوب تمبدغة (25 كلم). المساحة: ~3 هكتارات. الرياح تدفع الدخان جنوباً.</p>
         </div>
         <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
           <h4 className="font-bold text-blue-900 text-xs mb-1 flex items-center gap-1">
-            <span className="w-1 h-1 bg-blue-600 rounded-full"></span>
+            <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
+            تطور السحب
+          </h4>
+          <p className="text-[10px] text-blue-700 leading-tight font-bold">سحب ممطرة جنوب الحوض الشرقي (مالي). لا يتوقع وصولها للمناطق الموريتانية حالياً.</p>
+        </div>
+        <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100/50">
+          <h4 className="font-bold text-amber-900 text-xs mb-1 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 bg-amber-600 rounded-full"></span>
             الرؤية الأفقية
           </h4>
-          <p className="text-[10px] text-blue-700 leading-tight">تأثر الرؤية في الحوضين بسبب الغبار العالق الناتج عن نشاط الرياح.</p>
-        </div>
-        <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
-          <h4 className="font-bold text-blue-900 text-xs mb-1 flex items-center gap-1">
-            <span className="w-1 h-1 bg-blue-600 rounded-full"></span>
-            حالة البحر
-          </h4>
-          <p className="text-[10px] text-blue-700 leading-tight">بحر قليل الاضطراب إلى مضطرب في سواحل نواذيبو ونواكشوط.</p>
+          <p className="text-[10px] text-amber-700 leading-tight font-bold">تأثر الرؤية في محيط تمبدغة بسبب أدخنة الحريق والغبار العالق.</p>
         </div>
       </div>
     </div>

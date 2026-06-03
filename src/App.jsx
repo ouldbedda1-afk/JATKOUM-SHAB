@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
+import NewsTicker from './components/NewsTicker';
 import WeatherHero from './components/WeatherHero';
 import SatelliteViewer from './components/SatelliteViewer';
 import CityGrid from './components/CityGrid';
 import WeeklyForecast from './components/WeeklyForecast';
+import RuralTools from './components/RuralTools';
 import WeatherAlerts from './components/WeatherAlerts';
 import WeatherCharts from './components/WeatherCharts';
 import PrayerTimes from './components/PrayerTimes';
@@ -46,6 +48,7 @@ function Home() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20 overflow-x-hidden" dir="rtl">
       <Navbar onCitySelect={setSelectedCity} />
+      <NewsTicker />
       
       <main className="max-w-7xl mx-auto px-4 mt-4 md:mt-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
@@ -64,6 +67,7 @@ function Home() {
           {/* Sidebar / Extra Info */}
           <div className="lg:col-span-4 space-y-6 md:space-y-8">
             <PrayerTimes city={selectedCity} />
+            <RuralTools />
             <WeeklyForecast city={selectedCity} />
             
             <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-gray-100">
