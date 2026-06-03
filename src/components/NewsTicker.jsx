@@ -11,27 +11,33 @@ const NewsTicker = () => {
   ];
 
   return (
-    <div className="bg-yellow-400 py-2 overflow-hidden border-y border-yellow-500 shadow-sm relative z-40">
+    <div className="bg-yellow-400 py-2 overflow-hidden border-y border-yellow-500 shadow-sm relative z-40" dir="rtl">
       <div className="flex items-center">
-        <div className="bg-red-600 text-white px-3 py-1 text-xs font-black rounded-l-lg mr-2 z-10 whitespace-nowrap shadow-md">
+        {/* كلمة أخبار عاجلة في اليمين وبحجم أكبر */}
+        <div className="bg-red-600 text-white px-6 py-2 text-sm md:text-lg font-black rounded-l-2xl z-50 whitespace-nowrap shadow-xl flex items-center gap-2">
+          <span className="animate-pulse w-2 h-2 bg-white rounded-full"></span>
           أخبار عاجلة
         </div>
-        <motion.div 
-          animate={{ x: [1000, -2000] }}
-          transition={{ 
-            duration: 30, 
-            repeat: Infinity, 
-            ease: "linear" 
-          }}
-          className="flex gap-12 whitespace-nowrap"
-        >
-          {news.map((item, index) => (
-            <span key={index} className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              <span className="w-2 h-2 bg-red-600 rounded-full"></span>
-              {item}
-            </span>
-          ))}
-        </motion.div>
+        
+        <div className="flex-1 overflow-hidden relative">
+          <motion.div 
+            initial={{ x: "-100%" }}
+            animate={{ x: "100%" }}
+            transition={{ 
+               duration: 80, 
+               repeat: Infinity, 
+               ease: "linear" 
+             }}
+            className="flex gap-12 whitespace-nowrap"
+          >
+            {news.map((item, index) => (
+              <span key={index} className="text-sm md:text-base font-black text-gray-900 flex items-center gap-2">
+                <span className="w-2 h-2 bg-red-600 rounded-full"></span>
+                {item}
+              </span>
+            ))}
+          </motion.div>
+        </div>
       </div>
     </div>
   );
