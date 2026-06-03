@@ -50,18 +50,41 @@ const WeatherAlerts = () => {
     });
   }
 
-  // 2. Check for High Temperature
-  const hotCities = citiesWeather.filter(c => c.daily.temperature_2m_max[0] >= 42);
-  if (hotCities.length > 0) {
-    const cityNames = hotCities.map(c => `${c.cityType} ${c.city}`).join('، ');
+  // 2. Check for High Temperature (Today & Tomorrow Combined)
+  const hotCitiesToday = citiesWeather.filter(c => c.daily.temperature_2m_max[0] >= 42);
+  const hotCitiesTomorrow = citiesWeather.filter(c => c.daily.temperature_2m_max[1] >= 42);
+
+  if (hotCitiesToday.length > 0 || hotCitiesTomorrow.length > 0) {
+    let heatMessage = "";
+    let heatTitle = "تحذير: موجة حر شديدة";
+    let heatTags = ["موجة حر"];
+
+    if (hotCitiesToday.length > 0 && hotCitiesTomorrow.length > 0) {
+      const todayNames = hotCitiesToday.map(c => `${c.cityType} ${c.city}`).join('، ');
+      const tomorrowNames = hotCitiesTomorrow.map(c => `${c.cityType} ${c.city}`).join('، ');
+      heatTitle = "تحذير: موجة حر شديدة (اليوم وغداً)";
+      heatMessage = `تشهد مناطق ${todayNames} ارتفاعاً كبيراً اليوم، كما يتوقع استمرار الموجة غداً في مناطق ${tomorrowNames} مع درجات حرارة تتجاوز 42°م. ينصح بشرب السوائل وتجنب الشمس.`;
+      heatTags.push("تنبيه اليوم وغداً");
+    } else if (hotCitiesToday.length > 0) {
+      const todayNames = hotCitiesToday.map(c => `${c.cityType} ${c.city}`).join('، ');
+      heatTitle = "تحذير: موجة حر شديدة (اليوم)";
+      heatMessage = `تشهد مناطق ${todayNames} ارتفاعاً كبيراً في درجات الحرارة "اليوم" تتجاوز 42°م. يرجى شرب السوائل وتجنب الشمس.`;
+      heatTags.push("تنبيه اليوم");
+    } else {
+      const tomorrowNames = hotCitiesTomorrow.map(c => `${c.cityType} ${c.city}`).join('، ');
+      heatTitle = "تحذير: موجة حر مرتقبة (غداً)";
+      heatMessage = `يتوقع أن تشهد مناطق ${tomorrowNames} "غداً" ارتفاعاً ملحوظاً في درجات الحرارة تتجاوز 42°م. يرجى أخذ الحيطة والاستعداد.`;
+      heatTags.push("تنبيه غداً");
+    }
+
     alerts.push({
-      id: 'heat',
+      id: 'heat-alert',
       type: 'warning',
-      title: 'تحذير: موجة حر شديدة',
-      message: `تشهد مناطق ${cityNames} ارتفاعاً كبيراً في درجات الحرارة تتجاوز 42°م. ينصح بتجنب الشمس وشرب السوائل.`,
+      title: heatTitle,
+      message: heatMessage,
       icon: '🔥',
       color: 'bg-orange-600',
-      tags: ['موجة حر', 'تنبيه صحي']
+      tags: heatTags
     });
   }
 
@@ -87,7 +110,7 @@ const WeatherAlerts = () => {
         <div className="relative z-10">
           <h3 className="text-lg font-black mb-2">حالة الطقس مستقرة</h3>
           <p className="text-sm opacity-90 leading-relaxed">
-            لا توجد تنبيهات جوية خطيرة حالياً في عموم ولايات موريتانيا. الأجواء مستقرة بشكل عام مع متابعة مستمرة لأي مستجدات.
+            لا توجد تنبيهات جوية خطيرة حالياً في عموم مقاطعات موريتانيا. الأجواء مستقرة بشكل عام مع متابعة مستمرة لأي مستجدات.
           </p>
         </div>
         <div className="absolute -bottom-2 -left-2 opacity-20">
