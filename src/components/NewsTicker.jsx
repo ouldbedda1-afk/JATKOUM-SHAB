@@ -21,13 +21,12 @@ const NewsTicker = () => {
         
         <div className="flex-1 overflow-hidden relative">
           <motion.div 
-            initial={{ x: "-100%" }}
-            animate={{ x: "100%" }}
+            animate={{ x: ["100%", "-100%"] }}
             transition={{ 
-               duration: 40, 
-               repeat: Infinity, 
-               ease: "linear" 
-             }}
+              duration: 30, 
+              repeat: Infinity, 
+              ease: "linear" 
+            }}
             className="flex gap-12 whitespace-nowrap"
           >
             {news.map((item, index) => (
