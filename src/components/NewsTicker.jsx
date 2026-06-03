@@ -24,7 +24,7 @@ const NewsTicker = () => {
             initial={{ x: "-100%" }}
             animate={{ x: "100%" }}
             transition={{ 
-               duration: 80, 
+               duration: 40, 
                repeat: Infinity, 
                ease: "linear" 
              }}
