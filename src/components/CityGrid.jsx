@@ -36,42 +36,64 @@ const CityGrid = () => {
     );
   }
 
-  return (
-    <div className="mt-12">
-      <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-        <span className="w-2 h-8 bg-blue-600 rounded-full"></span>
-        الطقس في الولايات الرئيسية
-      </h3>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {cities.map((city, idx) => {
-          const temp = Math.round(city.current.temperature_2m);
-          const weatherCode = city.current.weather_code;
-          const condition = getWeatherDescription(weatherCode);
-          const icon = getWeatherIcon(weatherCode);
-          const rainProb = city.hourly.precipitation_probability[0];
+  // فرز المدن حسب درجة الحرارة
+  const sortedCities = [...cities].sort((a, b) => b.current.temperature_2m - a.current.temperature_2m);
+  
+  const hottestCities = sortedCities.slice(0, 3);
+  const coldestCities = [...sortedCities].reverse().slice(0, 3);
 
-          return (
-            <div key={idx} className="bg-white p-5 rounded-[1.5rem] shadow-sm border border-gray-100 hover:shadow-xl hover:border-blue-100 transition-all cursor-pointer group">
-              <div className="flex justify-between items-start mb-4">
-                <p className="text-gray-800 font-bold">{city.city}</p>
-                <span className="text-3xl">{icon}</span>
-              </div>
-              <div className="flex items-end justify-between">
-                <div>
-                  <span className="text-3xl font-black text-gray-900">{temp}°</span>
-                  <p className="text-[11px] text-gray-500 mt-1">{condition}</p>
-                </div>
-                <div className="text-right">
-                  <div className="flex items-center gap-1 text-blue-600">
-                    <SafeIcon icon={FiCloudRain} className="text-sm" />
-                    <span className="text-xs font-bold">{rainProb}%</span>
-                  </div>
-                  <p className="text-[9px] text-gray-400 mt-0.5">احتمال مطر</p>
-                </div>
-              </div>
+  const renderCityCard = (city, idx, isHot) => {
+    const temp = Math.round(city.current.temperature_2m);
+    const weatherCode = city.current.weather_code;
+    const condition = getWeatherDescription(weatherCode);
+    const icon = getWeatherIcon(weatherCode);
+    const rainProb = city.hourly.precipitation_probability[0];
+
+    return (
+      <div key={idx} className={`bg-white p-5 rounded-[1.5rem] shadow-sm border ${isHot ? 'border-orange-100 hover:border-orange-300' : 'border-blue-100 hover:border-blue-300'} hover:shadow-xl transition-all cursor-pointer group`}>
+        <div className="flex justify-between items-start mb-4">
+          <p className="text-gray-800 font-bold">{city.city}</p>
+          <span className="text-3xl">{icon}</span>
+        </div>
+        <div className="flex items-end justify-between">
+          <div>
+            <span className={`text-3xl font-black ${isHot ? 'text-orange-600' : 'text-blue-600'}`}>{temp}°</span>
+            <p className="text-[11px] text-gray-500 mt-1">{condition}</p>
+          </div>
+          <div className="text-right">
+            <div className="flex items-center gap-1 text-blue-600">
+              <SafeIcon icon={FiCloudRain} className="text-sm" />
+              <span className="text-xs font-bold">{rainProb}%</span>
             </div>
-          );
-        })}
+            <p className="text-[9px] text-gray-400 mt-0.5">احتمال مطر</p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="mt-12 space-y-10">
+      {/* الأعلى حرارة */}
+      <div>
+        <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+          <span className="w-2 h-8 bg-orange-500 rounded-full"></span>
+          الولايات الـ 3 الأكثر حرارة الآن 🔥
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {hottestCities.map((city, idx) => renderCityCard(city, idx, true))}
+        </div>
+      </div>
+
+      {/* الأقل حرارة */}
+      <div>
+        <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+          <span className="w-2 h-8 bg-blue-500 rounded-full"></span>
+          الولايات الـ 3 الأكثر برودة الآن ❄️
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {coldestCities.map((city, idx) => renderCityCard(city, idx, false))}
+        </div>
       </div>
     </div>
   );
