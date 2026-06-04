@@ -41,7 +41,7 @@ const NewsTicker = () => {
           <motion.div 
             animate={{ x: ["-100%", "100%"] }}
             transition={{ 
-              duration: 80, 
+              duration: 25, 
               repeat: Infinity, 
               ease: "linear" 
             }}
