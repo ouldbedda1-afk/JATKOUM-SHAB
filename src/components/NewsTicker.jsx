@@ -1,14 +1,32 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { getActiveFires } from '../weatherApi';
 
 const NewsTicker = () => {
-  const news = [
-    "عاجل: رصد حريق غطاء نباتي عبر الأقمار الصناعية يقع على بعد حوالي 25 كلم جنوب مقاطعة تمبدغة، المساحة المتأثرة تقدر بـ 3 هكتارات، يرجى الحذر.",
-    "متابعة: السحب الممطرة في مالي لا تزال بعيدة جنوب الحوض الشرقي، ولا يتوقع أن تساهم في إخماد حريق تمبدغة في الساعات القادمة.",
-    "تنبيه: استمرار موجة الحر على ولايات الشمال وآدرار مع درجات حرارة تلامس 45 درجة.",
+  const [fires, setFires] = useState([]);
+
+  useEffect(() => {
+    const fetchFires = async () => {
+      const activeFires = await getActiveFires();
+      setFires(activeFires);
+    };
+    fetchFires();
+    // تحديث البيانات كل 30 دقيقة
+    const interval = setInterval(fetchFires, 30 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const staticNews = [
+    "تنبيه: استمرار موجة الحر الشديدة (أكثر من 42 درجة) في معظم المقاطعات الجنوبية والشرقية.",
     "جديد: تم تفعيل قسم 'الظالة' لمساعدة المنمين في العثور على مواشيهم المفقودة.",
-    "جاتكم اسحاب: نراقب معكم حركة السحب والحرائق لحظة بلحظة عبر صور الأقمار الصناعية."
+    "جاتكم اسحاب: نراقب معكم حركة السحب والحرائق لحظة بلحظة لضمان سلامة المراعي."
   ];
+
+  const fireNews = fires.length > 0 
+     ? fires.map(f => `عاجل: رصد حريق نشط على بعد ${f.distanceKm} كلم ${f.direction} مقاطعة ${f.nearestCity} (داخل الأراضي الموريتانية).`)
+     : ["لا توجد بلاغات عن حرائق داخل الأراضي الموريتانية حالياً."];
+
+  const allNews = [...fireNews, ...staticNews];
 
   return (
     <div className="bg-yellow-400 py-2 overflow-hidden border-y border-yellow-500 shadow-sm relative z-40" dir="rtl">
@@ -23,13 +41,13 @@ const NewsTicker = () => {
           <motion.div 
             animate={{ x: ["-100%", "100%"] }}
             transition={{ 
-              duration: 30, 
+              duration: 80, 
               repeat: Infinity, 
               ease: "linear" 
             }}
             className="flex gap-12 whitespace-nowrap"
           >
-            {news.map((item, index) => (
+            {allNews.map((item, index) => (
               <span key={index} className="text-sm md:text-base font-black text-gray-900 flex items-center gap-2">
                 <span className="w-2 h-2 bg-red-600 rounded-full"></span>
                 {item}

@@ -1,11 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
+import { getActiveFires } from '../weatherApi';
 
 const { FiLayers, FiMaximize, FiPlayCircle, FiDownload } = FiIcons;
 
 const SatelliteViewer = () => {
   const [activeLayer, setActiveLayer] = useState('rain');
+  const [fires, setFires] = useState([]);
+
+  useEffect(() => {
+    const fetchFires = async () => {
+      const activeFires = await getActiveFires();
+      setFires(activeFires);
+    };
+    fetchFires();
+  }, []);
 
   const layers = {
     rain: 'rain',
@@ -93,23 +103,27 @@ const SatelliteViewer = () => {
         <div className="bg-red-50/50 p-3 rounded-xl border border-red-100/50">
           <h4 className="font-bold text-red-900 text-xs mb-1 flex items-center gap-1">
             <span className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse"></span>
-            رصد الحرائق
+            رصد الحرائق النشطة
           </h4>
-          <p className="text-[10px] text-red-700 leading-tight font-bold">حريق نشط جنوب تمبدغة (25 كلم). المساحة: ~3 هكتارات. الرياح تدفع الدخان جنوباً.</p>
+          <p className="text-[10px] text-red-700 leading-tight font-bold">
+            {fires.length > 0 
+              ? `تم رصد ${fires.length} بؤر حرائق نشطة بالقرب من: ${[...new Set(fires.map(f => f.nearestCity))].join('، ')}.`
+              : "لا توجد بؤر حرائق كبيرة مرصودة حالياً عبر الأقمار الصناعية."}
+          </p>
         </div>
         <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
           <h4 className="font-bold text-blue-900 text-xs mb-1 flex items-center gap-1">
             <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
-            تطور السحب
+            حركة السحب
           </h4>
-          <p className="text-[10px] text-blue-700 leading-tight font-bold">سحب ممطرة جنوب الحوض الشرقي (مالي). لا يتوقع وصولها للمناطق الموريتانية حالياً.</p>
+          <p className="text-[10px] text-blue-700 leading-tight font-bold">سحب ممطرة في مالي لا يتوقع وصولها للمناطق الموريتانية المتضررة من الحرائق حالياً.</p>
         </div>
         <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100/50">
           <h4 className="font-bold text-amber-900 text-xs mb-1 flex items-center gap-1">
             <span className="w-1.5 h-1.5 bg-amber-600 rounded-full"></span>
-            الرؤية الأفقية
+            إنذار موجة الحر
           </h4>
-          <p className="text-[10px] text-amber-700 leading-tight font-bold">تأثر الرؤية في محيط تمبدغة بسبب أدخنة الحريق والغبار العالق.</p>
+          <p className="text-[10px] text-amber-700 leading-tight font-bold">الحرارة تتجاوز 42° في الحوضين ولعصابة، مما يزيد من سرعة انتشار الحرائق.</p>
         </div>
       </div>
     </div>

@@ -1,12 +1,10 @@
 /**
  * Weather API Service - Open-Meteo
- * مجاني وبدون مفتاح API
  */
 
 const OPEN_METEO_API = 'https://api.open-meteo.com/v1/forecast';
 const GEOCODING_API = 'https://geocoding-api.open-meteo.com/v1/search';
 
-// Mauritanian cities coordinates (Wilayas and main Moughataas)
 const mauritanianCities = {
   'نواكشوط': { lat: 18.0735, lon: -15.9582, name: 'Nouakchott', type: 'مقاطعة' },
   'نواذيبو': { lat: 20.9375, lon: -17.0339, name: 'Nouadhibou', type: 'مقاطعة' },
@@ -52,20 +50,93 @@ const mauritanianCities = {
   'ولاته': { lat: 17.2966, lon: -7.0240, name: 'Oualata', type: 'مقاطعة' },
 };
 
-/**
- * جلب بيانات الطقس لمدينة معينة
- */
+function getCardinalDirection(fromLat, fromLon, toLat, toLon) {
+  const dLon = toLon - fromLon;
+  const y = Math.sin(dLon) * Math.cos(toLat);
+  const x = Math.cos(fromLat) * Math.sin(toLat) - Math.sin(fromLat) * Math.cos(toLat) * Math.cos(dLon);
+  const brng = (Math.atan2(y, x) * 180) / Math.PI;
+  const degrees = (brng + 360) % 360;
+
+  if (degrees >= 337.5 || degrees < 22.5) return "شمال";
+  if (degrees >= 22.5 && degrees < 67.5) return "شمال شرقي";
+  if (degrees >= 67.5 && degrees < 112.5) return "شرق";
+  if (degrees >= 112.5 && degrees < 157.5) return "جنوب شرقي";
+  if (degrees >= 157.5 && degrees < 202.5) return "جنوب";
+  if (degrees >= 202.5 && degrees < 247.5) return "جنوب غربي";
+  if (degrees >= 247.5 && degrees < 292.5) return "غرب";
+  if (degrees >= 292.5 && degrees < 337.5) return "شمال غربي";
+  return "";
+}
+
+export async function getActiveFires() {
+  try {
+    const response = await fetch('https://eonet.gsfc.nasa.gov/api/v3/events?category=wildfires&status=open');
+    if (!response.ok) throw new Error('Failed to fetch fires');
+    
+    const data = await response.json();
+    const mauritaniaFires = [];
+
+    const MR_BOUNDS = { minLat: 14.7, maxLat: 27.5, minLon: -17.1, maxLon: -4.8 };
+
+    if (data.events) {
+      for (const event of data.events) {
+        if (event.geometry) {
+          for (const geo of event.geometry) {
+            const [lon, lat] = geo.coordinates;
+            if (lat >= MR_BOUNDS.minLat && lat <= MR_BOUNDS.maxLat && 
+                lon >= MR_BOUNDS.minLon && lon <= MR_BOUNDS.maxLon) {
+              
+              try {
+                const geoCheck = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=en`);
+                const geoData = await geoCheck.json();
+                
+                if (geoData.address && geoData.address.country === 'Mauritania') {
+                  let nearestCity = 'نواكشوط';
+                  let minDistance = Infinity;
+
+                  for (const [name, coords] of Object.entries(mauritanianCities)) {
+                    const dist = Math.sqrt(Math.pow(lat - coords.lat, 2) + Math.pow(lon - coords.lon, 2));
+                    if (dist < minDistance) {
+                      minDistance = dist;
+                      nearestCity = name;
+                    }
+                  }
+
+                  const cityCoords = mauritanianCities[nearestCity];
+                  const direction = getCardinalDirection(cityCoords.lat, cityCoords.lon, lat, lon);
+                  const distanceKm = Math.round(minDistance * 111);
+
+                  mauritaniaFires.push({
+                    id: event.id,
+                    title: event.title,
+                    lat, lon, nearestCity, direction, distanceKm,
+                    date: geo.date
+                  });
+                }
+              } catch (e) {
+                console.warn('Geo check failed');
+              }
+            }
+          }
+        }
+      }
+    }
+    return mauritaniaFires;
+  } catch (error) {
+    console.error('Error fetching fires:', error);
+    return [];
+  }
+}
+
 export async function getWeatherData(city = 'نواكشوط', customCoords = null) {
   try {
     const coords = customCoords || mauritanianCities[city];
-    if (!coords) {
-      throw new Error(`مدينة غير معروفة: ${city}`);
-    }
+    if (!coords) throw new Error(`Unknown city: ${city}`);
 
     const params = new URLSearchParams({
       latitude: coords.lat,
       longitude: coords.lon,
-      current: 'temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m,pressure_msl,weather_code',
+      current: 'temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m,pressure_msl',
       hourly: 'temperature_2m,precipitation_probability',
       daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max',
       timezone: 'Africa/Nouakchott',
@@ -73,9 +144,7 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
     });
 
     const response = await fetch(`${OPEN_METEO_API}?${params}`);
-    if (!response.ok) {
-      throw new Error(`خطأ في API: ${response.statusText}`);
-    }
+    if (!response.ok) throw new Error(`API error: ${response.statusText}`);
 
     const data = await response.json();
     return {
@@ -85,14 +154,11 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
       ...data,
     };
   } catch (error) {
-    console.error('خطأ في جلب بيانات الطقس:', error);
+    console.error('Error fetching weather:', error);
     throw error;
   }
 }
 
-/**
- * جلب بيانات الطقس للمدن الرئيسية في موريتانيا لعرضها في الشبكة
- */
 export async function getAllCitiesWeather() {
   try {
     const mainCities = [
@@ -103,30 +169,21 @@ export async function getAllCitiesWeather() {
     ];
     
     const promises = mainCities.map((city) =>
-      getWeatherData(city).catch((error) => {
-        console.warn(`فشل جلب بيانات ${city}:`, error);
-        return null;
-      })
+      getWeatherData(city).catch(() => null)
     );
 
     const results = await Promise.all(promises);
     return results.filter((result) => result !== null);
   } catch (error) {
-    console.error('خطأ في جلب بيانات جميع المدن:', error);
+    console.error('Error fetching all cities weather:', error);
     throw error;
   }
 }
 
-/**
- * البحث عن مدينة في موريتانيا باستخدام Geocoding API
- */
 export async function searchCities(query) {
   try {
-    if (!query || query.length < 2) {
-      return [];
-    }
+    if (!query || query.length < 2) return [];
 
-    // أولاً البحث في المدن المعرفة مسبقاً (أسرع)
     const localResults = Object.keys(mauritanianCities)
       .filter((city) => city.includes(query))
       .map((city) => ({
@@ -134,7 +191,6 @@ export async function searchCities(query) {
         ...mauritanianCities[city],
       }));
 
-    // ثانياً البحث عبر API العالمي مع تقييده بموريتانيا (MR)
     const params = new URLSearchParams({
       name: query,
       count: '10',
@@ -151,10 +207,9 @@ export async function searchCities(query) {
         name: res.name,
         lat: res.latitude,
         lon: res.longitude,
-        admin1: res.admin1 // المنطقة/الولاية
+        admin1: res.admin1
       }));
 
-    // دمج النتائج وإزالة التكرار
     const allResults = [...localResults];
     remoteResults.forEach(remote => {
       if (!allResults.find(local => local.name === remote.name)) {
@@ -164,47 +219,25 @@ export async function searchCities(query) {
 
     return allResults;
   } catch (error) {
-    console.error('خطأ في البحث عن المدن:', error);
+    console.error('Error searching cities:', error);
     return [];
   }
 }
 
-/**
- * تحويل weather code إلى نص عربي
- */
 export function getWeatherDescription(weatherCode) {
   const descriptions = {
-    0: 'صافي',
-    1: 'غائم جزئياً',
-    2: 'غائم',
-    3: 'غائم جداً',
-    45: 'ضبابي',
-    48: 'ضبابي بتجمد',
-    51: 'رذاذ خفيف',
-    53: 'رذاذ متوسط',
-    55: 'رذاذ كثيف',
-    61: 'مطر خفيف',
-    63: 'مطر متوسط',
-    65: 'مطر كثيف',
-    71: 'ثلج خفيف',
-    73: 'ثلج متوسط',
-    75: 'ثلج كثيف',
-    80: 'زخات خفيفة',
-    81: 'زخات متوسطة',
-    82: 'زخات كثيفة',
-    85: 'زخات ثلجية خفيفة',
-    86: 'زخات ثلجية كثيفة',
-    95: 'رعد وبرق',
-    96: 'رعد وبرق مع برد خفيف',
-    99: 'رعد وبرق مع برد كثيف',
+    0: 'صافي', 1: 'غائم جزئياً', 2: 'غائم', 3: 'غائم جداً',
+    45: 'ضبابي', 48: 'ضبابي بتجمد', 51: 'رذاذ خفيف',
+    53: 'رذاذ متوسط', 55: 'رذاذ كثيف', 61: 'مطر خفيف',
+    63: 'مطر متوسط', 65: 'مطر كثيف', 71: 'ثلج خفيف',
+    73: 'ثلج متوسط', 75: 'ثلج كثيف', 80: 'زخات خفيفة',
+    81: 'زخات متوسطة', 82: 'زخات كثيفة', 85: 'زخات ثلجية خفيفة',
+    86: 'زخات ثلجية كثيفة', 95: 'رعد وبرق',
+    96: 'رعد وبرق مع برد خفيف', 99: 'رعد وبرق مع برد كثيف',
   };
-
   return descriptions[weatherCode] || 'غير معروف';
 }
 
-/**
- * جلب أيقونة الطقس بناءً على weather code
- */
 export function getWeatherIcon(weatherCode) {
   if (weatherCode === 0) return '☀️';
   if (weatherCode === 1 || weatherCode === 2) return '⛅';
