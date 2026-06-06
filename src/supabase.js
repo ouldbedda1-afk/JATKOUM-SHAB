@@ -168,6 +168,44 @@ export async function uploadLivestockAudio(file) {
   }
 }
 
+/**
+ * Rain Reporting Services (تبشيرة مطر)
+ */
+
+// إضافة بلاغ مطر جديد
+export async function addRainReport(report) {
+  try {
+    const { data, error } = await supabase
+      .from('rain_reports')
+      .insert([report]);
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('خطأ في إضافة بلاغ المطر:', error);
+    throw error;
+  }
+}
+
+// جلب بلاغات المطر (آخر 24 ساعة مثلاً)
+export async function getRecentRainReports() {
+  try {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    
+    const { data, error } = await supabase
+      .from('rain_reports')
+      .select('*')
+      .gt('created_at', twentyFourHoursAgo)
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('خطأ في جلب بلاغات المطر:', error);
+    return [];
+  }
+}
+
 // جلب سجل البحث
 export async function getSearchHistory(userId) {
   try {

@@ -224,6 +224,36 @@ export async function searchCities(query) {
   }
 }
 
+/**
+ * جلب حالة البحر (للصيادين) من Open-Meteo Marine API
+ */
+export async function getMarineWeather() {
+  const locations = {
+    'نواذيبو': { lat: 20.93, lon: -17.03 },
+    'نواكشوط': { lat: 18.07, lon: -15.96 }
+  };
+
+  try {
+    const results = await Promise.all(Object.entries(locations).map(async ([city, coords]) => {
+      const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${coords.lat}&longitude=${coords.lon}&current=wave_height&timezone=Africa/Nouakchott`;
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      const height = data.current.wave_height;
+      let status = "هادئ";
+      if (height > 2.5) status = "هائج جداً";
+      else if (height > 1.5) status = "مضطرب";
+      else if (height > 0.8) status = "متوسط";
+
+      return { city, height, status };
+    }));
+    return results;
+  } catch (error) {
+    console.error('Error fetching marine data:', error);
+    return [];
+  }
+}
+
 export function getWeatherDescription(weatherCode) {
   const descriptions = {
     0: 'صافي', 1: 'غائم جزئياً', 2: 'غائم', 3: 'غائم جداً',

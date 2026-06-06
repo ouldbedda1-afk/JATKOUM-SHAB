@@ -1,32 +1,68 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { getActiveFires } from '../weatherApi';
+import { getActiveFires, getAllCitiesWeather } from '../weatherApi';
 
 const NewsTicker = () => {
   const [fires, setFires] = useState([]);
+  const [weatherAlerts, setWeatherAlerts] = useState([]);
+  const [hasClouds, setHasClouds] = useState(false);
 
   useEffect(() => {
-    const fetchFires = async () => {
+    const fetchData = async () => {
+      // جلب الحرائق
       const activeFires = await getActiveFires();
       setFires(activeFires);
+
+      // جلب بيانات الطقس
+      try {
+        const allCities = await getAllCitiesWeather();
+        
+        // التحقق من وجود سحب
+        const detectedClouds = allCities.some(city => city.current.weather_code >= 1);
+        setHasClouds(detectedClouds);
+
+        const alerts = [];
+        allCities.forEach(cityData => {
+          const todayMax = cityData.daily.temperature_2m_max[0];
+          const tomorrowMax = cityData.daily.temperature_2m_max[1];
+          const dayAfterMax = cityData.daily.temperature_2m_max[2];
+
+          // رصد انخفاض ملموس (أكثر من 5 درجات) غداً
+          if (tomorrowMax <= todayMax - 5) {
+            alerts.push(`بشرى: يتوقع انخفاض ملموس في درجات الحرارة غداً في مقاطعة ${cityData.city} لتصل إلى ${tomorrowMax}°م.`);
+          }
+          // رصد انخفاض ملموس بعد غد
+          else if (dayAfterMax <= todayMax - 5) {
+            alerts.push(`توقع: انخفاض في درجات الحرارة يوم بعد غد في مقاطعة ${cityData.city} لتصل إلى ${dayAfterMax}°م.`);
+          }
+        });
+
+        // نأخذ أول 3 تنبيهات فقط لتجنب ازدحام الشريط
+        setWeatherAlerts(alerts.slice(0, 3));
+      } catch (err) {
+        console.error("Error fetching weather for ticker:", err);
+      }
     };
-    fetchFires();
-    // تحديث البيانات كل 30 دقيقة
-    const interval = setInterval(fetchFires, 30 * 60 * 1000);
+
+    fetchData();
+    const interval = setInterval(fetchData, 30 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
   const staticNews = [
     "تنبيه: استمرار موجة الحر الشديدة (أكثر من 42 درجة) في معظم المقاطعات الجنوبية والشرقية.",
     "جديد: تم تفعيل قسم 'الظالة' لمساعدة المنمين في العثور على مواشيهم المفقودة.",
-    "جاتكم اسحاب: نراقب معكم حركة السحب والحرائق لحظة بلحظة لضمان سلامة المراعي."
   ];
 
-  const fireNews = fires.length > 0 
-     ? fires.map(f => `عاجل: رصد حريق نشط على بعد ${f.distanceKm} كلم ${f.direction} مقاطعة ${f.nearestCity} (داخل الأراضي الموريتانية).`)
-     : ["لا توجد بلاغات عن حرائق داخل الأراضي الموريتانية حالياً."];
+  const cloudNews = hasClouds 
+    ? ["جاتكم اسحاب: نراقب معكم حركة السحب والحرائق لحظة بلحظة لضمان سلامة المراعي."]
+    : ["جاتكم اسحاب: نراقب معكم حالة الطقس والحرائق لضمان سلامة المراعي."];
 
-  const allNews = [...fireNews, ...staticNews];
+  const fireNews = fires.length > 0 
+    ? fires.map(f => `عاجل: رصد حريق نشط على بعد ${f.distanceKm} كلم ${f.direction} مقاطعة ${f.nearestCity} (داخل الأراضي الموريتانية).`)
+    : ["لا توجد بلاغات عن حرائق داخل الأراضي الموريتانية حالياً."];
+
+  const allNews = [...fireNews, ...weatherAlerts, ...cloudNews, ...staticNews];
 
   return (
     <div className="bg-yellow-400 py-2 overflow-hidden border-y border-yellow-500 shadow-sm relative z-40" dir="rtl">

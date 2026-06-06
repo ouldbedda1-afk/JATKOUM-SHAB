@@ -1,20 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
-import { getActiveFires } from '../weatherApi';
+import { getActiveFires, getAllCitiesWeather } from '../weatherApi';
+import { getRecentRainReports } from '../supabase';
 
-const { FiLayers, FiMaximize, FiPlayCircle, FiDownload } = FiIcons;
+const { FiLayers, FiMaximize, FiPlayCircle, FiDownload, FiShield } = FiIcons;
 
 const SatelliteViewer = () => {
   const [activeLayer, setActiveLayer] = useState('rain');
   const [fires, setFires] = useState([]);
+  const [rainReports, setRainReports] = useState([]);
+  const [hasClouds, setHasClouds] = useState(false);
 
   useEffect(() => {
-    const fetchFires = async () => {
+    const fetchData = async () => {
+      // جلب الحرائق
       const activeFires = await getActiveFires();
       setFires(activeFires);
+
+      // جلب بلاغات المطر الميدانية
+      const reports = await getRecentRainReports();
+      setRainReports(reports);
+
+      // جلب حالة الطقس للتأكد من وجود سحب أو أمطار
+      try {
+        const weatherData = await getAllCitiesWeather();
+        const detectedClouds = weatherData.some(city => city.current.weather_code >= 1);
+        setHasClouds(detectedClouds);
+      } catch (err) {
+        console.error("Error checking clouds:", err);
+      }
     };
-    fetchFires();
+    fetchData();
+    const interval = setInterval(fetchData, 15 * 60 * 1000); // كل 15 دقيقة
+    return () => clearInterval(interval);
   }, []);
 
   const layers = {
@@ -111,13 +130,15 @@ const SatelliteViewer = () => {
               : "لا توجد بؤر حرائق كبيرة مرصودة حالياً عبر الأقمار الصناعية."}
           </p>
         </div>
-        <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
-          <h4 className="font-bold text-blue-900 text-xs mb-1 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
-            حركة السحب
-          </h4>
-          <p className="text-[10px] text-blue-700 leading-tight font-bold">سحب ممطرة في مالي لا يتوقع وصولها للمناطق الموريتانية المتضررة من الحرائق حالياً.</p>
-        </div>
+        {hasClouds && (
+          <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
+            <h4 className="font-bold text-blue-900 text-xs mb-1 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
+              حركة السحب
+            </h4>
+            <p className="text-[10px] text-blue-700 leading-tight font-bold">سحب ممطرة مرصودة في المنطقة، يرجى متابعة اتجاه حركتها عبر الخريطة.</p>
+          </div>
+        )}
         <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100/50">
           <h4 className="font-bold text-amber-900 text-xs mb-1 flex items-center gap-1">
             <span className="w-1.5 h-1.5 bg-amber-600 rounded-full"></span>
@@ -126,6 +147,38 @@ const SatelliteViewer = () => {
           <p className="text-[10px] text-amber-700 leading-tight font-bold">الحرارة تتجاوز 42° في الحوضين ولعصابة، مما يزيد من سرعة انتشار الحرائق.</p>
         </div>
       </div>
+
+      {/* Field Rain Reports (New) */}
+      {rainReports.length > 0 && (
+        <div className="mt-6 border-t pt-6">
+          <h3 className="text-sm font-black text-gray-800 mb-4 flex items-center gap-2">
+            <SafeIcon icon={FiShield} className="text-blue-600" />
+            تبشيرات المطر الميدانية (آخر 24 ساعة)
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {rainReports.map((report) => (
+              <div key={report.id} className="bg-gray-50 p-3 rounded-2xl border border-gray-100 flex items-start gap-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${report.is_verified ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                  <SafeIcon icon={report.is_verified ? FiCheck : FiCloudRain} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-1">
+                    <span className="font-bold text-xs text-gray-900">{report.city}</span>
+                    {report.is_verified && (
+                      <span className="text-[8px] bg-green-100 text-green-700 px-1 rounded-sm font-bold flex items-center gap-0.5">
+                        <SafeIcon icon={FiShield} className="text-[7px]" />
+                        مؤكد
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-gray-500">مطر {report.rain_intensity}</p>
+                  <p className="text-[9px] text-gray-400 mt-1">{new Date(report.created_at).toLocaleTimeString('ar-SA')}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
