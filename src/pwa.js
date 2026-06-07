@@ -7,12 +7,18 @@
 export async function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     try {
-      const registration = await navigator.serviceWorker.register('/sw.js');
-      console.log('✅ Service Worker تم تسجيله:', registration);
+      const swPath = `${import.meta.env.BASE_URL}sw.js`;
+      const registration = await navigator.serviceWorker.register(swPath);
+      console.log('✅ Service Worker تم تسجيله بنجاح:', registration);
       return registration;
     } catch (error) {
       console.error('❌ خطأ في تسجيل Service Worker:', error);
+      if (window.location.protocol === 'http:' && window.location.hostname !== 'localhost') {
+        console.warn('⚠️ تنبيه: المتصفحات تمنع الـ PWA على بروتوكول HTTP للعناوين الخارجية. يرجى استخدام HTTPS أو localhost.');
+      }
     }
+  } else {
+    console.warn('⚠️ هذا المتصفح لا يدعم Service Worker (PWA)');
   }
 }
 

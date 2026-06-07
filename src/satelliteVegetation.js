@@ -26,15 +26,14 @@ const samplePoints = {
   ],
 };
 
-function getLatestDatasetLink(indexHtml) {
-  const matches = [...indexHtml.matchAll(/MOD_NDVI_16_(\d{4}-\d{2}-\d{2})\.CSV\.gz/g)]
+function getLatestDatasetLinks(indexHtml, count = 2) {
+  return [...indexHtml.matchAll(/MOD_NDVI_16_(\d{4}-\d{2}-\d{2})\.CSV\.gz/g)]
     .map((match) => ({
       date: match[1],
       fileName: `MOD_NDVI_16_${match[1]}.CSV.gz`,
     }))
-    .sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  return matches[0] || null;
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .slice(0, count);
 }
 
 async function gunzipResponse(response) {
@@ -82,42 +81,74 @@ function describeVegetation(ndvi) {
   return { label: 'غطاء نباتي ضعيف جداً', score: 0 };
 }
 
+async function loadNdviGrid(datasetLink) {
+  const dataUrl = `${NEO_NDVI_INDEX_URL}${datasetLink.fileName}`;
+  const dataResponse = await fetch(dataUrl);
+  if (!dataResponse.ok) throw new Error('تعذر جلب ملف NASA NDVI.');
+
+  return {
+    dataUrl,
+    grid: parseNdviGrid(await gunzipResponse(dataResponse)),
+  };
+}
+
+function buildRegionResults(grid, previousGrid = null) {
+  return Object.entries(samplePoints).reduce((acc, [regionName, points]) => {
+    const values = points
+      .map((point) => sampleGrid(grid, point.lat, point.lon))
+      .filter((value) => value !== null);
+    const previousValues = previousGrid
+      ? points
+        .map((point) => sampleGrid(previousGrid, point.lat, point.lon))
+        .filter((value) => value !== null)
+      : [];
+
+    const ndvi = values.length
+      ? values.reduce((sum, value) => sum + value, 0) / values.length
+      : null;
+    const previousNdvi = previousValues.length
+      ? previousValues.reduce((sum, value) => sum + value, 0) / previousValues.length
+      : null;
+    const change = ndvi !== null && previousNdvi !== null ? ndvi - previousNdvi : null;
+    const trend = change === null
+      ? 'غير متاح'
+      : change > 0.03
+        ? 'تحسنت'
+        : change < -0.03
+          ? 'تراجعت'
+          : 'ثابتة';
+    const description = describeVegetation(ndvi);
+
+    acc[regionName] = {
+      ndvi,
+      previousNdvi,
+      change,
+      trend,
+      label: description.label,
+      score: description.score,
+    };
+    return acc;
+  }, {});
+}
+
 export async function getSatelliteVegetationStatus() {
   try {
     const indexResponse = await fetch(NEO_NDVI_INDEX_URL);
     if (!indexResponse.ok) throw new Error('تعذر جلب فهرس NASA NDVI.');
 
-    const latest = getLatestDatasetLink(await indexResponse.text());
+    const [latest, previous] = getLatestDatasetLinks(await indexResponse.text(), 2);
     if (!latest) throw new Error('لا توجد ملفات NDVI في فهرس NASA.');
 
-    const dataUrl = `${NEO_NDVI_INDEX_URL}${latest.fileName}`;
-    const dataResponse = await fetch(dataUrl);
-    if (!dataResponse.ok) throw new Error('تعذر جلب ملف NASA NDVI.');
-
-    const grid = parseNdviGrid(await gunzipResponse(dataResponse));
-    const regions = Object.entries(samplePoints).reduce((acc, [regionName, points]) => {
-      const values = points
-        .map((point) => sampleGrid(grid, point.lat, point.lon))
-        .filter((value) => value !== null);
-      const ndvi = values.length
-        ? values.reduce((sum, value) => sum + value, 0) / values.length
-        : null;
-      const description = describeVegetation(ndvi);
-
-      acc[regionName] = {
-        ndvi,
-        label: description.label,
-        score: description.score,
-      };
-      return acc;
-    }, {});
+    const latestData = await loadNdviGrid(latest);
+    const previousData = previous ? await loadNdviGrid(previous).catch(() => null) : null;
 
     return {
       source: DATASET_NAME,
       date: latest.date,
-      dataUrl,
+      previousDate: previous?.date || null,
+      dataUrl: latestData.dataUrl,
       imageUrl: `https://neo.gsfc.nasa.gov/view.php?datasetId=MOD_NDVI_16&date=${latest.date}`,
-      regions,
+      regions: buildRegionResults(latestData.grid, previousData?.grid || null),
     };
   } catch (error) {
     console.warn('Satellite vegetation unavailable:', error);

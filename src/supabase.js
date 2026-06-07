@@ -1,13 +1,26 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder-key';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
-  console.warn('⚠️ متغيرات Supabase غير محددة. تم استخدام قيم افتراضية لمنع توقف التطبيق.');
+// التحقق من صحة الإعدادات
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey && !supabaseUrl.includes('placeholder'));
+
+if (!isSupabaseConfigured) {
+  console.warn('⚠️ تنبيه: لم يتم العثور على إعدادات Supabase صحيحة في ملف .env. سيتم تعطيل ميزات قاعدة البيانات (البلاغات، المفضلة).');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// إنشاء العميل فقط إذا كانت الإعدادات موجودة، وإلا إنشاء عميل وهمي لمنع الأخطاء القاتلة
+export const supabase = isSupabaseConfigured 
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : { 
+      from: () => ({ 
+        select: () => ({ limit: () => ({ data: [], error: null }), order: () => ({ data: [], error: null }), eq: () => ({ data: [], error: null }), gt: () => ({ data: [], error: null }) }),
+        insert: () => ({ data: null, error: null }),
+        delete: () => ({ eq: () => ({ data: null, error: null }) })
+      }),
+      storage: { from: () => ({ upload: () => ({ error: null }), getPublicUrl: () => ({ data: { publicUrl: '' } }) }) }
+    };
 
 /**
  * Supabase Client Services
@@ -207,6 +220,38 @@ export async function getRecentRainReports() {
 }
 
 // جلب سجل البحث
+export async function addBawahReport(report) {
+  try {
+    const { data, error } = await supabase
+      .from('bawah_reports')
+      .insert([report]);
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('خطأ في إضافة بلاغ البواه:', error);
+    throw error;
+  }
+}
+
+export async function getRecentBawahReports() {
+  try {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data, error } = await supabase
+      .from('bawah_reports')
+      .select('*')
+      .gt('created_at', sevenDaysAgo)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('خطأ في جلب بلاغات البواه:', error);
+    return [];
+  }
+}
+
 export async function getSearchHistory(userId) {
   try {
     const { data, error } = await supabase

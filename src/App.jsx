@@ -13,6 +13,7 @@ import PrayerTimes from './components/PrayerTimes';
 import WeeklyForecastPage from './components/WeeklyForecastPage';
 import AlThalaPage from './components/AlThalaPage';
 import ErrorBoundary from './components/ErrorBoundary';
+import InstallPWA from './components/InstallPWA';
 
 function Home() {
   const [selectedCity, setSelectedCity] = useState("نواكشوط");
@@ -106,6 +107,7 @@ function App() {
   return (
     <ErrorBoundary>
       <Router>
+        <InstallPWA />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/forecast" element={<WeeklyForecastPage />} />
