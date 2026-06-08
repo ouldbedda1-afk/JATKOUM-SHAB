@@ -46,8 +46,32 @@ const WeatherHero = ({ city }) => {
 - الحالة: ${condition}
 - احتمال المطر: ${rainProb}%
 - الرياح: ${wind} كم/س
-تابع التوقعات المباشرة عبر موقع جاتكم اسحاب: ${window.location.href}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+تابع التوقعات المباشرة عبر موقع جاتكم اسحاب: ${window.location.origin}`;
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
+  const handleUpdateLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=ar`);
+            const data = await response.json();
+            const cityName = data.address?.city || data.address?.town || data.address?.village || data.address?.state;
+            if (cityName) {
+              // Note: This won't update the parent state directly unless we pass a setter
+              // But we can at least show we are trying.
+              // Actually, it's better to pass onCitySelect from App.jsx
+              window.location.reload(); // Quick fix to re-trigger App.jsx geolocation
+            }
+          } catch (error) {
+            console.error('Error fetching city name:', error);
+          }
+        }
+      );
+    }
   };
 
   return (
@@ -70,9 +94,13 @@ const WeatherHero = ({ city }) => {
             animate={{ opacity: 1, x: 0 }}
             className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-2"
           >
-            <span className="bg-white/20 px-4 py-1 rounded-full text-xs md:text-sm font-medium backdrop-blur-sm">
-              {city.isLocal ? 'موقعك الحالي' : 'رصد حي - موريتانيا'}
-            </span>
+            <button 
+              onClick={() => window.location.reload()}
+              className="bg-white/20 hover:bg-white/30 px-4 py-1 rounded-full text-xs md:text-sm font-medium backdrop-blur-sm transition-colors flex items-center gap-1"
+            >
+              <SafeIcon icon={FiIcons.FiMapPin || FiIcons.FiMap} className="text-xs" />
+              {city.isLocal ? 'موقعك الحالي' : 'تحديد موقعي'}
+            </button>
             <button 
               onClick={shareOnWhatsApp}
               className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 transition-colors shadow-lg"

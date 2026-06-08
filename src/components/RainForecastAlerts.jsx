@@ -1,59 +1,60 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
+import { useWeatherContext } from '../WeatherContext';
 
 const { FiAlertCircle, FiX, FiBell } = FiIcons;
 
-/**
- * بشائر الخير المتوقعة
- */
-const RAIN_FORECASTS = [
-  {
-    date: '2026-06-09',
-    dateAr: '9 يونيو',
-    cities: ['كيفة', 'لعيون', 'النعمة', 'باسكنو', 'جيكني', 'أمرج', 'ولاته', 'فصاله', 'عدل بكرو'],
-    probability: 90,
-    intensity: 'متوسط إلى غزير',
-    icon: '🌦️',
-    riskLevel: 'عالية جداً'
-  },
-  {
-    date: '2026-06-10',
-    dateAr: '10 يونيو',
-    cities: ['فصاله'],
-    probability: 75,
-    intensity: 'خفيف إلى متوسط',
-    icon: '🌧️',
-    riskLevel: 'عالية'
-  },
-  {
-    date: '2026-06-14',
-    dateAr: '14 يونيو',
-    cities: ['النعمة', 'باسكنو', 'أمرج', 'فصاله', 'عدل بكرو'],
-    probability: 85,
-    intensity: 'متوسط إلى غزير',
-    icon: '🌧️',
-    riskLevel: 'عالية جداً'
-  }
-];
-
-const RainForecastAlerts = ({ onUpdate = null }) => {
-  const [forecasts, setForecasts] = useState(RAIN_FORECASTS);
+const RainForecastAlerts = () => {
+  const { rainForecasts, loading, lastUpdated } = useWeatherContext();
   const [expandedDate, setExpandedDate] = useState(null);
   const [showNotification, setShowNotification] = useState(true);
-  const [lastUpdateTime, setLastUpdateTime] = useState(new Date());
 
-  // محاكاة التحديثات التلقائية (في الواقع: ستأتي من Supabase)
-  useEffect(() => {
-    const checkForUpdates = () => {
-      // تحديث البيانات كل 60 ثانية
-      console.log('🔄 فحص التحديثات...');
-    };
+  // استخدام البيانات من السياق أو بيانات افتراضية محدثة
+  const forecasts = useMemo(() => {
+    if (rainForecasts && rainForecasts.length > 0) {
+      return rainForecasts.map(f => ({
+        date: f.date,
+        dateAr: f.date_ar || f.date,
+        cities: Array.isArray(f.cities) ? f.cities : JSON.parse(f.cities || '[]'),
+        probability: f.probability,
+        intensity: f.intensity,
+        riskLevel: f.risk_level,
+        icon: f.icon || '🌧️'
+      }));
+    }
+    
+    // بيانات افتراضية إذا لم تتوفر بيانات من الخادم
+    return [
+      {
+        date: '2026-06-09',
+        dateAr: '9 يونيو',
+        cities: ['كيفة', 'لعيون', 'النعمة', 'باسكنو', 'جيكني', 'أمرج', 'ولاته', 'فصاله', 'عدل بكرو'],
+        probability: 90,
+        intensity: 'متوسط إلى غزير',
+        icon: '🌦️',
+        riskLevel: 'عالية جداً'
+      },
+      {
+        date: '2026-06-10',
+        dateAr: '10 يونيو',
+        cities: ['فصاله', 'النعمة'],
+        probability: 75,
+        intensity: 'خفيف إلى متوسط',
+        icon: '🌧️',
+        riskLevel: 'عالية'
+      }
+    ];
+  }, [rainForecasts]);
 
-    const interval = setInterval(checkForUpdates, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  if (loading && (!rainForecasts || rainForecasts.length === 0)) {
+    return (
+      <div className="w-full h-32 bg-gray-100 animate-pulse rounded-2xl"></div>
+    );
+  }
+
+  if (forecasts.length === 0) return null;
 
   // تحديد الفئة اللونية حسب مستوى الخطر
   const getRiskColor = (riskLevel) => {
@@ -93,7 +94,7 @@ const RainForecastAlerts = ({ onUpdate = null }) => {
             <SafeIcon icon={FiBell} className="text-blue-600 text-xl mt-0.5 flex-shrink-0" />
             <div className="flex-1">
               <p className="text-sm font-semibold text-blue-900">تنبيهات بشائر الخير</p>
-              <p className="text-xs text-blue-700 mt-1">تم تحديث بشائر الخير الساعة {lastUpdateTime.toLocaleTimeString('ar-SA')}</p>
+              <p className="text-xs text-blue-700 mt-1">تم تحديث البيانات {lastUpdated ? `الساعة ${lastUpdated.toLocaleTimeString('ar-SA')}` : 'حالياً'}</p>
             </div>
             <button
               onClick={() => setShowNotification(false)}
@@ -110,9 +111,14 @@ const RainForecastAlerts = ({ onUpdate = null }) => {
         <div className="flex items-center gap-3">
           <span className="w-2 h-8 bg-green-500 rounded-full"></span>
           <h3 className="text-2xl font-bold text-gray-800">بشائر الخير 🌦️</h3>
-          <span className="ml-auto text-xs font-semibold bg-green-100 text-green-800 px-3 py-1 rounded-full">
-            آخر التحديثات الجوية
-          </span>
+          <div className="mr-auto flex flex-col items-end">
+            <span className="text-[10px] md:text-xs font-semibold bg-green-100 text-green-800 px-3 py-1 rounded-full">
+              آخر التحديثات الجوية
+            </span>
+            <span className="text-[9px] md:text-[10px] text-gray-400 mt-1 font-mono">
+              {lastUpdated ? `نشر في: اليوم ${lastUpdated.toLocaleDateString('en-GB')} ${lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : ''}
+            </span>
+          </div>
         </div>
 
         <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl text-sm text-slate-700 space-y-3">

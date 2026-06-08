@@ -6,8 +6,16 @@ const WeatherCharts = ({ city }) => {
   const cityName = typeof city === 'string' ? city : city.name;
   const { data: weatherData, loading } = useWeather(cityName, typeof city === 'object' ? city : null);
 
-  if (loading || !weatherData) return (
+  if (loading) return (
     <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-gray-100 h-64 animate-pulse"></div>
+  );
+
+  if (!weatherData || weatherData.isFallback) return (
+    <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-gray-100 h-64 flex flex-col items-center justify-center text-center p-8">
+      <div className="text-4xl mb-4">⚠️</div>
+      <h3 className="text-lg font-bold text-gray-800 mb-2">بيانات الرسوم البيانية غير متوفرة</h3>
+      <p className="text-sm text-gray-500">نواجه صعوبة في جلب تفاصيل التوقعات لـ {cityName} حالياً. يرجى المحاولة لاحقاً.</p>
+    </div>
   );
 
   // Extract next 24 hours (with safety checks)

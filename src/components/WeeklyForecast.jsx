@@ -21,7 +21,7 @@ const WeeklyForecast = ({ city }) => {
     );
   }
 
-  if (error || !weatherData) return null;
+  if (error || !weatherData || weatherData.isFallback) return null;
 
   const days = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
   

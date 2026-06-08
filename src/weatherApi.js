@@ -776,6 +776,7 @@ function buildFallbackWeather(city, coords) {
     cityType: coords?.type || 'مدينة',
     latitude: coords?.lat || null,
     longitude: coords?.lon || null,
+    isFallback: true,
     current: {
       temperature_2m: 0,
       weather_code: 0,
