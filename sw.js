@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jatkoum-shab-v1';
+const CACHE_NAME = 'jatkoum-shab-v2'; // تحديث النسخة لإجبار المتصفح على تحميل الكود الجديد
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -8,6 +8,7 @@ const ASSETS_TO_CACHE = [
 
 // تثبيت الـ Service Worker وتخزين الملفات الأساسية
 self.addEventListener('install', (event) => {
+  self.skipWaiting(); // تفعيل النسخة الجديدة فوراً
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS_TO_CACHE);
@@ -18,15 +19,26 @@ self.addEventListener('install', (event) => {
 // تفعيل الـ Service Worker وحذف التخزين القديم
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+    Promise.all([
+      self.clients.claim(), // السيطرة على الصفحات المفتوحة فوراً
+      caches.keys().then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
+            if (cacheName !== CACHE_NAME) {
+              return caches.delete(cacheName);
+            }
+          })
+        );
+      })
+    ])
+  );
+});
+
+// التعامل مع الإشعارات عند الضغط عليها
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.openWindow('/') // فتح الموقع عند الضغط على الإشعار
   );
 });
 
