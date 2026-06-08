@@ -260,7 +260,7 @@ const RainForecastAlerts = () => {
 
       {/* آخر تحديث */}
       <p className="text-xs text-gray-500 text-center mt-4">
-        آخر تحديث: {lastUpdateTime.toLocaleString('ar-SA')}
+        آخر تحديث للبيانات: {lastUpdated ? lastUpdated.toLocaleString('ar-SA') : 'جاري التحديث...'}
       </p>
     </div>
   );

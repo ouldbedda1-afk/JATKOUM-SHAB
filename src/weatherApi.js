@@ -8,7 +8,9 @@ const MARINE_API = import.meta.env.VITE_MARINE_API_URL || 'https://marine-api.op
 const NASA_EONET_API = import.meta.env.VITE_NASA_API_URL || 'https://eonet.gsfc.nasa.gov/api/v3/events';const WEATHERAPI_KEY = import.meta.env.VITE_WEATHERAPI_KEY || ''; // WeatherAPI.com كـ fallback provider
 // إذا حُدِّد Proxy في بيئة البناء، استخدمه لتجميع الطلبات وتقليل 429.
 // بخلاف ذلك، اتصل مباشرةً بـ Open-Meteo.
-const PROXY_URL = import.meta.env.VITE_PROXY_URL ? import.meta.env.VITE_PROXY_URL.replace(/\/$/, '') : '';
+const PROXY_URL = import.meta.env.VITE_PROXY_URL && !import.meta.env.VITE_PROXY_URL.includes('example.workers.dev') 
+  ? import.meta.env.VITE_PROXY_URL.replace(/\/$/, '') 
+  : '';
 
 function buildProxyTarget(sourceUrl) {
   if (!PROXY_URL) return sourceUrl;
