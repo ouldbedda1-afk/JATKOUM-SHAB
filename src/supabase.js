@@ -3,24 +3,43 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// التحقق من صحة الإعدادات
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey && !supabaseUrl.includes('placeholder'));
+// التحقق من صحة الإعدادات - نكون صارمين جداً هنا
+export const isSupabaseConfigured = Boolean(
+  supabaseUrl && 
+  supabaseAnonKey && 
+  supabaseUrl !== 'your_supabase_url_here' &&
+  !supabaseUrl.includes('placeholder') &&
+  supabaseUrl.startsWith('https://')
+);
 
 if (!isSupabaseConfigured) {
   console.warn('⚠️ تنبيه: لم يتم العثور على إعدادات Supabase صحيحة في ملف .env. سيتم تعطيل ميزات قاعدة البيانات (البلاغات، المفضلة).');
 }
 
 // إنشاء العميل فقط إذا كانت الإعدادات موجودة، وإلا إنشاء عميل وهمي لمنع الأخطاء القاتلة
+const createDummyClient = () => {
+  const handler = {
+    get: (target, prop) => {
+      if (prop === 'then') {
+        return (resolve) => resolve({ data: [], error: null });
+      }
+      if (prop === 'storage') {
+        return {
+          from: () => ({
+            upload: () => Promise.resolve({ data: null, error: null }),
+            getPublicUrl: () => ({ data: { publicUrl: '' } })
+          })
+        };
+      }
+      return () => new Proxy({}, handler);
+    }
+  };
+  return new Proxy({}, handler);
+};
+
 export const supabase = isSupabaseConfigured 
   ? createClient(supabaseUrl, supabaseAnonKey)
-  : { 
-      from: () => ({ 
-        select: () => ({ limit: () => ({ data: [], error: null }), order: () => ({ data: [], error: null }), eq: () => ({ data: [], error: null }), gt: () => ({ data: [], error: null }) }),
-        insert: () => ({ data: null, error: null }),
-        delete: () => ({ eq: () => ({ data: null, error: null }) })
-      }),
-      storage: { from: () => ({ upload: () => ({ error: null }), getPublicUrl: () => ({ data: { publicUrl: '' } }) }) }
-    };
+  : createDummyClient();
 
 /**
  * Supabase Client Services
@@ -123,6 +142,7 @@ export async function addLivestockReport(report) {
 
 // جلب جميع البلاغات
 export async function getLivestockReports(type = null) {
+  if (!isSupabaseConfigured) return [];
   try {
     let query = supabase.from('livestock_reports').select('*').order('created_at', { ascending: false });
     
@@ -202,14 +222,17 @@ export async function addRainReport(report) {
 
 // جلب بلاغات المطر (آخر 24 ساعة مثلاً)
 export async function getRecentRainReports() {
+  if (!isSupabaseConfigured) return [];
   try {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     
-    const { data, error } = await supabase
+    let query = supabase
       .from('rain_reports')
       .select('*')
-      .gt('created_at', twentyFourHoursAgo)
       .order('created_at', { ascending: false });
+    
+    query = query.gt('created_at', twentyFourHoursAgo);
+    const { data, error } = await query;
     
     if (error) throw error;
     return data;
@@ -235,14 +258,17 @@ export async function addBawahReport(report) {
 }
 
 export async function getRecentBawahReports() {
+  if (!isSupabaseConfigured) return [];
   try {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('bawah_reports')
       .select('*')
-      .gt('created_at', sevenDaysAgo)
       .order('created_at', { ascending: false });
+    
+    query = query.gt('created_at', sevenDaysAgo);
+    const { data, error } = await query;
 
     if (error) throw error;
     return data;
@@ -281,6 +307,100 @@ export async function getActiveAlerts() {
     return data;
   } catch (error) {
     console.error('خطأ في جلب التنبيهات:', error);
+    throw error;
+  }
+}
+/**
+ * توقعات الأمطار - Rain Forecasts Management
+ */
+
+// إضافة توقعات مطر جديدة (للإدارة فقط)
+export async function addRainForecast(forecast) {
+  if (!isSupabaseConfigured) return null;
+  try {
+    const { data, error } = await supabase
+      .from('rain_forecasts')
+      .insert([{
+        date: forecast.date,
+        date_ar: forecast.dateAr,
+        cities: forecast.cities, // JSON array
+        probability: forecast.probability,
+        intensity: forecast.intensity,
+        risk_level: forecast.riskLevel,
+        icon: forecast.icon,
+      }]);
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('خطأ في إضافة توقعات الأمطار:', error);
+    throw error;
+  }
+}
+
+// جلب توقعات الأمطار القادمة
+export async function getUpcomingRainForecasts() {
+  if (!isSupabaseConfigured) return [];
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    
+    const { data, error } = await supabase
+      .from('rain_forecasts')
+      .select('*')
+      .gte('date', today)
+      .order('date', { ascending: true });
+    
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('خطأ في جلب توقعات الأمطار:', error);
+    return [];
+  }
+}
+
+// مراقبة التغييرات في توقعات الأمطار (real-time updates)
+export function subscribeToRainForecasts(callback) {
+  if (!isSupabaseConfigured) return null;
+  
+  return supabase
+    .from('rain_forecasts')
+    .on('*', payload => {
+      console.log('🔔 تحديث جديد في توقعات الأمطار:', payload);
+      callback(payload);
+    })
+    .subscribe();
+}
+
+// تحديث توقعات مطر موجودة
+export async function updateRainForecast(forecastId, updates) {
+  if (!isSupabaseConfigured) return null;
+  try {
+    const { data, error } = await supabase
+      .from('rain_forecasts')
+      .update(updates)
+      .eq('id', forecastId);
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('خطأ في تحديث توقعات الأمطار:', error);
+    throw error;
+  }
+}
+
+// حذف توقعات مطر منتهية
+export async function deleteRainForecast(forecastId) {
+  if (!isSupabaseConfigured) return null;
+  try {
+    const { error } = await supabase
+      .from('rain_forecasts')
+      .delete()
+      .eq('id', forecastId);
+    
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('خطأ في حذف توقعات الأمطار:', error);
     throw error;
   }
 }

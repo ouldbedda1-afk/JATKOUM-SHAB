@@ -8,12 +8,15 @@ import CityGrid from './components/CityGrid';
 import WeeklyForecast from './components/WeeklyForecast';
 import RuralTools from './components/RuralTools';
 import WeatherAlerts from './components/WeatherAlerts';
+import RainForecastAlerts from './components/RainForecastAlerts';
 import WeatherCharts from './components/WeatherCharts';
 import PrayerTimes from './components/PrayerTimes';
 import WeeklyForecastPage from './components/WeeklyForecastPage';
 import AlThalaPage from './components/AlThalaPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import InstallPWA from './components/InstallPWA';
+import { sendLocalNotification } from './pwa';
+import { WeatherProvider } from './WeatherContext';
 
 function Home() {
   const [selectedCity, setSelectedCity] = useState("نواكشوط");
@@ -26,7 +29,7 @@ function Home() {
           try {
             const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=ar`);
             const data = await response.json();
-            const cityName = data.address.city || data.address.town || data.address.village || data.address.state;
+            const cityName = data.address?.city || data.address?.town || data.address?.village || data.address?.state;
             if (cityName) {
               setSelectedCity({
                 name: cityName,
@@ -46,13 +49,40 @@ function Home() {
     }
   }, []);
 
+  useEffect(() => {
+    // التحقق من تحديثات التطبيق (Service Worker)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(registration => {
+        if (!registration) return;
+        
+        registration.onupdatefound = () => {
+          const installingWorker = registration.installing;
+          if (installingWorker) {
+            installingWorker.onstatechange = () => {
+              if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // يوجد تحديث جديد للكود
+                sendLocalNotification('تحديث جديد متاح', {
+                  body: 'تم تحديث تطبيق جاتكم اسحاب لنسخة أحدث. يرجى إعادة تحميل الصفحة.',
+                  tag: 'app-update'
+                });
+              }
+            };
+          }
+        };
+      });
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50 pb-20 overflow-x-hidden" dir="rtl">
       <Navbar onCitySelect={setSelectedCity} />
       <NewsTicker />
       
       <main className="max-w-7xl mx-auto px-4 mt-4 md:mt-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
+        {/* توقعات الأمطار القادمة - عرض بارز في الأعلى */}
+        <RainForecastAlerts />
+        
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 mt-6">
           {/* Main Content */}
           <div className="lg:col-span-8 space-y-6 md:space-y-8">
             <WeatherHero city={selectedCity} />
@@ -106,14 +136,16 @@ function Home() {
 function App() {
   return (
     <ErrorBoundary>
-      <Router>
-        <InstallPWA />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/forecast" element={<WeeklyForecastPage />} />
-          <Route path="/althala" element={<AlThalaPage />} />
-        </Routes>
-      </Router>
+      <WeatherProvider>
+        <Router>
+          <InstallPWA />
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/forecast" element={<WeeklyForecastPage />} />
+            <Route path="/althala" element={<AlThalaPage />} />
+          </Routes>
+        </Router>
+      </WeatherProvider>
     </ErrorBoundary>
   );
 }

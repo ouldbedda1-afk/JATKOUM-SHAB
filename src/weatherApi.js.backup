@@ -3,47 +3,15 @@
  * محسّن لمنع خطأ 429 (Too Many Requests)
  */
 
-const OPEN_METEO_API = import.meta.env.VITE_OPENMETEO_API || 'https://api.open-meteo.com/v1/forecast';
-const MARINE_API = import.meta.env.VITE_MARINE_API_URL || 'https://marine-api.open-meteo.com/v1/marine';
-const NASA_EONET_API = import.meta.env.VITE_NASA_API_URL || 'https://eonet.gsfc.nasa.gov/api/v3/events';const WEATHERAPI_KEY = import.meta.env.VITE_WEATHERAPI_KEY || ''; // WeatherAPI.com كـ fallback provider
-// إذا حُدِّد Proxy في بيئة البناء، استخدمه لتجميع الطلبات وتقليل 429.
-// بخلاف ذلك، اتصل مباشرةً بـ Open-Meteo.
-const PROXY_URL = import.meta.env.VITE_PROXY_URL ? import.meta.env.VITE_PROXY_URL.replace(/\/$/, '') : '';
-
-function buildProxyTarget(sourceUrl) {
-  if (!PROXY_URL) return sourceUrl;
-  return `${PROXY_URL}/proxy?url=${encodeURIComponent(sourceUrl)}`;
-}
+const OPEN_METEO_API = 'https://api.open-meteo.com/v1/forecast';
 
 // --- Cache في الذاكرة (يُمسح عند إعادة التحميل) ---
 const memoryCache = new Map();
 
 // --- Cache دائم في localStorage (يبقى بعد إعادة التحميل) ---
 const LS_PREFIX = 'wx_cache_';
-const DAILY_LIMIT_KEY = `${LS_PREFIX}daily_limit_blocked`;
 const CACHE_DURATION = 60 * 60 * 1000; // زيادة المدة إلى ساعة كاملة لتقليل الطلبات
 const STALE_DURATION = 24 * 60 * 60 * 1000; // إمكانية استخدام بيانات قديمة لمدة يوم عند تعطل الـ API
-
-function isDailyLimitBlocked() {
-  try {
-    const ts = Number(localStorage.getItem(DAILY_LIMIT_KEY));
-    return ts && (Date.now() - ts) < DAILY_LIMIT_RECOVERY_TIME;
-  } catch {
-    return false;
-  }
-}
-
-function markDailyLimitBlocked() {
-  try {
-    localStorage.setItem(DAILY_LIMIT_KEY, String(Date.now()));
-  } catch {}
-}
-
-function clearDailyLimitBlock() {
-  try {
-    localStorage.removeItem(DAILY_LIMIT_KEY);
-  } catch {}
-}
 
 // --- حماية من الطلبات المتزامنة المتعددة لنفس المفتاح ---
 const pendingRequests = new Map();
@@ -51,19 +19,12 @@ const pendingRequests = new Map();
 // --- Circuit Breaker - حماية عند تكرار 429 ---
 let isCircuitOpen = false;
 let circuitOpenTime = 0;
-let currentCircuitDuration = 5 * 60 * 1000;
 const CIRCUIT_RECOVERY_TIME = 5 * 60 * 1000; // زيادة مدة الانتظار إلى 5 دقائق عند الحظر
-const DAILY_LIMIT_RECOVERY_TIME = 24 * 60 * 60 * 1000;
 
 function checkCircuit() {
-  if (isDailyLimitBlocked()) {
-    return false;
-  }
-
   if (isCircuitOpen) {
-    if (Date.now() - circuitOpenTime > currentCircuitDuration) {
+    if (Date.now() - circuitOpenTime > CIRCUIT_RECOVERY_TIME) {
       isCircuitOpen = false;
-      clearDailyLimitBlock();
       console.log('🔄 Circuit Breaker: محاولة إعادة الاتصال...');
       return true;
     }
@@ -72,19 +33,10 @@ function checkCircuit() {
   return true;
 }
 
-function openCircuit(durationMs = CIRCUIT_RECOVERY_TIME) {
+function openCircuit() {
   isCircuitOpen = true;
   circuitOpenTime = Date.now();
-  currentCircuitDuration = durationMs;
-  if (durationMs === DAILY_LIMIT_RECOVERY_TIME) {
-    markDailyLimitBlocked();
-  }
-  const minutes = Math.round(durationMs / 60000);
-  console.error(`🚫 Circuit Breaker: تم تفعيل وضع الحماية بسبب تجاوز حد الطلبات. سيتم إيقاف الطلبات لمدة ${minutes} دقيقة${minutes === 1 ? '' : 'ات'}.`);
-}
-
-function isDailyLimitMessage(message) {
-  return /Daily API request limit exceeded|request limit exceeded|too many requests/i.test(message);
+  console.error('🚫 Circuit Breaker: تم تفعيل وضع الحماية بسبب تكرار خطأ 429. سيتم إيقاف الطلبات لمدة 5 دقائق.');
 }
 
 function lsGet(key, allowStale = false) {
@@ -153,7 +105,7 @@ export function clearWeatherCache() {
 
 // --- Global Request Manager ---
 let lastRequestTime = 0;
-const MIN_REQUEST_GAP = 2000; // فجوة 2 ثانية بين الطلبات
+const MIN_REQUEST_GAP = 1000; // فجوة 1 ثانية بين الطلبات
 
 async function waitForRateLimit() {
   const now = Date.now();
@@ -163,37 +115,6 @@ async function waitForRateLimit() {
     await new Promise(r => setTimeout(r, wait));
   }
   lastRequestTime = Date.now();
-}
-
-// --- Simple concurrency limiter to avoid burst requests ---
-let concurrentRequests = 0;
-const MAX_CONCURRENT_REQUESTS = 1; // طلب واحد في كل مرة لتفادي 429
-const requestQueue = [];
-
-function acquireSlot() {
-  if (concurrentRequests < MAX_CONCURRENT_REQUESTS) {
-    concurrentRequests++;
-    return Promise.resolve();
-  }
-  return new Promise(resolve => requestQueue.push(resolve));
-}
-
-function releaseSlot() {
-  concurrentRequests = Math.max(0, concurrentRequests - 1);
-  if (requestQueue.length > 0) {
-    const next = requestQueue.shift();
-    concurrentRequests++;
-    next();
-  }
-}
-
-async function enqueueFetch(url, options) {
-  await acquireSlot();
-  try {
-    return await fetchWithRetry(url, options);
-  } finally {
-    releaseSlot();
-  }
 }
 
 /**
@@ -213,30 +134,6 @@ async function fetchWithRetry(url, options = {}, retries = 3, backoff = 3000) {
     const response = await fetch(url, options);
 
     if (response.status === 429) {
-      const bodyText = await response.text();
-      const parsedMessage = (() => {
-        try {
-          const json = JSON.parse(bodyText);
-          return json.reason || json.error || bodyText;
-        } catch {
-          return bodyText;
-        }
-      })();
-
-      const isDailyLimit = isDailyLimitMessage(parsedMessage);
-      if (isDailyLimit) {
-        openCircuit(DAILY_LIMIT_RECOVERY_TIME);
-        throw new Error('Daily API request limit exceeded');
-      }
-
-      // Respect Retry-After header if present
-      const ra = response.headers && response.headers.get ? response.headers.get('Retry-After') : null;
-      if (ra) {
-        const raMs = Number(ra) * 1000 || backoff;
-        console.warn(`⚠️ 429 — Retry-After header: ${ra}s, waiting ${raMs}ms`);
-        await new Promise(r => setTimeout(r, raMs + Math.random() * 1000));
-      }
-
       if (retries > 0) {
         const wait = backoff + Math.random() * 1000;
         console.warn(`⚠️ 429 — إعادة المحاولة بعد ${Math.round(wait)}ms (${retries} محاولات متبقية)`);
@@ -250,8 +147,8 @@ async function fetchWithRetry(url, options = {}, retries = 3, backoff = 3000) {
 
     return response;
   } catch (error) {
-    if (error.message && error.message.includes('Too Many Requests')) throw error;
-
+    if (error.message.includes('Too Many Requests')) throw error;
+    
     if (retries > 0) {
       await new Promise(r => setTimeout(r, backoff));
       return fetchWithRetry(url, options, retries - 1, backoff * 2);
@@ -323,71 +220,6 @@ export async function searchCities(query) {
     }));
 }
 
-/**
- * جلب البيانات من WeatherAPI.com كـ fallback provider
- * تحويل الاستجابة إلى صيغة مشابهة للـ Open-Meteo للتوافقية
- */
-async function fetchFromWeatherAPI(lat, lon, cityName = '') {
-  if (!WEATHERAPI_KEY) throw new Error('WeatherAPI key not configured');
-  
-  try {
-    const url = `https://api.weatherapi.com/v1/forecast.json?key=${WEATHERAPI_KEY}&q=${lat},${lon}&days=7&aqi=no`;
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error(`WeatherAPI error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const current = data.current;
-    const forecast = data.forecast;
-
-    // تحويل إلى صيغة Open-Meteo
-    const result = {
-      latitude: lat,
-      longitude: lon,
-      timezone: data.location.tz_id,
-      current: {
-        temperature_2m: current.temp_c,
-        weather_code: current.condition.code, // WeatherAPI code
-        wind_speed_10m: current.wind_kph,
-        relative_humidity_2m: current.humidity,
-        pressure_msl: current.pressure_mb,
-      },
-      hourly: {
-        time: [],
-        temperature_2m: [],
-        precipitation_probability: [],
-      },
-      daily: {
-        time: [],
-        weather_code: [],
-        temperature_2m_max: [],
-        temperature_2m_min: [],
-        precipitation_sum: [],
-        wind_speed_10m_max: [],
-      }
-    };
-
-    // ملء البيانات اليومية من التوقع
-    if (forecast && forecast.forecastday) {
-      forecast.forecastday.forEach((day) => {
-        result.daily.time.push(day.date);
-        result.daily.weather_code.push(day.day.condition.code);
-        result.daily.temperature_2m_max.push(day.day.maxtemp_c);
-        result.daily.temperature_2m_min.push(day.day.mintemp_c);
-        result.daily.precipitation_sum.push(day.day.totalprecip_mm);
-        result.daily.wind_speed_10m_max.push(day.day.maxwind_kph);
-      });
-    }
-
-    return result;
-  } catch (error) {
-    console.warn('⚠️ WeatherAPI fetch failed:', error.message);
-    throw error;
-  }
-}
-
 function getCardinalDirection(fromLat, fromLon, toLat, toLon) {
   const dLon = toLon - fromLon;
   const y = Math.sin(dLon) * Math.cos(toLat);
@@ -414,9 +246,7 @@ export async function getActiveFires() {
 
   const promise = (async () => {
     try {
-      const nasaUrl = `${NASA_EONET_API}?category=wildfires&status=open`;
-      const target = buildProxyTarget(nasaUrl);
-      const response = await enqueueFetch(target);
+      const response = await fetchWithRetry('https://eonet.gsfc.nasa.gov/api/v3/events?category=wildfires&status=open');
       if (!response.ok) throw new Error('Failed to fetch fires');
 
       const data = await response.json();
@@ -474,18 +304,13 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
   
   const cacheKey = customCoords ? `coord_${lat}_${lon}` : `city_${city}`;
 
-  const allowStale = isCircuitOpen || isDailyLimitBlocked();
-  const cached = getCached(cacheKey, allowStale);
+  // Cache أولاً (مع السماح ببيانات قديمة إذا كان الـ Circuit مفتوحاً)
+  const cached = getCached(cacheKey, isCircuitOpen);
   if (cached) return cached;
 
-  if (allowStale) {
-    const stale = getCached(cacheKey, true);
-    if (stale) return stale;
-    return buildFallbackWeather(city, customCoords || mauritanianCities[city] || { lat: null, lon: null, name: city, type: 'مدينة' });
+  if (isCircuitOpen) {
+    throw new Error('Too Many Requests (Circuit Open)');
   }
-
-  // منع الطلبات المتزامنة لنفس المفتاح
-  if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey);
 
   const promise = (async () => {
     try {
@@ -500,12 +325,10 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
         daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max',
         timezone: 'Africa/Nouakchott',
         temperature_unit: 'celsius',
-        forecast_days: 7,
+        forecast_days: 7, // ضمان جلب 7 أيام دائماً حتى في الطلبات الفردية
       });
 
-      const sourceUrl = `${OPEN_METEO_API}?${params}`;
-      const target = buildProxyTarget(sourceUrl);
-      const response = await enqueueFetch(target);
+      const response = await fetchWithRetry(`${OPEN_METEO_API}?${params}`);
       if (!response.ok) throw new Error(`API error: ${response.statusText}`);
 
       const data = await response.json();
@@ -521,38 +344,8 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
       }
       return result;
     } catch (error) {
-      console.error('Error fetching weather from Open-Meteo:', error);
-      const isDailyLimitError = error.message && error.message.includes('Daily API request limit exceeded');
-      const isTooManyRequests = error.message && error.message.includes('Too Many Requests');
-      
-      // إذا كان الخطأ بسبب daily limit، حاول WeatherAPI كـ fallback
-      if ((isDailyLimitError || isTooManyRequests || isDailyLimitBlocked()) && WEATHERAPI_KEY) {
-        try {
-          console.log(`🔄 Attempting WeatherAPI fallback for ${city}...`);
-          const coords = customCoords || mauritanianCities[city];
-          const weatherAPIData = await fetchFromWeatherAPI(coords.lat, coords.lon, city);
-          const result = {
-            city,
-            cityEn: coords.name,
-            cityType: coords.type || 'مدينة',
-            source: 'weatherapi',
-            ...weatherAPIData,
-          };
-          setCached(cacheKey, result);
-          return result;
-        } catch (weatherAPIError) {
-          console.warn('⚠️ WeatherAPI fallback also failed:', weatherAPIError.message);
-          // Fall through to cache/fallback logic
-        }
-      }
-      
-      // Last resort: use cached/fallback data
-      const staleFallback = getCached(cacheKey, true);
-      if (staleFallback) {
-        console.warn(`📜 Using stale weather data for ${city} due to API failure`);
-        return staleFallback;
-      }
-      return buildFallbackWeather(city, customCoords || mauritanianCities[city] || { lat: null, lon: null, name: city, type: 'مدينة' });
+      console.error('Error fetching weather:', error);
+      throw error;
     } finally {
       pendingRequests.delete(cacheKey);
     }
@@ -579,12 +372,9 @@ export async function getAllCitiesWeather() {
     return cached;
   }
 
-  if (isCircuitOpen || isDailyLimitBlocked()) {
-    return lsGet(cacheKey, true) || getFallbackCitiesWeather(mainCities);
+  if (isCircuitOpen) {
+    return lsGet(cacheKey, true) || []; // إرجاع Stale أو مصفوفة فارغة
   }
-
-  // منع الطلبات المتزامنة لنفس المفتاح
-  if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey);
 
   const promise = (async () => {
     try {
@@ -602,22 +392,12 @@ export async function getAllCitiesWeather() {
         forecast_days: 7, // نحتاج 7 أيام للتوقعات الأسبوعية
       });
 
-      const sourceUrl = `${OPEN_METEO_API}?${params}`;
-      const target = buildProxyTarget(sourceUrl);
-      const response = await enqueueFetch(target);
-      if (!response.ok) {
-        throw new Error(`API error: ${response.statusText}`);
-      }
+      const response = await fetchWithRetry(`${OPEN_METEO_API}?${params}`);
+      if (!response.ok) throw new Error(`API error: ${response.statusText}`);
 
       const data = await response.json();
-      const dataItems = Array.isArray(data) ? data : [data];
 
-      // إذا كانت الاستجابة غير متوقعة، نجرب الاسترجاع بالمدينة الواحدة
-      if (dataItems.length !== mainCities.length || dataItems.some(item => !item.current)) {
-        throw new Error('Invalid batch weather response');
-      }
-
-      const results = dataItems.map((item, index) => {
+      const results = (Array.isArray(data) ? data : [data]).map((item, index) => {
         const cityName = mainCities[index];
         const coords = mauritanianCities[cityName];
         return {
@@ -630,50 +410,15 @@ export async function getAllCitiesWeather() {
 
       if (results.length > 0) {
         setCached(cacheKey, results);
+        // تخزين نسخة Stale دائمة للطوارئ
         lsSet(cacheKey + '_stale', results);
       }
       return results;
     } catch (error) {
-      console.warn('Batch weather request failed:', error.message);
-      const isDailyLimitError = error.message && (
-        error.message.includes('Daily API request limit exceeded') ||
-        error.message.includes('Too Many Requests') ||
-        isDailyLimitBlocked()
-      );
-
-      if (isDailyLimitError) {
-        console.log('🚫 Daily limit hit, using stale/fallback data');
-        const cachedFallback = lsGet(cacheKey, true) || lsGet(cacheKey + '_stale');
-        if (cachedFallback) {
-          console.log(`✅ Returning cached weather for ${mainCities.length} cities`);
-          return cachedFallback;
-        }
-        return getFallbackCitiesWeather(mainCities);
-      }
-
-      // Non-daily-limit error: try individual city fetches
-      console.log('⚠️ Batch failed, trying individual cities via fallback logic...');
-      
-      const results = [];
-      for (const cityName of mainCities) {
-        try {
-          const cityData = await getWeatherData(cityName);
-          results.push(cityData);
-        } catch (err) {
-          console.warn(`Failed to fetch weather for ${cityName}:`, err.message);
-          results.push(buildFallbackWeather(cityName, mauritanianCities[cityName]));
-        }
-        await new Promise(r => setTimeout(r, 200)); // صغيرة pause بين الطلبات
-      }
-
-      if (results.length > 0) {
-        setCached(cacheKey, results);
-        lsSet(cacheKey + '_stale', results);
-        return results;
-      }
-
       console.error('Error fetching all cities weather:', error);
-      return lsGet(cacheKey, true) || lsGet(cacheKey + '_stale') || getFallbackCitiesWeather(mainCities);
+      // إرجاع cache قديم إن وُجد بدل الفشل الكامل (Stale)
+      return lsGet(cacheKey, true) || lsGet(cacheKey + '_stale') || [];
+    } finally {
       pendingRequests.delete(cacheKey);
     }
   })();
@@ -689,69 +434,35 @@ export async function getMarineWeather() {
 
   if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey);
 
-  const locations = {
-    'نواذيبو': { lat: 20.93, lon: -17.03 },
-    'نواكشوط': { lat: 18.07, lon: -15.96 }
-  };
-
-  const buildStatusFromWind = (windSpeed) => {
-    const height = Math.round(Math.min(4.0, windSpeed * 0.25) * 10) / 10;
-    let status = 'هادئ';
-    if (windSpeed > 15) status = 'هائج جداً';
-    else if (windSpeed > 10) status = 'مضطرب';
-    else if (windSpeed > 6) status = 'متوسط';
-    return { height, status };
-  };
-
-  const fallbackMarine = async () => {
-    const estimates = [];
-    for (const [city, coords] of Object.entries(locations)) {
-      try {
-        const weather = await getWeatherData(city, coords);
-        const currentWind = weather.current?.wind_speed_10m ?? 0;
-        const { height, status } = buildStatusFromWind(currentWind);
-        estimates.push({ city, height, status });
-      } catch (err) {
-        console.warn(`⚠️ marine fallback failed for ${city}:`, err.message);
-      }
-    }
-    return estimates;
-  };
-
   const promise = (async () => {
+    const locations = {
+      'نواذيبو': { lat: 20.93, lon: -17.03 },
+      'نواكشوط': { lat: 18.07, lon: -15.96 }
+    };
+
     try {
       const lats = Object.values(locations).map(c => c.lat).join(',');
       const lons = Object.values(locations).map(c => c.lon).join(',');
 
-      const url = `${MARINE_API}?latitude=${lats}&longitude=${lons}&current=wave_height&timezone=Africa/Nouakchott`;
-      const target = buildProxyTarget(url);
-      const response = await enqueueFetch(target);
-
-      if (!response.ok) {
-        throw new Error('Marine API error');
-      }
+      const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${lats}&longitude=${lons}&current=wave_height&timezone=Africa/Nouakchott`;
+      const response = await fetchWithRetry(url);
+      if (!response.ok) throw new Error('Marine API error');
 
       const data = await response.json();
       const dataArray = Array.isArray(data) ? data : [data];
 
       const results = Object.keys(locations).map((city, index) => {
-        const height = dataArray[index]?.current?.wave_height ?? 0;
-        let status = 'هادئ';
-        if (height > 2.5) status = 'هائج جداً';
-        else if (height > 1.5) status = 'مضطرب';
-        else if (height > 0.8) status = 'متوسط';
+        const height = dataArray[index].current.wave_height;
+        let status = "هادئ";
+        if (height > 2.5) status = "هائج جداً";
+        else if (height > 1.5) status = "مضطرب";
+        else if (height > 0.8) status = "متوسط";
         return { city, height, status };
       });
 
       setCached(cacheKey, results);
       return results;
     } catch (error) {
-      console.warn('⚠️ Marine API failed، استخدام fallback عبر بيانات الرياح الساحلية');
-      const fallback = await fallbackMarine();
-      if (fallback.length > 0) {
-        setCached(cacheKey, fallback);
-        return fallback;
-      }
       console.error('Error fetching marine weather:', error);
       return [];
     } finally {
@@ -761,46 +472,6 @@ export async function getMarineWeather() {
 
   pendingRequests.set(cacheKey, promise);
   return promise;
-}
-
-function buildFallbackWeather(city, coords) {
-  const now = new Date();
-  const dailyTime = Array.from({ length: 7 }, (_, i) => {
-    const date = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
-    return date.toISOString().slice(0, 10);
-  });
-
-  return {
-    city,
-    cityEn: coords?.name || city,
-    cityType: coords?.type || 'مدينة',
-    latitude: coords?.lat || null,
-    longitude: coords?.lon || null,
-    current: {
-      temperature_2m: 0,
-      weather_code: 0,
-      wind_speed_10m: 0,
-      relative_humidity_2m: 0,
-      pressure_msl: 1013,
-    },
-    hourly: {
-      time: Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`),
-      temperature_2m: Array(24).fill(0),
-      precipitation_probability: Array(24).fill(0),
-    },
-    daily: {
-      time: dailyTime,
-      weather_code: Array(7).fill(0),
-      temperature_2m_max: Array(7).fill(0),
-      temperature_2m_min: Array(7).fill(0),
-      precipitation_sum: Array(7).fill(0),
-      wind_speed_10m_max: Array(7).fill(0),
-    },
-  };
-}
-
-function getFallbackCitiesWeather(cityNames) {
-  return cityNames.map(cityName => buildFallbackWeather(cityName, mauritanianCities[cityName] || { lat: null, lon: null, name: cityName, type: 'مقاطعة' }));
 }
 
 export const getWeatherDescription = (code) => {

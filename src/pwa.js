@@ -10,6 +10,10 @@ export async function registerServiceWorker() {
       const swPath = `${import.meta.env.BASE_URL}sw.js`;
       const registration = await navigator.serviceWorker.register(swPath);
       console.log('✅ Service Worker تم تسجيله بنجاح:', registration);
+      
+      // طلب إذن الإشعارات فور التسجيل
+      requestNotificationPermission();
+      
       return registration;
     } catch (error) {
       console.error('❌ خطأ في تسجيل Service Worker:', error);
@@ -19,6 +23,50 @@ export async function registerServiceWorker() {
     }
   } else {
     console.warn('⚠️ هذا المتصفح لا يدعم Service Worker (PWA)');
+  }
+}
+
+// طلب إذن الإشعارات
+export async function requestNotificationPermission() {
+  if (!('Notification' in window)) {
+    console.warn('هذا المتصفح لا يدعم الإشعارات');
+    return false;
+  }
+
+  if (Notification.permission === 'granted') {
+    return true;
+  }
+
+  if (Notification.permission !== 'denied') {
+    const permission = await Notification.requestPermission();
+    return permission === 'granted';
+  }
+
+  return false;
+}
+
+// إرسال إشعار محلي
+export function sendLocalNotification(title, options = {}) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') {
+    return;
+  }
+
+  const defaultOptions = {
+    icon: '/JATKOUM-SHAB/logo.png',
+    badge: '/JATKOUM-SHAB/logo.png',
+    dir: 'rtl',
+    lang: 'ar',
+    ...options
+  };
+
+  // محاولة الإرسال عبر Service Worker أولاً (لأنه يعمل في الخلفية)
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.ready.then(registration => {
+      registration.showNotification(title, defaultOptions);
+    });
+  } else {
+    // إرسال إشعار متصفح عادي
+    new Notification(title, defaultOptions);
   }
 }
 

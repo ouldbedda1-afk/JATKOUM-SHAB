@@ -1,26 +1,20 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
-import { getActiveFires, getAllCitiesWeather, getMarineWeather } from '../weatherApi';
-import { getRecentBawahReports, getRecentRainReports } from '../supabase';
-import { getSatelliteVegetationStatus } from '../satelliteVegetation';
+import { useWeatherContext } from '../WeatherContext';
 import RainReportForm from './RainReportForm';
 import BawahReportForm from './BawahReportForm';
 
 const {
   FiActivity,
-  FiAlertTriangle,
   FiAnchor,
-  FiCamera,
-  FiCloud,
   FiCloudRain,
-  FiDroplet,
   FiMap,
-  FiMapPin,
   FiPlus,
   FiShield,
   FiTrendingDown,
   FiTrendingUp,
+  FiCheck
 } = FiIcons;
 
 const bawahRegions = [
@@ -148,38 +142,18 @@ function getPlaceScore(region) {
 }
 
 const RuralTools = () => {
-  const [marineData, setMarineData] = useState([]);
-  const [weatherData, setWeatherData] = useState([]);
-  const [fires, setFires] = useState([]);
-  const [rainReports, setRainReports] = useState([]);
-  const [bawahReports, setBawahReports] = useState([]);
-  const [vegetationData, setVegetationData] = useState(null);
+  const { 
+    weatherData, 
+    fires, 
+    marineData, 
+    rainReports, 
+    bawahReports, 
+    vegetationData, 
+    loading 
+  } = useWeatherContext();
+
   const [showRainForm, setShowRainForm] = useState(false);
   const [showBawahForm, setShowBawahForm] = useState(false);
-
-  useEffect(() => {
-    const fetchRuralData = async () => {
-      const [marine, weather, activeFires, reports, vegetation, fieldBawahReports] = await Promise.all([
-        getMarineWeather(),
-        getAllCitiesWeather().catch(() => []),
-        getActiveFires().catch(() => []),
-        getRecentRainReports().catch(() => []),
-        getSatelliteVegetationStatus().catch(() => null),
-        getRecentBawahReports().catch(() => []),
-      ]);
-
-      setMarineData(marine);
-      setWeatherData(weather);
-      setFires(activeFires);
-      setRainReports(reports);
-      setVegetationData(vegetation);
-      setBawahReports(fieldBawahReports);
-    };
-
-    fetchRuralData();
-    const interval = setInterval(fetchRuralData, 60 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   const bawahStatus = useMemo(
     () => bawahRegions.map((region) => {
@@ -204,11 +178,6 @@ const RuralTools = () => {
       .sort((a, b) => b.score - a.score)
       .slice(0, 5)
   ), [bawahStatus]);
-
-  const cloudImprovementAlerts = bawahStatus.filter((region) => {
-    const weakVegetation = (region.status.satellite?.score ?? 0) <= 1;
-    return weakVegetation && (region.status.weather.hasClouds || region.status.weather.rainChance >= 20);
-  });
 
   return (
     <div className="space-y-6">
@@ -248,176 +217,131 @@ const RuralTools = () => {
           </div>
           <div className="space-y-2">
             {marineData.length > 0 ? marineData.map((data, idx) => (
-              <div key={idx} className="flex justify-between items-center text-sm">
-                <span className="text-gray-500 font-bold">{data.city}:</span>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                  data.height > 1.5 ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
-                }`}>
-                  {data.status} - {data.height}م
-                </span>
+              <div key={idx} className="flex items-center justify-between p-3 bg-blue-50/50 rounded-2xl">
+                <span className="font-bold text-xs text-blue-900">{data.city}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">{data.status}</span>
+                  <span className="font-black text-sm text-blue-600">{data.height}م</span>
+                </div>
               </div>
-            )) : (
-              <p className="text-[10px] text-gray-400 italic">جاري جلب بيانات البحر...</p>
-            )}
+            )) : <p className="text-xs text-gray-400">جاري جلب بيانات البحر...</p>}
           </div>
         </div>
 
         <div className="bg-white p-5 rounded-[2rem] shadow-lg border border-emerald-50">
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <div className="flex items-center gap-2">
-              <SafeIcon icon={FiActivity} className="text-emerald-600 text-xl" />
-              <div>
-                <h4 className="font-black text-gray-800">البواه</h4>
-                <p className="text-[10px] text-gray-500 font-bold">الغطاء النباتي وأفضل أماكن رعي الحيوان</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowBawahForm(true)}
-              className="bg-emerald-600 text-white px-3 py-2 rounded-xl text-[10px] font-black flex items-center gap-1"
-            >
-              <SafeIcon icon={FiCamera} />
-              أبلغ
-            </button>
+          <div className="flex items-center gap-2 mb-3">
+            <SafeIcon icon={FiShield} className="text-emerald-600 text-xl" />
+            <h4 className="font-black text-gray-800">أفضل جهات الرعي (بناءً على المطر)</h4>
           </div>
-
-          <div className="mb-3 rounded-2xl bg-emerald-50 border border-emerald-100 px-3 py-2 text-[10px] text-emerald-800 font-bold leading-relaxed">
-            {vegetationData
-              ? `النتائج مستخلصة من ${vegetationData.source} بتاريخ ${vegetationData.date}.`
-              : 'جاري جلب بيانات الغطاء النباتي من صور الأقمار الصناعية المجانية...'}
-          </div>
-
-          {cloudImprovementAlerts.length > 0 && (
-            <div className="mb-3 rounded-2xl bg-blue-50 border border-blue-100 px-3 py-2 text-[10px] text-blue-800 font-bold flex gap-2">
-              <SafeIcon icon={FiCloud} className="text-blue-600 shrink-0 mt-0.5" />
-              تحسن متوقع في البواه خلال الأيام القادمة قرب: {cloudImprovementAlerts.map((region) => region.name).join('، ')}.
-            </div>
-          )}
-
-          <div className="rounded-2xl bg-slate-50 border border-slate-100 p-3 mb-3">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2 text-xs font-black text-gray-800">
-                <SafeIcon icon={FiMap} className="text-emerald-600" />
-                خريطة البواه
-              </div>
-              <div className="flex gap-2 text-[9px] font-bold text-gray-500">
-                <span>أخضر جيد</span>
-                <span>أصفر متوسط</span>
-                <span>أحمر خطر</span>
-              </div>
-            </div>
-            <div className="relative h-56 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden border border-white">
-              <div className="absolute inset-x-[18%] top-[8%] bottom-[8%] rounded-[45%] border-2 border-dashed border-slate-300 bg-white/40"></div>
-              {bawahStatus.map((region) => (
-                <div
-                  key={region.name}
-                  className={`absolute ${region.mapClass} rounded-[45%] border-2 ${getMapColor(region.status)} text-white shadow-md flex items-center justify-center text-[10px] font-black text-center px-1`}
-                  title={region.status.level}
-                >
-                  {region.name}
+          <div className="space-y-2">
+            {bestPlaces.map((place, idx) => (
+              <div key={idx} className="flex items-center justify-between p-3 bg-emerald-50/50 rounded-2xl">
+                <div>
+                  <span className="font-bold text-xs text-emerald-900 block">{place.city}</span>
+                  <span className="text-[8px] text-emerald-600">{place.region}</span>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-2xl bg-white border border-gray-100 p-3 mb-3">
-            <h5 className="text-xs font-black text-gray-800 mb-2">أفضل 5 أماكن للرعي اليوم</h5>
-            <div className="space-y-2">
-              {bestPlaces.map((place, index) => (
-                <div key={`${place.region}-${place.city}`} className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-gray-700">{index + 1}. {place.city}</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${place.status.badgeClass}`}>
-                    {place.status.level}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {bawahStatus.map((region) => (
-              <div key={region.name} className={`rounded-2xl border ${region.status.borderClass} bg-gray-50/70 p-3`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <SafeIcon icon={FiMapPin} className="text-emerald-600 text-sm" />
-                      <span className="font-black text-sm text-gray-900">{region.name}</span>
-                    </div>
-                    <p className="text-[10px] text-gray-500 mt-1 leading-relaxed">{region.status.advice}</p>
-                  </div>
-                  <span className={`px-2 py-1 rounded-full text-[10px] font-black whitespace-nowrap ${region.status.badgeClass}`}>
-                    {region.status.level}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-4 gap-2 mt-3 text-[10px]">
-                  <div className="bg-white rounded-xl p-2 border border-gray-100">
-                    <div className="flex items-center gap-1 text-emerald-700 font-bold">
-                      <SafeIcon icon={FiActivity} />
-                      النبات
-                    </div>
-                    <p className="text-gray-600 mt-1">
-                      {region.status.satellite ? region.status.satellite.label.replace('غطاء نباتي ', '') : 'ينتظر'}
-                    </p>
-                  </div>
-                  <div className="bg-white rounded-xl p-2 border border-gray-100">
-                    <div className="flex items-center gap-1 text-blue-700 font-bold">
-                      <SafeIcon icon={FiDroplet} />
-                      المطر
-                    </div>
-                    <p className="text-gray-600 mt-1">{Math.round(region.status.weather.rainChance)}%</p>
-                  </div>
-                  <div className="bg-white rounded-xl p-2 border border-gray-100">
-                    <div className="flex items-center gap-1 text-amber-700 font-bold">
-                      <SafeIcon icon={FiTrendingUp} />
-                      الحرارة
-                    </div>
-                    <p className="text-gray-600 mt-1">{Math.round(region.status.weather.maxTemp)}°</p>
-                  </div>
-                  <div className="bg-white rounded-xl p-2 border border-gray-100">
-                    <div className="flex items-center gap-1 text-red-700 font-bold">
-                      <SafeIcon icon={FiAlertTriangle} />
-                      الحريق
-                    </div>
-                    <p className="text-gray-600 mt-1">{region.status.nearbyFires.length}</p>
-                  </div>
-                </div>
-
-                {region.status.satellite && (
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
-                    <div className="bg-white rounded-xl px-3 py-2 text-gray-600 border border-gray-100">
-                      NDVI: {region.status.satellite.ndvi?.toFixed(2)}
-                    </div>
-                    <div className="bg-white rounded-xl px-3 py-2 text-gray-600 border border-gray-100 flex items-center gap-1">
-                      <SafeIcon icon={getTrendIcon(region.status.satellite.trend)} />
-                      {region.status.satellite.trend}
-                    </div>
-                  </div>
-                )}
-
-                {region.status.verifiedRainReports.length > 0 && (
-                  <div className="mt-2 bg-emerald-50 text-emerald-800 rounded-xl px-3 py-2 text-[10px] font-bold flex items-center gap-1">
-                    <SafeIcon icon={FiShield} />
-                    آخر مطر موثق: {region.status.verifiedRainReports.length} تبشيرة
-                  </div>
-                )}
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${place.status.badgeClass}`}>{place.status.level}</span>
               </div>
             ))}
           </div>
-
-          {bawahReports.length > 0 && (
-            <div className="mt-3 rounded-2xl bg-emerald-50 border border-emerald-100 p-3">
-              <h5 className="text-xs font-black text-emerald-900 mb-2">بلاغات المنمين الحديثة</h5>
-              <div className="space-y-1">
-                {bawahReports.slice(0, 3).map((report) => (
-                  <div key={report.id || report.created_at} className="text-[10px] text-emerald-800 font-bold">
-                    {report.region || 'منطقة غير محددة'} - {report.notes || 'بواه جيدة مرسلة بصورة'}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
+
+      <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-gray-100">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2">
+            <SafeIcon icon={FiMap} className="text-blue-600 text-xl" />
+            <h4 className="font-black text-gray-800 italic">رصد جودة المراعي (بواه)</h4>
+          </div>
+          <button 
+            onClick={() => setShowBawahForm(true)}
+            className="text-[10px] bg-blue-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-1 hover:bg-blue-700"
+          >
+            <SafeIcon icon={FiPlus} />
+            بشرنا بـ "بواه"
+          </button>
+        </div>
+
+        <div className="relative bg-gray-50 rounded-[2rem] p-4 border border-gray-100 min-h-[400px]">
+          <div className="absolute inset-0 opacity-10 flex items-center justify-center">
+            <SafeIcon icon={FiMap} className="text-[20rem]" />
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 relative z-10">
+            {bawahStatus.map((region, idx) => (
+              <div key={idx} className={`p-4 rounded-3xl border-2 bg-white transition-all hover:shadow-md ${region.status.borderClass}`}>
+                <div className="flex justify-between items-start mb-3">
+                  <h5 className="font-black text-sm text-gray-900">{region.name}</h5>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${region.status.badgeClass}`}>
+                    {region.status.level}
+                  </span>
+                </div>
+                <p className="text-[10px] text-gray-600 leading-tight mb-3 font-medium">{region.status.advice}</p>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-gray-50 p-2 rounded-xl">
+                    <span className="text-[8px] text-gray-400 block mb-0.5">فرصة المطر</span>
+                    <div className="flex items-center gap-1">
+                      <SafeIcon icon={FiCloudRain} className="text-blue-500 text-xs" />
+                      <span className="text-xs font-black text-blue-600">{region.status.weather.rainChance}%</span>
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 p-2 rounded-xl">
+                    <span className="text-[8px] text-gray-400 block mb-0.5">الحرارة القصوى</span>
+                    <div className="flex items-center gap-1">
+                      <SafeIcon icon={FiActivity} className="text-orange-500 text-xs" />
+                      <span className="text-xs font-black text-orange-600">{region.status.weather.maxTemp}°</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-4 justify-center">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-emerald-500 border border-emerald-700"></span>
+            <span className="text-[10px] font-bold text-gray-600">رعي جيد جداً</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-amber-400 border border-amber-600"></span>
+            <span className="text-[10px] font-bold text-gray-600">رعي متوسط</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-red-500 border border-red-700"></span>
+            <span className="text-[10px] font-bold text-gray-600">رعي ضعيف/خطر</span>
+          </div>
+        </div>
+      </div>
+
+      {bawahReports.length > 0 && (
+        <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-gray-100">
+          <h3 className="text-sm font-black text-gray-800 mb-4 flex items-center gap-2">
+            <SafeIcon icon={FiShield} className="text-emerald-600" />
+            بلاغات "البواه" الميدانية الأخيرة
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {bawahReports.map((report) => {
+              const TrendIcon = getTrendIcon(report.trend);
+              return (
+                <div key={report.id} className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="font-bold text-xs text-gray-900">{report.nearest_district || report.region}</span>
+                    <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-bold">مؤكد</span>
+                  </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendIcon className="text-emerald-600 text-sm" />
+                    <span className="text-[10px] font-black text-emerald-700">الحالة {report.trend}</span>
+                  </div>
+                  <p className="text-[10px] text-gray-600 line-clamp-2">{report.description}</p>
+                  <p className="text-[8px] text-gray-400 mt-2">{new Date(report.created_at).toLocaleDateString('ar-SA')}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

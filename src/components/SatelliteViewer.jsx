@@ -1,48 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
-import { getActiveFires, getAllCitiesWeather } from '../weatherApi';
-import { getRecentRainReports } from '../supabase';
+import { useWeatherContext } from '../WeatherContext';
 
-const { FiLayers, FiMaximize, FiPlayCircle, FiDownload, FiShield } = FiIcons;
+const { FiLayers, FiMaximize, FiPlayCircle, FiDownload, FiShield, FiCheck, FiCloudRain } = FiIcons;
 
 const SatelliteViewer = () => {
   const [activeLayer, setActiveLayer] = useState('rain');
-  const [fires, setFires] = useState([]);
-  const [rainReports, setRainReports] = useState([]);
-  const [hasClouds, setHasClouds] = useState(false);
+  const { weatherData, fires, rainReports, loading } = useWeatherContext();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      // جلب الحرائق
-      const activeFires = await getActiveFires();
-      setFires(activeFires);
+  const hasClouds = useMemo(() => {
+    if (loading || !weatherData) return false;
+    return weatherData.some(city => city.current.weather_code >= 1);
+  }, [loading, weatherData]);
 
-      // جلب بلاغات المطر الميدانية
-      const reports = await getRecentRainReports();
-      setRainReports(reports);
-
-      // جلب حالة الطقس للتأكد من وجود سحب أو أمطار
-      try {
-        const weatherData = await getAllCitiesWeather();
-        const detectedClouds = weatherData.some(city => city.current.weather_code >= 1);
-        setHasClouds(detectedClouds);
-      } catch (err) {
-        console.error("Error checking clouds:", err);
-      }
-    };
-    fetchData();
-    const interval = setInterval(fetchData, 15 * 60 * 1000); // كل 15 دقيقة
-    return () => clearInterval(interval);
-  }, []);
-
-  const layers = {
-    rain: 'rain',
-    clouds: 'clouds',
-    fires: 'fires',
-    temp: 'temp',
-    wind: 'wind'
-  };
+  const uniqueFireCities = useMemo(() => {
+    return [...new Set(fires.map(f => f.nearestCity))];
+  }, [fires]);
 
   return (
     <div className="bg-white rounded-[2rem] p-6 shadow-xl border border-gray-100 overflow-hidden">
@@ -58,36 +32,15 @@ const SatelliteViewer = () => {
         </div>
         
         <div className="flex bg-gray-100 p-1 rounded-xl overflow-x-auto max-w-full">
-          <button 
-            onClick={() => setActiveLayer('rain')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${activeLayer === 'rain' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}
-          >
-            الأمطار
-          </button>
-          <button 
-            onClick={() => setActiveLayer('clouds')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${activeLayer === 'clouds' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}
-          >
-            السحب
-          </button>
-          <button 
-            onClick={() => setActiveLayer('fires')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${activeLayer === 'fires' ? 'bg-white shadow-sm text-red-600' : 'text-gray-500'}`}
-          >
-            🔥 الحرائق
-          </button>
-          <button 
-            onClick={() => setActiveLayer('temp')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${activeLayer === 'temp' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}
-          >
-            الحرارة
-          </button>
-          <button 
-            onClick={() => setActiveLayer('wind')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${activeLayer === 'wind' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}
-          >
-            الرياح
-          </button>
+          {['rain', 'clouds', 'fires', 'temp', 'wind'].map((layer) => (
+            <button 
+              key={layer}
+              onClick={() => setActiveLayer(layer)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${activeLayer === layer ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}
+            >
+              {layer === 'rain' ? 'الأمطار' : layer === 'clouds' ? 'السحب' : layer === 'fires' ? '🔥 الحرائق' : layer === 'temp' ? 'الحرارة' : 'الرياح'}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -126,7 +79,7 @@ const SatelliteViewer = () => {
           </h4>
           <p className="text-[10px] text-red-700 leading-tight font-bold">
             {fires.length > 0 
-              ? `تم رصد ${fires.length} بؤر حرائق نشطة بالقرب من: ${[...new Set(fires.map(f => f.nearestCity))].join('، ')}.`
+              ? `تم رصد ${fires.length} بؤر حرائق نشطة بالقرب من: ${uniqueFireCities.join('، ')}.`
               : "لا توجد بؤر حرائق كبيرة مرصودة حالياً عبر الأقمار الصناعية."}
           </p>
         </div>
@@ -144,11 +97,10 @@ const SatelliteViewer = () => {
             <span className="w-1.5 h-1.5 bg-amber-600 rounded-full"></span>
             إنذار موجة الحر
           </h4>
-          <p className="text-[10px] text-amber-700 leading-tight font-bold">الحرارة تتجاوز 42° في الحوضين ولعصابة، مما يزيد من سرعة انتشار الحرائق.</p>
+          <p className="text-[10px] text-amber-700 leading-tight font-bold">الحرارة تتجاوز 42° في المناطق الشرقية، مما يزيد من سرعة انتشار الحرائق.</p>
         </div>
       </div>
 
-      {/* Field Rain Reports (New) */}
       {rainReports.length > 0 && (
         <div className="mt-6 border-t pt-6">
           <h3 className="text-sm font-black text-gray-800 mb-4 flex items-center gap-2">

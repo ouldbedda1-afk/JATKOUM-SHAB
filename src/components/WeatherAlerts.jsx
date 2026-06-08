@@ -1,110 +1,122 @@
-import React from 'react';
-import { useAllCitiesWeather } from '../useWeather';
+import React, { useEffect, useMemo } from 'react';
+import { useWeatherContext } from '../WeatherContext';
+import { sendLocalNotification } from '../pwa';
 
 const WeatherAlerts = () => {
-  const { data: citiesWeather, loading } = useAllCitiesWeather();
+  const { weatherData: citiesWeather, loading } = useWeatherContext();
 
-  if (loading || !citiesWeather || citiesWeather.length === 0) return null;
+  // 1. تعريف كافة الـ Hooks في البداية (قاعدة React الأساسية)
+  const weatherAlerts = useMemo(() => {
+    if (loading) return [];
 
-  const alerts = [];
+    const result = [];
+    const cities = citiesWeather || [];
 
-  // 1. Check for Current Rain/Thunderstorms
-  const rainyCities = citiesWeather.filter(c => c.current.weather_code >= 80 || c.daily.precipitation_sum[0] > 5);
-  if (rainyCities.length > 0) {
-    const cityNames = rainyCities.map(c => `${c.cityType} ${c.city}`).join('، ');
-    alerts.push({
-      id: 'rain-now',
-      type: 'danger',
-      title: 'تنبيه عاجل: أمطار وعواصف رعدية الآن',
-      message: `يُرصد حالياً نشاط للسحب الرعدية الممطرة في مناطق: ${cityNames}. يرجى توخي الحذر من الصواعق والسيول.`,
-      icon: '⛈️',
-      color: 'bg-red-600',
-      tags: ['أمطار غزيرة', 'عواصف رعدية']
-    });
-  }
-
-  // 1b. Check for Future Rain (Next 7 days)
-  const futureRainyCities = citiesWeather.map(city => {
-    const rainDays = city.daily.time.filter((t, i) => i > 0 && city.daily.precipitation_sum[i] > 1);
-    if (rainDays.length > 0) {
-      const dates = rainDays.map(t => {
-        const d = new Date(t);
-        return `${d.getDate()}/${d.getMonth() + 1}`;
-      }).join('، ');
-      return { name: city.city, type: city.cityType, dates };
+    // 1. Check for Current Rain/Thunderstorms
+    const rainyCities = cities.filter(c => c && c.current && (c.current.weather_code >= 80 || (c.daily?.precipitation_sum?.[0] || 0) > 5));
+    if (rainyCities.length > 0) {
+      const cityNames = rainyCities.map(c => `${c.cityType} ${c.city}`).join('، ');
+      result.push({
+        id: 'rain-now',
+        type: 'danger',
+        title: 'تنبيه عاجل: أمطار وعواصف رعدية الآن',
+        message: `يُرصد حالياً نشاط للسحب الرعدية الممطرة في مناطق: ${cityNames}. يرجى توخي الحذر من الصواعق والسيول.`,
+        icon: '⛈️',
+        color: 'bg-red-600',
+        tags: ['أمطار غزيرة', 'عواصف رعدية']
+      });
     }
-    return null;
-  }).filter(Boolean);
 
-  if (futureRainyCities.length > 0) {
-    // Group by dates to make alerts cleaner
-    const alertMsg = futureRainyCities.map(c => `${c.type} ${c.name} (أيام: ${c.dates})`).join(' - ');
-    alerts.push({
+    // 1b. Check for Future Rain (Next 7 days)
+    const rainForecastMessage = `يتوقع بإذن الله هطول أمطار خلال الأيام القادمة على عدد من المقاطعات والبلديات، وذلك وفق الآتي:
+
+🔹 **8 يونيو:** سيلبابي، جيكني، تمبدغة، عدل بكرو.
+
+🔹 **9 يونيو:** لعيون، النعمة، باسكنو، جيكني، أمرج، فصاله، عدل بكرو، تمبدغة.
+
+🔹 **10 يونيو:** كيفة، لعيون، النعمة، تجكجة، سيلبابي، جيكني، أمرج، فصاله، عدل بكرو، تمبدغة.
+
+🔹 **11 يونيو:** كيهيدي، سيلبابي، جيكني.
+
+🔹 **12 يونيو:** سيلبابي.`;
+
+    result.push({
       id: 'rain-future',
       type: 'success',
-      title: 'توقعات أمطار قادمة',
-      message: `بشائر الخير! تتشير التوقعات إلى هطول أمطار خلال الأيام القادمة في: ${alertMsg}.`,
+      title: 'التوقعات',
+      message: rainForecastMessage,
       icon: '🌧️',
       color: 'bg-emerald-600',
       tags: ['توقعات الأمطار', 'بشائر الخير']
     });
-  }
 
-  // 2. Check for High Temperature (Today & Tomorrow Combined)
-  const hotCitiesToday = citiesWeather.filter(c => c.daily.temperature_2m_max[0] >= 42);
-  const hotCitiesTomorrow = citiesWeather.filter(c => c.daily.temperature_2m_max[1] >= 42);
-
-  if (hotCitiesToday.length > 0 || hotCitiesTomorrow.length > 0) {
-    let heatMessage = "";
-    let heatTitle = "تحذير: موجة حر شديدة";
-    let heatTags = ["موجة حر"];
-
-    if (hotCitiesToday.length > 0 && hotCitiesTomorrow.length > 0) {
+    // 2. Check for High Temperature
+    const hotCitiesToday = cities.filter(c => c && c.daily && (c.daily.temperature_2m_max?.[0] || 0) >= 42);
+    if (hotCitiesToday.length > 0) {
       const todayNames = hotCitiesToday.map(c => `${c.cityType} ${c.city}`).join('، ');
-      const tomorrowNames = hotCitiesTomorrow.map(c => `${c.cityType} ${c.city}`).join('، ');
-      heatTitle = "تحذير: موجة حر شديدة (اليوم وغداً)";
-      heatMessage = `تشهد مناطق ${todayNames} ارتفاعاً كبيراً اليوم، كما يتوقع استمرار الموجة غداً في مناطق ${tomorrowNames} مع درجات حرارة تتجاوز 42°م. ينصح بشرب السوائل وتجنب الشمس.`;
-      heatTags.push("تنبيه اليوم وغداً");
-    } else if (hotCitiesToday.length > 0) {
-      const todayNames = hotCitiesToday.map(c => `${c.cityType} ${c.city}`).join('، ');
-      heatTitle = "تحذير: موجة حر شديدة (اليوم)";
-      heatMessage = `تشهد مناطق ${todayNames} ارتفاعاً كبيراً في درجات الحرارة "اليوم" تتجاوز 42°م. يرجى شرب السوائل وتجنب الشمس.`;
-      heatTags.push("تنبيه اليوم");
-    } else {
-      const tomorrowNames = hotCitiesTomorrow.map(c => `${c.cityType} ${c.city}`).join('، ');
-      heatTitle = "تحذير: موجة حر مرتقبة (غداً)";
-      heatMessage = `يتوقع أن تشهد مناطق ${tomorrowNames} "غداً" ارتفاعاً ملحوظاً في درجات الحرارة تتجاوز 42°م. يرجى أخذ الحيطة والاستعداد.`;
-      heatTags.push("تنبيه غداً");
+      result.push({
+        id: 'heat-alert',
+        type: 'warning',
+        title: "تحذير: موجة حر شديدة",
+        message: `تشهد مناطق ${todayNames} ارتفاعاً كبيراً في درجات الحرارة تتجاوز 42°م. يرجى شرب السوائل وتجنب الشمس.`,
+        icon: '🔥',
+        color: 'bg-orange-600',
+        tags: ["موجة حر"]
+      });
     }
 
-    alerts.push({
-      id: 'heat-alert',
-      type: 'warning',
-      title: heatTitle,
-      message: heatMessage,
-      icon: '🔥',
-      color: 'bg-orange-600',
-      tags: heatTags
-    });
-  }
+    // 3. Check for Strong Winds
+    const windyCities = cities.filter(c => c && c.current && (c.current.wind_speed_10m || 0) >= 35);
+    if (windyCities.length > 0) {
+      const cityNames = windyCities.map(c => `${c.cityType} ${c.city}`).join('، ');
+      result.push({
+        id: 'wind',
+        type: 'info',
+        title: 'تحذير: رياح قوية وأتربة',
+        message: `تنبيه من نشاط رياح قوية تتجاوز سرعتها 35 كم/س في مناطق ${cityNames}، مما قد يؤدي لتدني الرؤية وتصاعد الأتربة.`,
+        icon: '🌬️',
+        color: 'bg-blue-800',
+        tags: ['رياح نشطة', 'رؤية متدنية']
+      });
+    }
 
-  // 3. Check for Strong Winds
-  const windyCities = citiesWeather.filter(c => c.current.wind_speed_10m >= 35);
-  if (windyCities.length > 0) {
-    const cityNames = windyCities.map(c => `${c.cityType} ${c.city}`).join('، ');
-    alerts.push({
-      id: 'wind',
-      type: 'info',
-      title: 'تنبيه: رياح قوية وأتربة',
-      message: `نشاط للرياح القوية بسرعة تتجاوز 35 كم/س في مناطق ${cityNames}، مما قد يؤدي لتدني الرؤية بسبب الأتربة.`,
-      icon: '🌬️',
-      color: 'bg-blue-800',
-      tags: ['رياح نشطة', 'رؤية متدنية']
-    });
-  }
+    // 4. Check for Thunderstorms
+    const thunderstormCities = cities.filter(c => c && ( (c.current?.weather_code || 0) >= 95 || (c.daily?.weather_code?.[0] || 0) >= 95));
+    if (thunderstormCities.length > 0) {
+      const cityNames = thunderstormCities.map(c => `${c.cityType} ${c.city}`).join('، ');
+      result.push({
+        id: 'thunderstorm-warning',
+        type: 'danger',
+        title: 'تحذير: عواصف رعدية قوية',
+        message: `يتوقع بإذن الله تشكل عواصف رعدية قوية في مناطق ${cityNames}. يرجى الحذر من الصواعق والابتعاد عن مجاري السيول والأودية.`,
+        icon: '⚡',
+        color: 'bg-purple-900',
+        tags: ['عواصف رعدية', 'صواعق']
+      });
+    }
 
-  // If no specific alerts, show a general update
-  if (alerts.length === 0) {
+    return result;
+  }, [loading, citiesWeather]);
+
+  useEffect(() => {
+    if (!loading && weatherAlerts.length > 0) {
+      const lastAlertId = localStorage.getItem('last_alert_id');
+      const currentAlertId = weatherAlerts[0].id + weatherAlerts[0].title;
+
+      if (lastAlertId !== currentAlertId) {
+        sendLocalNotification(`تنبيه جوي: ${weatherAlerts[0].title}`, {
+          body: weatherAlerts[0].message.substring(0, 100) + '...',
+          tag: 'weather-alert'
+        });
+        localStorage.setItem('last_alert_id', currentAlertId);
+      }
+    }
+  }, [loading, weatherAlerts]);
+
+  // 2. شروط العرض (Rendering Logic) تأتي بعد الـ Hooks
+  if (loading || !citiesWeather || citiesWeather.length === 0) return null;
+
+  if (weatherAlerts.length === 0) {
     return (
       <div className="bg-emerald-700 text-white p-6 rounded-[2rem] shadow-xl relative overflow-hidden">
         <div className="relative z-10">
@@ -122,16 +134,16 @@ const WeatherAlerts = () => {
 
   return (
     <div className="space-y-4">
-      {alerts.map((alert) => (
+      {weatherAlerts.map((alert) => (
         <div key={alert.id} className={`${alert.color} text-white p-6 rounded-[2rem] shadow-xl relative overflow-hidden border-4 border-white/10`}>
           <div className="relative z-10">
             <div className="flex items-center gap-2 mb-2">
               <span className="animate-ping w-2 h-2 bg-white rounded-full"></span>
               <h3 className="text-xl font-black">{alert.title}</h3>
             </div>
-            <p className="text-sm font-bold leading-relaxed">
+            <div className="text-sm font-bold leading-relaxed whitespace-pre-wrap">
               {alert.message}
-            </p>
+            </div>
             <div className="mt-4 flex flex-wrap gap-2">
               {alert.tags.map((tag, idx) => (
                 <span key={idx} className="px-3 py-1 bg-white/20 text-white text-[10px] font-black rounded-full backdrop-blur-sm">

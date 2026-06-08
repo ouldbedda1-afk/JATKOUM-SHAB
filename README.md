@@ -150,9 +150,47 @@ CREATE TABLE alerts (
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 
-# APIs
+# Weather APIs - Dual Provider Strategy
+# مزود أساسي (مجاني، 10K طلب/يوم)
+VITE_OPENMETEO_API=https://api.open-meteo.com/v1/forecast
+
+# مزود بديل (اختياري، 1M طلب/شهر - للنطاق الواسع)
+VITE_WEATHERAPI_KEY=your-weatherapi-key-here
+
+# Proxy Worker (اختياري - للكاش الموزع)
+VITE_PROXY_URL=https://your-cloudflare-worker.com
+
+# Marine API (اختياري)
+VITE_MARINE_API_URL=https://marine-api.open-meteo.com/v1/marine
+
+# NASA Events API
+VITE_NASA_API_URL=https://eonet.gsfc.nasa.gov/api/v3/events
+
+# Debug
 VITE_DEBUG=false
 ```
+
+### استراتيجية المزودين الثنائية
+
+التطبيق يستخدم **Open-Meteo + WeatherAPI** لضمان عدم انقطاع الخدمة:
+
+1. **المحاولة الأولى**: Open-Meteo API (مجاني، سريع)
+2. **الاحتياطي الأول**: WeatherAPI.com (إذا رُفع المفتاح)
+3. **الاحتياطي الثاني**: بيانات مخزنة (Cache)
+4. **الاحتياطي النهائي**: بيانات افتراضية آمنة
+
+### الحصول على مفاتيح API
+
+**WeatherAPI.com**:
+1. سجل على https://www.weatherapi.com
+2. اذهب إلى Dashboard واحصل على API Key
+3. ضع المفتاح في `VITE_WEATHERAPI_KEY`
+4. يدعم 1,000,000 طلب/شهر في الخطة المجانية
+
+**Cloudflare Worker** (اختياري):
+- استخدم `weather-proxy-worker.js` للكاش الموزع
+- يقلل عدد الطلبات المباشرة للـ APIs
+- ينسخ البيانات عبر Cloudflare's edge network
 
 ## 🎨 النسق الجمالي
 
@@ -166,7 +204,19 @@ VITE_DEBUG=false
 - ✅ بيانات المستخدم محفوظة في Supabase
 - ✅ لا يتم حفظ بيانات الطقس الحساسة
 - ✅ Error messages آمنة وخالية من المعلومات الحساسة
+- ✅ مفاتيح API آمنة في متغيرات البيئة
 - ⏳ سيتم إضافة HTTPS و CSP headers
+
+## 📈 قابلية التوسع
+
+التطبيق مصمم للتعامل مع **2000+ مستخدم متزامن**:
+
+- ✅ Dual-provider weather APIs (Open-Meteo + WeatherAPI)
+- ✅ Client-side و Server-side caching
+- ✅ Circuit breaker pattern لمعالجة الأخطاء
+- ✅ Request rate limiting و concurrency control
+- ✅ Stale data fallback (24 ساعة)
+- ✅ Cloudflare Worker proxy (اختياري)
 
 ## 📝 الترخيص
 

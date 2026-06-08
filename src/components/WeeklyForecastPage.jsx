@@ -35,13 +35,13 @@ const WeeklyForecastPage = () => {
               <div key={i} className="bg-white h-24 rounded-3xl animate-pulse border border-gray-100"></div>
             ))}
           </div>
-        ) : error || !weatherData ? (
+        ) : error || !weatherData || !weatherData.daily?.time ? (
           <div className="bg-red-50 p-8 rounded-3xl border border-red-100 text-center">
-            <p className="text-red-600 font-bold">عذراً، حدث خطأ في جلب البيانات. يرجى المحاولة لاحقاً.</p>
+            <p className="text-red-600 font-bold">عذراً، لا تتوفر بيانات التوقعات لهذه المدينة حالياً. يرجى المحاولة لاحقاً.</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {weatherData.daily.time.map((time, i) => {
+            {weatherData.daily?.time?.map((time, i) => {
               const date = new Date(time);
               const dayName = i === 0 ? 'اليوم' : days[date.getDay()];
               const isToday = i === 0;
@@ -58,18 +58,18 @@ const WeeklyForecastPage = () => {
                         <p className="text-xs text-gray-400">{time}</p>
                       </div>
                       <div className="text-4xl">
-                        {getWeatherIcon(weatherData.daily.weather_code[i])}
+                        {getWeatherIcon(weatherData.daily?.weather_code?.[i] ?? 0)}
                       </div>
                       <div>
-                        <p className="font-bold text-gray-800">{getWeatherDescription(weatherData.daily.weather_code[i])}</p>
+                        <p className="font-bold text-gray-800">{getWeatherDescription(weatherData.daily?.weather_code?.[i] ?? 0)}</p>
                         <div className="flex items-center gap-3 mt-1">
                           <div className="flex items-center gap-1 text-blue-500 text-xs">
                             <SafeIcon icon={FiDroplet} />
-                            <span>{Math.round(weatherData.daily.precipitation_sum[i])} ملم</span>
+                            <span>{Math.round(weatherData.daily?.precipitation_sum?.[i] ?? 0)} ملم</span>
                           </div>
                           <div className="flex items-center gap-1 text-gray-400 text-xs">
                             <SafeIcon icon={FiWind} />
-                            <span>{Math.round(weatherData.daily.wind_speed_10m_max[i])} كم/س</span>
+                            <span>{Math.round(weatherData.daily?.wind_speed_10m_max?.[i] ?? 0)} كم/س</span>
                           </div>
                         </div>
                       </div>
@@ -78,11 +78,11 @@ const WeeklyForecastPage = () => {
                     <div className="flex items-center justify-between md:justify-end gap-8 border-t md:border-t-0 pt-4 md:pt-0">
                       <div className="text-center">
                         <p className="text-xs text-gray-400 mb-1">العظمى</p>
-                        <p className="text-2xl font-black text-orange-600">{Math.round(weatherData.daily.temperature_2m_max[i])}°</p>
+                        <p className="text-2xl font-black text-orange-600">{Math.round(weatherData.daily?.temperature_2m_max?.[i] ?? 0)}°</p>
                       </div>
                       <div className="text-center">
                         <p className="text-xs text-gray-400 mb-1">الصغرى</p>
-                        <p className="text-2xl font-black text-blue-400">{Math.round(weatherData.daily.temperature_2m_min[i])}°</p>
+                        <p className="text-2xl font-black text-blue-400">{Math.round(weatherData.daily?.temperature_2m_min?.[i] ?? 0)}°</p>
                       </div>
                       <div className="hidden md:block">
                          <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 group-hover:bg-blue-600 group-hover:text-white transition-colors">

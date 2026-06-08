@@ -10,13 +10,22 @@ const WeatherCharts = ({ city }) => {
     <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-gray-100 h-64 animate-pulse"></div>
   );
 
-  // Extract next 24 hours
-  const hours = weatherData.hourly.time.slice(0, 24).map(t => {
+  // Extract next 24 hours (with safety checks)
+  const hours = weatherData.hourly?.time?.slice(0, 24).map(t => {
     const date = new Date(t);
     return `${date.getHours()}:00`;
-  });
-  const temps = weatherData.hourly.temperature_2m.slice(0, 24);
-  const rainProbs = weatherData.hourly.precipitation_probability.slice(0, 24);
+  }) || [];
+  
+  const temps = weatherData.hourly?.temperature_2m?.slice(0, 24) || [];
+  const rainProbs = weatherData.hourly?.precipitation_probability?.slice(0, 24) || [];
+
+  if (hours.length === 0) {
+    return (
+      <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-gray-100 h-64 flex items-center justify-center">
+        <p className="text-gray-400">لا توجد بيانات بيانية متاحة حالياً</p>
+      </div>
+    );
+  }
 
   const option = {
     tooltip: {

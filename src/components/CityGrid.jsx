@@ -1,13 +1,13 @@
 import React from 'react';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
-import { useAllCitiesWeather } from '../useWeather';
+import { useWeatherContext } from '../WeatherContext';
 import { getWeatherIcon, getWeatherDescription } from '../weatherApi';
 
-const { FiCloud, FiCloudSnow, FiSun, FiCloudRain } = FiIcons;
+const { FiCloudRain } = FiIcons;
 
 const CityGrid = () => {
-  const { data: cities, loading, error } = useAllCitiesWeather();
+  const { weatherData: cities, loading, error } = useWeatherContext();
 
   if (loading) {
     return (
@@ -36,18 +36,20 @@ const CityGrid = () => {
     );
   }
 
-  // فرز المدن حسب درجة الحرارة
-  const sortedCities = [...cities].sort((a, b) => b.current.temperature_2m - a.current.temperature_2m);
+  // فرز المدن حسب درجة الحرارة (تأكد من وجود البيانات)
+  const sortedCities = [...cities]
+    .filter(c => c && c.current)
+    .sort((a, b) => (b.current.temperature_2m || 0) - (a.current.temperature_2m || 0));
   
   const hottestCities = sortedCities.slice(0, 3);
   const coldestCities = [...sortedCities].reverse().slice(0, 3);
 
   const renderCityCard = (city, idx, isHot) => {
-    const temp = Math.round(city.current.temperature_2m);
-    const weatherCode = city.current.weather_code;
+    const temp = Math.round(city.current?.temperature_2m ?? 0);
+    const weatherCode = city.current?.weather_code ?? 0;
     const condition = getWeatherDescription(weatherCode);
     const icon = getWeatherIcon(weatherCode);
-    const rainProb = city.hourly.precipitation_probability[0];
+    const rainProb = (city.daily?.precipitation_sum?.[0] || 0) > 0 ? 100 : 0; // تبسيط لاحتمال المطر
 
     return (
       <div key={idx} className={`bg-white p-5 rounded-[1.5rem] shadow-sm border ${isHot ? 'border-orange-100 hover:border-orange-300' : 'border-blue-100 hover:border-blue-300'} hover:shadow-xl transition-all cursor-pointer group`}>

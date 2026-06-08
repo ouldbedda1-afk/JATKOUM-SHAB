@@ -26,18 +26,18 @@ const WeeklyForecast = ({ city }) => {
   const days = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
   
   // Get next 7 days (skipping today if needed, but we'll show from index 1)
-  const forecast = weatherData.daily.time.slice(1, 7).map((time, i) => {
+  const forecast = weatherData.daily?.time?.slice(1, 7).map((time, i) => {
     const date = new Date(time);
     const dayName = days[date.getDay()];
     const idx = i + 1; // index in daily data
     return {
       day: dayName,
-      max: Math.round(weatherData.daily.temperature_2m_max[idx]),
-      min: Math.round(weatherData.daily.temperature_2m_min[idx]),
-      code: weatherData.daily.weather_code[idx],
-      rainProb: weatherData.daily.precipitation_sum[idx] > 0 ? 'مطر' : 'صافي'
+      max: Math.round(weatherData.daily?.temperature_2m_max?.[idx] ?? 0),
+      min: Math.round(weatherData.daily?.temperature_2m_min?.[idx] ?? 0),
+      code: weatherData.daily?.weather_code?.[idx] ?? 0,
+      rainProb: (weatherData.daily?.precipitation_sum?.[idx] || 0) > 0 ? 'مطر' : 'صافي'
     };
-  });
+  }) || [];
 
   return (
     <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-gray-100">

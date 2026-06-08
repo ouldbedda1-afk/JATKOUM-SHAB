@@ -31,14 +31,14 @@ const WeatherHero = ({ city }) => {
     );
   }
 
-  const temp = Math.round(weatherData.current.temperature_2m);
-  const weatherCode = weatherData.current.weather_code;
+  const temp = Math.round(weatherData.current?.temperature_2m ?? 0);
+  const weatherCode = weatherData.current?.weather_code ?? 0;
   const condition = getWeatherDescription(weatherCode);
   const icon = getWeatherIcon(weatherCode);
-  const wind = Math.round(weatherData.current.wind_speed_10m);
-  const humidity = weatherData.current.relative_humidity_2m;
-  const rainProb = weatherData.hourly.precipitation_probability[0]; // Current hour prob
-  const pressure = Math.round(weatherData.current.pressure_msl);
+  const wind = Math.round(weatherData.current?.wind_speed_10m ?? 0);
+  const humidity = weatherData.current?.relative_humidity_2m ?? 0;
+  const rainProb = weatherData.hourly?.precipitation_probability?.[0] ?? 0; // Current hour prob
+  const pressure = Math.round(weatherData.current?.pressure_msl ?? 0);
 
   const shareOnWhatsApp = () => {
     const text = `حالة الطقس في ${cityName} الآن:
