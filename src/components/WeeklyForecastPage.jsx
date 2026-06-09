@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Navbar from './Navbar';
+import RainForecastAlerts from './RainForecastAlerts';
 import { useWeather } from '../useWeather';
 import { getWeatherIcon, getWeatherDescription } from '../weatherApi';
 import * as FiIcons from 'react-icons/fi';
@@ -19,6 +20,11 @@ const WeeklyForecastPage = () => {
       <Navbar onCitySelect={setSelectedCity} />
 
       <main className="max-w-4xl mx-auto px-4 mt-12">
+        {/* قسم بشائر الخير - تم نقله إلى صفحة التوقعات */}
+        <div className="mb-12">
+          <RainForecastAlerts />
+        </div>
+
         <div className="flex items-center gap-4 mb-8">
           <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-lg">
             <SafeIcon icon={FiCalendar} className="text-2xl" />

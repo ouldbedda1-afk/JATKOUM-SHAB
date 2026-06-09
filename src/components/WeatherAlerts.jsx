@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo } from 'react';
+import { motion } from 'framer-motion';
+import * as FiIcons from 'react-icons/fi';
+import SafeIcon from '../common/SafeIcon';
 import { useWeatherContext } from '../WeatherContext';
 import { sendLocalNotification } from '../pwa';
+
+const { FiAlertTriangle, FiInfo, FiWind, FiDroplet, FiZap, FiNavigation } = FiIcons;
 
 const WeatherAlerts = () => {
   const { weatherData: citiesWeather, manualAlerts, loading } = useWeatherContext();
@@ -29,50 +34,69 @@ const WeatherAlerts = () => {
 
     const cities = citiesWeather || [];
 
-    // 1. Check for Current Rain/Thunderstorms
-    const rainyCities = cities.filter(c => c && c.current && (c.current.weather_code >= 80 || (c.daily?.precipitation_sum?.[0] || 0) > 5));
-    if (rainyCities.length > 0) {
-      const cityNames = rainyCities.map(c => `${c.cityType} ${c.city}`).join('، ');
+    // 1. تحديد المدن التي يهطل فيها المطر حالياً
+    const currentlyRainy = cities.filter(c => c && c.current && (c.current.weather_code >= 80 || (c.daily?.precipitation_sum?.[0] || 0) > 5));
+    const currentlyRainyNames = currentlyRainy.map(c => c.city);
+
+    // 2. التنبؤ بالمسار القادم (المدن التي سيصلها المطر خلال 30-60 دقيقة)
+    // نستثني المدن التي بدأ فيها المطر بالفعل لتركيز التنبيه على "الوجهة القادمة"
+    const nextPathCities = cities.filter(city => {
+      if (!city.hourly || !city.hourly.time || currentlyRainyNames.includes(city.city)) return false;
       
-      // نتحقق مما إذا كان هناك تنبيه يدوي بنفس العنوان لمنع التكرار
-      const isAlreadyManual = result.some(r => r.title === 'تنبيه عاجل: أمطار وعواصف رعدية الآن');
+      const now = new Date();
+      const nextHourIndex = city.hourly.time.findIndex(t => new Date(t) > now);
+      if (nextHourIndex === -1) return false;
+
+      // فحص الساعة القادمة بدقة عالية
+      const prob = city.hourly.precipitation_probability?.[nextHourIndex] || 0;
+      const rain = city.hourly.precipitation?.[nextHourIndex] || 0;
+      const storms = city.hourly.thunderstorms?.[nextHourIndex] || 0;
       
-      if (!isAlreadyManual) {
-        result.push({
-          id: 'rain-now',
-          type: 'danger',
-          title: 'تنبيه عاجل: أمطار وعواصف رعدية الآن',
-          message: `يُرصد حالياً نشاط للسحب الرعدية الممطرة في مناطق: ${cityNames}. يرجى توخي الحذر من الصواعق والسيول.`,
-          icon: '⛈️',
-          color: 'bg-red-600',
-          tags: ['أمطار غزيرة', 'عواصف رعدية']
-        });
-      }
+      return prob > 40 || rain > 0.3 || storms > 0;
+    });
+
+    if (nextPathCities.length > 0) {
+      const cityNames = nextPathCities.map(c => `${c.cityType} ${c.city}`).join('، ');
+      
+      // حساب أقصى طاقة حرارية للمسار القادم
+      let maxCape = 0;
+      nextPathCities.forEach(c => {
+        if (c.hourly?.cape) {
+          const now = new Date();
+          const idx = c.hourly.time.findIndex(t => new Date(t) > now);
+          if (idx !== -1 && c.hourly.cape[idx] > maxCape) maxCape = c.hourly.cape[idx];
+        }
+      });
+
+      result.push({
+        id: 'urgent-path-alert',
+        type: 'danger',
+        title: 'تنبيه عاجل: مسار السحب الرعدية',
+        message: `يتوقع أن تصل الأمطار أو النشاط الرعدي خلال (30 إلى 60 دقيقة) القادمة إلى: ${cityNames}. يرجى توخي الحذر.`,
+        icon: '🧭',
+        color: 'bg-red-700',
+        tags: ['توقعات اللحظة', 'المسار القادم', `CAPE: ${Math.round(maxCape)}`],
+        isUrgent: true
+      });
+    }
+
+    // 3. عرض المدن التي تشهد أمطاراً الآن (كتنبيه معلوماتي وليس كتحذير مسار)
+    if (currentlyRainy.length > 0 && nextPathCities.length === 0) {
+      const cityNames = currentlyRainy.map(c => `${c.cityType} ${c.city}`).join('، ');
+      result.push({
+        id: 'rain-now-info',
+        type: 'success',
+        title: 'بشائر الخير الآن',
+        message: `تشهد مناطق ${cityNames} هطول أمطار الآن. جعلها الله أمطار خير وبركة.`,
+        icon: '🌦️',
+        color: 'bg-emerald-700',
+        tags: ['أمطار حالية', 'رصد حي']
+      });
     }
 
     // 1b. Check for Future Rain (Next 7 days)
-    const rainForecastMessage = `يتوقع بإذن الله هطول أمطار خلال الأيام القادمة على عدد من المقاطعات والبلديات، وذلك وفق الآتي:
-
-🔹 **8 يونيو:** سيلبابي، جيكني، تمبدغة، عدل بكرو.
-
-🔹 **9 يونيو:** لعيون، النعمة، باسكنو، جيكني، أمرج، فصاله، عدل بكرو، تمبدغة.
-
-🔹 **10 يونيو:** كيفة، لعيون، النعمة، تجكجة، سيلبابي، جيكني، أمرج، فصاله، عدل بكرو، تمبدغة.
-
-🔹 **11 يونيو:** كيهيدي، سيلبابي، جيكني.
-
-🔹 **12 يونيو:** سيلبابي.`;
-
-    result.push({
-      id: 'rain-future',
-      type: 'success',
-      title: 'التوقعات',
-      message: rainForecastMessage,
-      icon: '🌧️',
-      color: 'bg-emerald-600',
-      tags: ['توقعات الأمطار', 'بشائر الخير']
-    });
-
+    // تم نقل التوقعات التفصيلية إلى مكون RainForecastAlerts بناءً على طلب المستخدم
+    
     // 2. Check for High Temperature
     const hotCitiesToday = cities.filter(c => c && c.daily && (c.daily.temperature_2m_max?.[0] || 0) >= 42);
     if (hotCitiesToday.length > 0) {

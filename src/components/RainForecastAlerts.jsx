@@ -39,14 +39,31 @@ const RainForecastAlerts = () => {
       {
         date: '2026-06-10',
         dateAr: '10 يونيو',
-        cities: ['فصاله', 'النعمة'],
+        cities: ['فصاله'],
         probability: 75,
         intensity: 'خفيف إلى متوسط',
         icon: '🌧️',
         riskLevel: 'عالية'
+      },
+      {
+        date: '2026-06-14',
+        dateAr: '14 يونيو',
+        cities: ['النعمة', 'باسكنو', 'أمرج', 'فصاله', 'عدل بكرو'],
+        probability: 85,
+        intensity: 'متوسط إلى غزير',
+        icon: '🌧️',
+        riskLevel: 'عالية جداً'
       }
     ];
   }, [rainForecasts]);
+
+  const topCities = [
+    { name: 'النعمة', days: 2 },
+    { name: 'فصاله', days: 2 },
+    { name: 'كيفة', days: 1 },
+    { name: 'لعيون', days: 1 },
+    { name: 'باسكنو', days: 1 }
+  ];
 
   if (loading && (!rainForecasts || rainForecasts.length === 0)) {
     return (
@@ -109,16 +126,36 @@ const RainForecastAlerts = () => {
       {/* عنوان القسم */}
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
-          <span className="w-2 h-8 bg-green-500 rounded-full"></span>
-          <h3 className="text-2xl font-bold text-gray-800">بشائر الخير 🌦️</h3>
-          <div className="mr-auto flex flex-col items-end">
-            <span className="text-[10px] md:text-xs font-semibold bg-green-100 text-green-800 px-3 py-1 rounded-full">
-              آخر التحديثات الجوية
-            </span>
-            <span className="text-[9px] md:text-[10px] text-gray-400 mt-1 font-mono">
-              {lastUpdated ? `نشر في: اليوم ${lastUpdated.toLocaleDateString('en-GB')} ${lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : ''}
-            </span>
+            <span className="w-2 h-8 bg-green-500 rounded-full"></span>
+            <h3 className="text-2xl font-bold text-gray-800">بشائر الخير 🌦️</h3>
+            <div className="mr-auto flex flex-col items-end text-left">
+              <span className="text-[10px] md:text-xs font-semibold bg-green-100 text-green-800 px-3 py-1 rounded-full">
+                آخر التحديثات الجوية
+              </span>
+              <span className="text-[9px] md:text-[10px] text-gray-400 mt-1 font-mono">
+                نشر في: اليوم 09/06/2026 02:31
+              </span>
+            </div>
           </div>
+
+        <div className="mt-4 p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
+          <p className="text-sm text-blue-900 leading-relaxed font-bold">
+            يشير التوقعات إلى بشائر الخير خلال الأيام القادمة في:
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mt-3 text-xs md:text-sm font-medium text-gray-700">
+            <div className="flex items-center gap-2 hover:translate-x-1 transition-transform">📍 مقاطعة كيفة: 9/6</div>
+            <div className="flex items-center gap-2 hover:translate-x-1 transition-transform">📍 مقاطعة لعيون: 9/6</div>
+            <div className="flex items-center gap-2 hover:translate-x-1 transition-transform">📍 مقاطعة النعمة: 9/6، 14/6</div>
+            <div className="flex items-center gap-2 hover:translate-x-1 transition-transform">📍 مقاطعة باسكنو: 9/6، 14/6</div>
+            <div className="flex items-center gap-2 hover:translate-x-1 transition-transform">📍 مقاطعة جيكني: 9/6</div>
+            <div className="flex items-center gap-2 hover:translate-x-1 transition-transform">📍 مقاطعة أمرج: 9/6، 14/6</div>
+            <div className="flex items-center gap-2 hover:translate-x-1 transition-transform">📍 مقاطعة ولاته: 9/6</div>
+            <div className="flex items-center gap-2 hover:translate-x-1 transition-transform">📍 بلدية فصاله: 9/6، 10/6، 14/6</div>
+            <div className="flex items-center gap-2 hover:translate-x-1 transition-transform">📍 بلدية عدل بكرو: 9/6، 14/6</div>
+          </div>
+          <p className="text-[10px] text-gray-500 mt-4 italic border-t border-blue-100 pt-2">
+            وتبقى هذه التوقعات قابلة للتحديث مع صدور النماذج الجوية الجديدة. تابع الموقع للحصول على آخر التحديثات.
+          </p>
         </div>
 
         <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl text-sm text-slate-700 space-y-3">
@@ -258,8 +295,39 @@ const RainForecastAlerts = () => {
         </div>
       </div>
 
+      {/* المناطق الأقدر على استقبال الخير */}
+      <div className="mt-8">
+        <div className="flex items-center gap-2 mb-4 px-2">
+          <span className="text-xl">🎯</span>
+          <h4 className="font-bold text-gray-800">المناطق الأقدر على استقبال الخير</h4>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {topCities.map((city, idx) => (
+            <motion.div
+              key={idx}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.1 }}
+              className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 text-center group hover:border-emerald-200 transition-colors"
+            >
+              <p className="text-sm font-bold text-gray-800 mb-1">{city.name}</p>
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-bold">
+                  {city.days} أيام
+                </span>
+                <div className="flex gap-0.5 mt-1">
+                  {[...Array(city.days)].map((_, i) => (
+                    <span key={i} className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
       {/* آخر تحديث */}
-      <p className="text-xs text-gray-500 text-center mt-4">
+      <p className="text-xs text-gray-500 text-center mt-6">
         آخر تحديث للبيانات: {lastUpdated ? lastUpdated.toLocaleString('ar-SA') : 'جاري التحديث...'}
       </p>
     </div>
