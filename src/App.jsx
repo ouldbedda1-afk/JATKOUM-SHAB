@@ -28,6 +28,7 @@ function Home() {
           const { latitude, longitude } = position.coords;
           try {
             const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=ar`);
+            if (!response.ok) throw new Error('Geocoding service unavailable');
             const data = await response.json();
             const cityName = data.address?.city || data.address?.town || data.address?.village || data.address?.state;
             if (cityName) {
@@ -52,24 +53,27 @@ function Home() {
   useEffect(() => {
     // التحقق من تحديثات التطبيق (Service Worker)
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.ready.then(registration => {
-        if (!registration) return;
-        
-        registration.onupdatefound = () => {
-          const installingWorker = registration.installing;
-          if (installingWorker) {
-            installingWorker.onstatechange = () => {
-              if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // يوجد تحديث جديد للكود
-                sendLocalNotification('تحديث جديد متاح', {
-                  body: 'تم تحديث تطبيق جاتكم اسحاب لنسخة أحدث. يرجى إعادة تحميل الصفحة.',
-                  tag: 'app-update'
-                });
-              }
-            };
+      // فحص وجود تحديثات كل 5 دقائق
+      const checkForUpdates = async () => {
+        try {
+          const registration = await navigator.serviceWorker.getRegistration();
+          if (registration) {
+            await registration.update();
+            console.log('🔍 تم فحص تحديثات المتصفح...');
           }
-        };
+        } catch (e) {
+          console.error('Update check failed:', e);
+        }
+      };
+
+      const interval = setInterval(checkForUpdates, 5 * 60 * 1000);
+
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        // إذا تغير الـ controller، يعني أن هناك نسخة جديدة تم تفعيلها
+        window.location.reload();
       });
+
+      return () => clearInterval(interval);
     }
   }, []);
 

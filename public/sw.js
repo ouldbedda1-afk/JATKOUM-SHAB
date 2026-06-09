@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jatkoum-shab-v2'; // تحديث النسخة لإجبار المتصفح على تحميل الكود الجديد
+const CACHE_NAME = 'jatkoum-shab-v3'; // تحديث النسخة لإجبار المتصفح على تجاوز الكاش القديم
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -6,9 +6,9 @@ const ASSETS_TO_CACHE = [
   './logo.png'
 ];
 
-// تثبيت الـ Service Worker وتخزين الملفات الأساسية
+// تثبيت الـ Service Worker
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // تفعيل النسخة الجديدة فوراً
+  self.skipWaiting(); 
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS_TO_CACHE);
@@ -16,53 +16,60 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// تفعيل الـ Service Worker وحذف التخزين القديم
+// تفعيل الـ Service Worker وحذف التخزين القديم فوراً
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    Promise.all([
-      self.clients.claim(), // السيطرة على الصفحات المفتوحة فوراً
-      caches.keys().then((cacheNames) => {
-        return Promise.all(
-          cacheNames.map((cacheName) => {
-            if (cacheName !== CACHE_NAME) {
-              return caches.delete(cacheName);
-            }
-          })
-        );
-      })
-    ])
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME) {
+            console.log('🧹 حذف الكاش القديم:', cacheName);
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
   );
 });
 
-// التعامل مع الإشعارات عند الضغط عليها
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  event.waitUntil(
-    clients.openWindow('/') // فتح الموقع عند الضغط على الإشعار
-  );
-});
-
-// استراتيجية الاستجابة: التخزين أولاً ثم الشبكة
+// استراتيجية الاستجابة: الشبكة أولاً للملفات الأساسية لضمان التحديث
 self.addEventListener('fetch', (event) => {
-  // تجاهل طلبات Supabase و API الطقس لضمان الحصول على بيانات حية وعدم حدوث تعارض
-  if (event.request.url.includes('supabase.co') || event.request.url.includes('api.open-meteo.com')) {
-    return; // دع المتصفح يتعامل معها بشكل طبيعي
+  // تجاهل طلبات الـ API لضمان بيانات حية
+  if (
+    event.request.url.includes('supabase.co') || 
+    event.request.url.includes('api.open-meteo.com') ||
+    event.request.url.includes('nominatim.openstreetmap.org')
+  ) {
+    return;
   }
 
+  // لملفات HTML و الـ Assets، نستخدم Network First مع معالجة الأخطاء
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request).then((fetchResponse) => {
-        // تخزين الاستجابات الجديدة ديناميكياً (اختياري)
-        return caches.open(CACHE_NAME).then((cache) => {
-          // نقوم بتخزين الملفات الثابتة فقط لتجنب تخزين طلبات API المتغيرة باستمرار
-          if (event.request.url.includes('.js') || event.request.url.includes('.css') || event.request.url.includes('.png')) {
-            cache.put(event.request, fetchResponse.clone());
-          }
-          return fetchResponse;
+    fetch(event.request)
+      .then((response) => {
+        // إذا كانت الاستجابة صالحة، نقوم بتخزينها
+        if (response && response.status === 200 && response.type === 'basic') {
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
+        }
+        return response;
+      })
+      .catch(async () => {
+        // إذا فشل الاتصال، نبحث في الكاش
+        const cachedResponse = await caches.match(event.request);
+        if (cachedResponse) return cachedResponse;
+
+        // إذا لم يوجد كاش، نرجع خطأ شبكة بدلاً من تعليق المتصفح
+        if (event.request.mode === 'navigate') {
+          return caches.match('./index.html');
+        }
+        
+        return new Response('Network error occurred', {
+          status: 408,
+          headers: { 'Content-Type': 'text/plain' }
         });
-      });
-    }).catch(() => {
-      // يمكن إضافة صفحة Offline هنا إذا لزم الأمر
-    })
+      })
   );
 });

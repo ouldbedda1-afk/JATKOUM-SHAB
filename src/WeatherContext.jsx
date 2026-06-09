@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { getAllCitiesWeather, getActiveFires, getMarineWeather, clearWeatherCache } from './weatherApi';
-import { getRecentRainReports, getRecentBawahReports, getUpcomingRainForecasts } from './supabase';
+import { getRecentRainReports, getRecentBawahReports, getUpcomingRainForecasts, getActiveAlerts } from './supabase';
 import { getSatelliteVegetationStatus } from './satelliteVegetation';
 
 const WeatherContext = createContext(null);
@@ -18,6 +18,7 @@ export const WeatherProvider = ({ children }) => {
   const [rainReports,      setRainReports]      = useState([]);
   const [bawahReports,     setBawahReports]     = useState([]);
   const [rainForecasts,    setRainForecasts]    = useState([]);
+  const [manualAlerts,     setManualAlerts]     = useState([]);
   const [vegetationData,   setVegetationData]   = useState(null);
   const [loading,          setLoading]          = useState(true);
   const [lastUpdated,      setLastUpdated]      = useState(null);
@@ -39,7 +40,7 @@ export const WeatherProvider = ({ children }) => {
       console.log('🔄 جلب البيانات المركزية...');
 
       // ✅ جلب كل البيانات دفعةً واحدة — weatherApi.js يتكفل بالـ cache ومنع التكرار
-      const [weather, activeFires, marine, reports, fieldBawahReports, vegetation, forecasts] = await Promise.all([
+      const [weather, activeFires, marine, reports, fieldBawahReports, vegetation, forecasts, alerts] = await Promise.all([
         getAllCitiesWeather().catch(e => { console.error('weather:', e); return []; }),
         getActiveFires().catch(e  => { console.error('fires:',   e); return []; }),
         getMarineWeather().catch(e => { console.error('marine:',  e); return []; }),
@@ -47,6 +48,7 @@ export const WeatherProvider = ({ children }) => {
         getRecentBawahReports().catch(e => { console.error('bawah:', e); return []; }),
         getSatelliteVegetationStatus().catch(e => { console.error('veg:', e); return null; }),
         getUpcomingRainForecasts().catch(e => { console.error('forecasts:', e); return []; }),
+        getActiveAlerts().catch(e => { console.error('alerts:', e); return []; }),
       ]);
 
       setWeatherData(weather   || []);
@@ -56,6 +58,7 @@ export const WeatherProvider = ({ children }) => {
       setBawahReports(fieldBawahReports || []);
       setVegetationData(vegetation);
       setRainForecasts(forecasts || []);
+      setManualAlerts(alerts || []);
       setLastUpdated(new Date());
       setError(null);
       console.log('✅ تم تحديث البيانات المركزية بنجاح');
@@ -72,8 +75,8 @@ export const WeatherProvider = ({ children }) => {
     // ✅ جلب أول مرة فقط عند التحميل
     refreshAllData();
 
-    // ✅ تحديث كل 20 دقيقة (مزامنة مع مدة الـ cache في weatherApi.js)
-    const interval = setInterval(() => refreshAllData(true), 20 * 60 * 1000);
+    // ✅ تحديث كل 5 دقائق لضمان رصد العواصف والبرق والرياح لحظة بلحظة
+    const interval = setInterval(() => refreshAllData(true), 5 * 60 * 1000);
     return () => clearInterval(interval);
 
     // ✅ [] يضمن أن useEffect لا يُشغَّل إلا مرة واحدة عند التحميل
@@ -87,6 +90,7 @@ export const WeatherProvider = ({ children }) => {
     rainReports,
     bawahReports,
     rainForecasts,
+    manualAlerts,
     vegetationData,
     loading,
     lastUpdated,

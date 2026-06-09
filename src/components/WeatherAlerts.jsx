@@ -3,28 +3,51 @@ import { useWeatherContext } from '../WeatherContext';
 import { sendLocalNotification } from '../pwa';
 
 const WeatherAlerts = () => {
-  const { weatherData: citiesWeather, loading } = useWeatherContext();
+  const { weatherData: citiesWeather, manualAlerts, loading } = useWeatherContext();
 
   // 1. تعريف كافة الـ Hooks في البداية (قاعدة React الأساسية)
   const weatherAlerts = useMemo(() => {
     if (loading) return [];
 
     const result = [];
+
+    // --- 0. التنبيهات اليدوية من الإدارة ---
+    if (manualAlerts && manualAlerts.length > 0) {
+      manualAlerts.forEach(alert => {
+        result.push({
+          id: `manual-${alert.id}`,
+          type: alert.type || 'danger',
+          title: alert.title,
+          message: alert.message,
+          icon: alert.icon || '⚠️',
+          color: alert.color || 'bg-red-700',
+          tags: Array.isArray(alert.tags) ? alert.tags : JSON.parse(alert.tags || '[]'),
+          isUrgent: true
+        });
+      });
+    }
+
     const cities = citiesWeather || [];
 
     // 1. Check for Current Rain/Thunderstorms
     const rainyCities = cities.filter(c => c && c.current && (c.current.weather_code >= 80 || (c.daily?.precipitation_sum?.[0] || 0) > 5));
     if (rainyCities.length > 0) {
       const cityNames = rainyCities.map(c => `${c.cityType} ${c.city}`).join('، ');
-      result.push({
-        id: 'rain-now',
-        type: 'danger',
-        title: 'تنبيه عاجل: أمطار وعواصف رعدية الآن',
-        message: `يُرصد حالياً نشاط للسحب الرعدية الممطرة في مناطق: ${cityNames}. يرجى توخي الحذر من الصواعق والسيول.`,
-        icon: '⛈️',
-        color: 'bg-red-600',
-        tags: ['أمطار غزيرة', 'عواصف رعدية']
-      });
+      
+      // نتحقق مما إذا كان هناك تنبيه يدوي بنفس العنوان لمنع التكرار
+      const isAlreadyManual = result.some(r => r.title === 'تنبيه عاجل: أمطار وعواصف رعدية الآن');
+      
+      if (!isAlreadyManual) {
+        result.push({
+          id: 'rain-now',
+          type: 'danger',
+          title: 'تنبيه عاجل: أمطار وعواصف رعدية الآن',
+          message: `يُرصد حالياً نشاط للسحب الرعدية الممطرة في مناطق: ${cityNames}. يرجى توخي الحذر من الصواعق والسيول.`,
+          icon: '⛈️',
+          color: 'bg-red-600',
+          tags: ['أمطار غزيرة', 'عواصف رعدية']
+        });
+      }
     }
 
     // 1b. Check for Future Rain (Next 7 days)

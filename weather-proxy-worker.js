@@ -63,22 +63,31 @@ export default {
     // ✅ مسار الطقس الرئيسي
     if (!url.pathname.includes('/proxy')) {
       const cacheKey = `meteo:${url.search}`;
-      let cached = await env.METEO_CACHE.get(cacheKey);
+      
+      // التحقق من وجود METEO_CACHE لمنع خطأ 500
+      let cached = null;
+      if (env.METEO_CACHE) {
+        cached = await env.METEO_CACHE.get(cacheKey);
+      }
+      
       if (cached) return new Response(cached, { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       try {
         const targetUrl = `https://api.open-meteo.com/v1/forecast${url.search}`;
         const res = await proxyFetchWithRetry(targetUrl);
         if (!res.ok) {
           // حاول إرجاع نسخة مخزنة قديمة إن وُجدت
-          const stale = await env.METEO_CACHE.get(cacheKey);
+          const stale = env.METEO_CACHE ? await env.METEO_CACHE.get(cacheKey) : null;
           if (stale) return new Response(stale, { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-          throw new Error("API Fail");
+          throw new Error(`API Fail: ${res.status}`);
         }
         const data = await res.text();
-        ctx.waitUntil(env.METEO_CACHE.put(cacheKey, data, { expirationTtl: 3600 }));
+        if (env.METEO_CACHE) {
+          ctx.waitUntil(env.METEO_CACHE.put(cacheKey, data, { expirationTtl: 3600 }));
+        }
         return new Response(data, { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       } catch (e) {
-        return new Response(JSON.stringify({error:"fail"}), { status:500, headers:{...corsHeaders} });
+        console.error('Meteo Proxy Error:', e);
+        return new Response(JSON.stringify({error: e.message}), { status: 502, headers:{...corsHeaders} });
       }
     }
 
@@ -86,20 +95,28 @@ export default {
     const targetUrl = url.searchParams.get("url");
     if (!targetUrl) return new Response("Missing URL", { status:400 });
     const cacheKey = `proxy:${btoa(targetUrl)}`;
-    let cached = await env.METEO_CACHE.get(cacheKey);
+    
+    let cached = null;
+    if (env.METEO_CACHE) {
+      cached = await env.METEO_CACHE.get(cacheKey);
+    }
+
     if (cached) return new Response(cached, { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     try {
       const res = await proxyFetchWithRetry(targetUrl);
       if (!res.ok) {
-        const stale = await env.METEO_CACHE.get(cacheKey);
+        const stale = env.METEO_CACHE ? await env.METEO_CACHE.get(cacheKey) : null;
         if (stale) return new Response(stale, { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-        throw new Error('Fetch fail');
+        throw new Error(`Fetch fail: ${res.status}`);
       }
       const data = await res.text();
-      ctx.waitUntil(env.METEO_CACHE.put(cacheKey, data, { expirationTtl: 1800 }));
+      if (env.METEO_CACHE) {
+        ctx.waitUntil(env.METEO_CACHE.put(cacheKey, data, { expirationTtl: 1800 }));
+      }
       return new Response(data, { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     } catch (e) {
-      return new Response(JSON.stringify({error:"proxy fail"}), { status:500, headers:{...corsHeaders} });
+      console.error('General Proxy Error:', e);
+      return new Response(JSON.stringify({error: e.message}), { status: 502, headers:{...corsHeaders} });
     }
   }
 };

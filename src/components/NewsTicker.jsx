@@ -1,9 +1,11 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useWeatherContext } from '../WeatherContext';
+import * as FiIcons from 'react-icons/fi';
+import SafeIcon from '../common/SafeIcon';
 
 const NewsTicker = () => {
-  const { weatherData, fires, rainReports, loading } = useWeatherContext();
+  const { weatherData, fires, rainReports, loading, refreshAllData } = useWeatherContext();
 
   const newsItems = useMemo(() => {
     if (loading || !weatherData) return ["جاري تحميل آخر الأخبار..."];
@@ -22,10 +24,14 @@ const NewsTicker = () => {
       // أمطار وعواصف رعدية
       if (code >= 95) {
         urgentAlerts.push(`تنبيه عاجل: عواصف رعدية قوية ترصد الآن في مقاطعة ${cityData.city}. يرجى الحذر!`);
+      } else if (code >= 80 && code <= 82) {
+        urgentAlerts.push(`تنبيه: زخات مطرية رعدية تشهدها مقاطعة ${cityData.city} حالياً.`);
       } else if (code >= 61 && code <= 67) {
         urgentAlerts.push(`تنبيه: أمطار متوسطة إلى غزيرة تتساقط الآن في مقاطعة ${cityData.city}.`);
       } else if (code >= 51 && code <= 55) {
         urgentAlerts.push(`بشارة: رذاذ وأمطار خفيفة تشهدها مقاطعة ${cityData.city} الآن.`);
+      } else if (code === 29 || code === 17) {
+        urgentAlerts.push(`تنبيه: نشاط رعدى يرصد بالقرب من مقاطعة ${cityData.city} الآن.`);
       }
 
       // رياح قوية
@@ -77,9 +83,16 @@ const NewsTicker = () => {
   return (
     <div className="bg-yellow-400 py-2 overflow-hidden border-y border-yellow-500 shadow-sm relative z-40" dir="rtl">
       <div className="flex items-center">
-        <div className="bg-red-600 text-white px-6 py-2 text-sm md:text-lg font-black rounded-l-2xl z-50 whitespace-nowrap shadow-xl flex items-center gap-2">
+        <div className="bg-red-600 text-white px-4 md:px-6 py-2 text-sm md:text-lg font-black rounded-l-2xl z-50 whitespace-nowrap shadow-xl flex items-center gap-2">
           <span className="animate-pulse w-2 h-2 bg-white rounded-full"></span>
           أخبار عاجلة
+          <button 
+            onClick={() => refreshAllData(true)} 
+            className="mr-2 p-1 hover:bg-white/20 rounded-full transition-colors"
+            title="تحديث البيانات الآن"
+          >
+            <SafeIcon icon={FiIcons.FiRefreshCw} className={`text-xs md:text-sm ${loading ? 'animate-spin' : ''}`} />
+          </button>
         </div>
         
         <div className="flex-1 overflow-hidden relative">

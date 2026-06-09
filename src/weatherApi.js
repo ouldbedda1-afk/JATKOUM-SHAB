@@ -23,7 +23,7 @@ const memoryCache = new Map();
 // --- Cache دائم في localStorage (يبقى بعد إعادة التحميل) ---
 const LS_PREFIX = 'wx_cache_';
 const DAILY_LIMIT_KEY = `${LS_PREFIX}daily_limit_blocked`;
-const CACHE_DURATION = 60 * 60 * 1000; // زيادة المدة إلى ساعة كاملة لتقليل الطلبات
+const CACHE_DURATION = 5 * 60 * 1000; // تقليل المدة إلى 5 دقائق لرصد العواصف والرياح فوراً
 const STALE_DURATION = 24 * 60 * 60 * 1000; // إمكانية استخدام بيانات قديمة لمدة يوم عند تعطل الـ API
 
 function isDailyLimitBlocked() {
@@ -305,6 +305,9 @@ const mauritanianCities = {
   'اعوينات ازبل': { lat: 16.3848, lon: -8.8877, name: 'Aoueinat Zbel', type: 'بلدية' },
   'امرج': { lat: 16.1069, lon: -7.2143, name: 'Amourj', type: 'مقاطعة' },
   'ولاته': { lat: 17.2966, lon: -7.0240, name: 'Oualata', type: 'مقاطعة' },
+  'مقامة': { lat: 15.51, lon: -12.85, name: 'Maghama', type: 'مقاطعة' },
+  'ولد ينج': { lat: 15.35, lon: -11.63, name: 'Ould Yengé', type: 'مقاطعة' },
+  'باركيول': { lat: 16.63, lon: -12.50, name: 'Barkéol', type: 'مقاطعة' },
 };
 
 /**
@@ -508,7 +511,7 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
       const sourceUrl = `${OPEN_METEO_API}?${params}`;
       const target = buildProxyTarget(sourceUrl);
       const response = await enqueueFetch(target);
-      if (!response.ok) throw new Error(`API error: ${response.statusText}`);
+      if (!response.ok) throw new Error(`API error: ${response.status} ${response.statusText || ''}`);
 
       const data = await response.json();
       const result = {
@@ -569,7 +572,8 @@ export async function getAllCitiesWeather() {
     'نواكشوط', 'نواذيبو', 'روصو', 'كيهيدي', 'ألاك',
     'كيفة', 'لعيون', 'النعمة', 'تجكجة', 'أطار',
     'أكجوجت', 'زويرات', 'سيلبابي', 'تمبدغة', 'باسكنو',
-    'جيكني', 'امرج', 'ولاته', 'فصاله', 'عدل بكرو'
+    'جيكني', 'امرج', 'ولاته', 'فصاله', 'عدل بكرو',
+    'امبود', 'مقامة', 'ولد ينج', 'باركيول'
   ];
 
   const cacheKey = 'all_cities_weather';
@@ -608,7 +612,7 @@ export async function getAllCitiesWeather() {
       const target = buildProxyTarget(sourceUrl);
       const response = await enqueueFetch(target);
       if (!response.ok) {
-        throw new Error(`API error: ${response.statusText}`);
+        throw new Error(`API error: ${response.status} ${response.statusText || ''}`);
       }
 
       const data = await response.json();

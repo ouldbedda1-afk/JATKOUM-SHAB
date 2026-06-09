@@ -7,7 +7,12 @@ const { FiLayers, FiMaximize, FiPlayCircle, FiDownload, FiShield, FiCheck, FiClo
 
 const SatelliteViewer = () => {
   const [activeLayer, setActiveLayer] = useState('rain');
+  const [mapKey, setMapKey] = useState(0); // مفتاح لإعادة تحميل الـ iframe
   const { weatherData, fires, rainReports, loading } = useWeatherContext();
+
+  const refreshMap = () => {
+    setMapKey(prev => prev + 1);
+  };
 
   const hasClouds = useMemo(() => {
     if (loading || !weatherData) return false;
@@ -46,6 +51,7 @@ const SatelliteViewer = () => {
 
       <div className="relative aspect-[3/4] md:aspect-video rounded-2xl overflow-hidden bg-gray-900 group border border-gray-100">
         <iframe 
+          key={mapKey}
           src={`https://embed.windy.com/embed2.html?lat=18.0735&lon=-15.9582&zoom=5&level=surface&overlay=${activeLayer}&menu=&message=&marker=&calendar=&pressure=&type=map&location=coordinates&detail=&metricWind=km%2Fh&metricTemp=%C2%B0C&radarRange=-1`} 
           width="100%" 
           height="100%" 
@@ -55,6 +61,13 @@ const SatelliteViewer = () => {
         ></iframe>
         
         <div className="absolute bottom-4 right-4 flex gap-2">
+          <button 
+            onClick={refreshMap}
+            className="bg-white/90 backdrop-blur p-2 rounded-lg shadow-lg hover:bg-white transition-colors"
+            title="تحديث الخريطة"
+          >
+            <SafeIcon icon={FiIcons.FiRefreshCw} className={`text-gray-800 ${loading ? 'animate-spin' : ''}`} />
+          </button>
           <button className="bg-white/90 backdrop-blur p-2 rounded-lg shadow-lg hover:bg-white transition-colors">
             <SafeIcon icon={FiMaximize} className="text-gray-800" />
           </button>

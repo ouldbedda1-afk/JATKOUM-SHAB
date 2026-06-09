@@ -4,10 +4,12 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 import { useWeather } from '../useWeather';
 import { getWeatherDescription, getWeatherIcon } from '../weatherApi';
+import { useWeatherContext } from '../WeatherContext';
 
-const { FiWind, FiDroplet, FiSun, FiThermometer } = FiIcons;
+const { FiWind, FiDroplet, FiSun, FiThermometer, FiClock } = FiIcons;
 
 const WeatherHero = ({ city }) => {
+  const { lastUpdated } = useWeatherContext();
   const cityName = typeof city === 'string' ? city : city.name;
   const { data: weatherData, loading, error } = useWeather(cityName, typeof city === 'object' ? city : null);
   if (loading) {
@@ -101,6 +103,16 @@ const WeatherHero = ({ city }) => {
               <SafeIcon icon={FiIcons.FiMapPin || FiIcons.FiMap} className="text-xs" />
               {city.isLocal ? 'موقعك الحالي' : 'تحديد موقعي'}
             </button>
+            <div className="bg-red-500/80 px-4 py-1 rounded-full text-[10px] md:text-xs font-bold flex items-center gap-2 backdrop-blur-sm shadow-lg border border-red-400/30">
+              <span className="w-2 h-2 bg-white rounded-full animate-ping"></span>
+              بث مباشر
+            </div>
+            {lastUpdated && (
+              <div className="bg-blue-600/40 px-3 py-1 rounded-full text-[9px] md:text-[10px] font-medium flex items-center gap-1 backdrop-blur-sm border border-white/10">
+                <SafeIcon icon={FiClock} className="text-[10px]" />
+                {lastUpdated.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
+              </div>
+            )}
             <button 
               onClick={shareOnWhatsApp}
               className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 transition-colors shadow-lg"
