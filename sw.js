@@ -43,12 +43,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // لملفات HTML و الـ Assets، نستخدم Network First أو Stale-While-Revalidate
+  // لملفات HTML و الـ Assets، نستخدم Network First مع معالجة الأخطاء
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // إذا نجح الاتصال بالشبكة، نحدث الكاش ونرجع الاستجابة
-        if (response.status === 200) {
+        // إذا كانت الاستجابة صالحة، نقوم بتخزينها
+        if (response && response.status === 200 && response.type === 'basic') {
           const responseClone = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseClone);
@@ -56,9 +56,20 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => {
-        // إذا فشل الاتصال (أوفلاين)، نبحث في الكاش
-        return caches.match(event.request);
+      .catch(async () => {
+        // إذا فشل الاتصال، نبحث في الكاش
+        const cachedResponse = await caches.match(event.request);
+        if (cachedResponse) return cachedResponse;
+
+        // إذا لم يوجد كاش، نرجع خطأ شبكة بدلاً من تعليق المتصفح
+        if (event.request.mode === 'navigate') {
+          return caches.match('./index.html');
+        }
+        
+        return new Response('Network error occurred', {
+          status: 408,
+          headers: { 'Content-Type': 'text/plain' }
+        });
       })
   );
 });
