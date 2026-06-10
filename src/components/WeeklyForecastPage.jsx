@@ -22,7 +22,7 @@ const WeeklyForecastPage = () => {
       <main className="max-w-4xl mx-auto px-4 mt-12">
         {/* قسم بشائر الخير - تم نقله إلى صفحة التوقعات */}
         <div className="mb-12">
-          <RainForecastAlerts />
+          <RainForecastAlerts selectedCity={selectedCity} />
         </div>
 
         <div className="flex items-center gap-4 mb-8">

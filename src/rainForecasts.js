@@ -31,12 +31,24 @@ export const rainForecasts = [
 ];
 
 /**
- * الحصول على توقعات الأمطار لمدينة معينة
+ * الحصول على توقعات الأمطار لمدينة معينة وتصفيتها بناءً على التاريخ (إخفاء الماضي)
  */
 export function getRainForecastForCity(cityName) {
-  return rainForecasts.filter(forecast => 
-    forecast.cities.some(city => city.toLowerCase() === cityName.toLowerCase())
-  );
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  return rainForecasts.filter(forecast => {
+    // التحقق من أن المدينة موجودة في قائمة المدن
+    const cityExists = forecast.cities.some(city => city.toLowerCase() === cityName.toLowerCase());
+    
+    if (!cityExists) return false;
+    
+    // التحقق من أن التاريخ لم يمضِ بعد
+    const forecastDate = new Date(forecast.date);
+    forecastDate.setHours(0, 0, 0, 0);
+    
+    return forecastDate >= today;
+  });
 }
 
 /**
@@ -44,6 +56,20 @@ export function getRainForecastForCity(cityName) {
  */
 export function getRainForecastForDate(date) {
   return rainForecasts.find(forecast => forecast.date === date || forecast.dateAr === date);
+}
+
+/**
+ * الحصول على جميع التوقعات الصالحة (المستقبلية فقط)
+ */
+export function getValidRainForecasts() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  return rainForecasts.filter(forecast => {
+    const forecastDate = new Date(forecast.date);
+    forecastDate.setHours(0, 0, 0, 0);
+    return forecastDate >= today;
+  });
 }
 
 /**

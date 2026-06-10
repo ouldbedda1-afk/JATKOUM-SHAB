@@ -3,59 +3,71 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 import { useWeatherContext } from '../WeatherContext';
+import { getRainForecastForCity, getValidRainForecasts } from '../rainForecasts';
 
 const { FiAlertCircle, FiX, FiBell } = FiIcons;
 
-const RainForecastAlerts = () => {
+const RainForecastAlerts = ({ selectedCity }) => {
   const { rainForecasts, loading, lastUpdated } = useWeatherContext();
   const [expandedDate, setExpandedDate] = useState(null);
   const [showNotification, setShowNotification] = useState(true);
 
   // استخدام البيانات من السياق أو بيانات افتراضية محدثة
   const forecasts = useMemo(() => {
-    if (rainForecasts && rainForecasts.length > 0) {
-      return rainForecasts.map(f => ({
-        date: f.date,
-        dateAr: f.date_ar || f.date,
-        cities: Array.isArray(f.cities) ? f.cities : JSON.parse(f.cities || '[]'),
-        probability: f.probability,
-        intensity: f.intensity,
-        riskLevel: f.risk_level,
-        icon: f.icon || '🌧️'
-      }));
+    let filteredForecasts = [];
+    
+    // إذا تم اختيار مدينة، عرض توقعاتها فقط
+    if (selectedCity && typeof selectedCity === 'object' && selectedCity.name) {
+      // استخراج اسم المقاطعة من البحث
+      const cityName = selectedCity.name;
+      
+      if (rainForecasts && rainForecasts.length > 0) {
+        // تصفية التنبؤات حسب المدينة والتاريخ
+        filteredForecasts = rainForecasts
+          .filter(f => {
+            const cities = Array.isArray(f.cities) ? f.cities : JSON.parse(f.cities || '[]');
+            return cities.some(c => c.toLowerCase() === cityName.toLowerCase());
+          })
+          .filter(f => {
+            // التحقق من أن التاريخ لم يمضِ بعد
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const forecastDate = new Date(f.date);
+            forecastDate.setHours(0, 0, 0, 0);
+            return forecastDate >= today;
+          });
+      }
+    } else {
+      // إذا لم تتم اختيار مدينة، عرض جميع التنبؤات الصالحة (المستقبلية)
+      if (rainForecasts && rainForecasts.length > 0) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        filteredForecasts = rainForecasts.filter(f => {
+          const forecastDate = new Date(f.date);
+          forecastDate.setHours(0, 0, 0, 0);
+          return forecastDate >= today;
+        });
+      } else {
+        // بيانات افتراضية إذا لم تتوفر بيانات من الخادم
+        filteredForecasts = getValidRainForecasts().map(f => ({
+          ...f,
+          dateAr: f.date_ar || f.date,
+          cities: Array.isArray(f.cities) ? f.cities : JSON.parse(f.cities || '[]')
+        }));
+      }
     }
     
-    // بيانات افتراضية إذا لم تتوفر بيانات من الخادم
-    return [
-      {
-        date: '2026-06-09',
-        dateAr: '9 يونيو',
-        cities: ['كيفة', 'لعيون', 'النعمة', 'باسكنو', 'جيكني', 'أمرج', 'ولاته', 'فصاله', 'عدل بكرو'],
-        probability: 90,
-        intensity: 'متوسط إلى غزير',
-        icon: '🌦️',
-        riskLevel: 'عالية جداً'
-      },
-      {
-        date: '2026-06-10',
-        dateAr: '10 يونيو',
-        cities: ['فصاله'],
-        probability: 75,
-        intensity: 'خفيف إلى متوسط',
-        icon: '🌧️',
-        riskLevel: 'عالية'
-      },
-      {
-        date: '2026-06-14',
-        dateAr: '14 يونيو',
-        cities: ['النعمة', 'باسكنو', 'أمرج', 'فصاله', 'عدل بكرو'],
-        probability: 85,
-        intensity: 'متوسط إلى غزير',
-        icon: '🌧️',
-        riskLevel: 'عالية جداً'
-      }
-    ];
-  }, [rainForecasts]);
+    return filteredForecasts.map(f => ({
+      date: f.date,
+      dateAr: f.date_ar || f.dateAr || f.date,
+      cities: Array.isArray(f.cities) ? f.cities : JSON.parse(f.cities || '[]'),
+      probability: f.probability,
+      intensity: f.intensity,
+      riskLevel: f.risk_level || f.riskLevel,
+      icon: f.icon || '🌧️'
+    }));
+  }, [rainForecasts, selectedCity]);
 
   const topCities = [
     { name: 'النعمة', days: 2 },
@@ -133,46 +145,51 @@ const RainForecastAlerts = () => {
                 آخر التحديثات الجوية
               </span>
               <span className="text-[9px] md:text-[10px] text-gray-400 mt-1 font-mono">
-                نشر في: اليوم 09/06/2026 02:31
+                {lastUpdated ? `نشر في: اليوم ${lastUpdated.toLocaleDateString('en-GB')} ${lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : 'جاري التحديث...'}
               </span>
             </div>
           </div>
 
         <div className="mt-4 p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
           <p className="text-sm text-blue-900 leading-relaxed font-bold">
-            يشير التوقعات إلى بشائر الخير خلال الأيام القادمة في:
+            {selectedCity && typeof selectedCity === 'object' && selectedCity.name 
+              ? `توقعات الأمطار لمقاطعة ${selectedCity.name}:`
+              : 'يشير التوقعات إلى بشائر الخير خلال الأيام القادمة في:'
+            }
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mt-3 text-xs md:text-sm font-medium text-gray-700">
-            <div className="flex items-center gap-2 hover:translate-x-1 transition-transform">📍 مقاطعة كيفة: 9/6</div>
-            <div className="flex items-center gap-2 hover:translate-x-1 transition-transform">📍 مقاطعة لعيون: 9/6</div>
-            <div className="flex items-center gap-2 hover:translate-x-1 transition-transform">📍 مقاطعة النعمة: 9/6، 14/6</div>
-            <div className="flex items-center gap-2 hover:translate-x-1 transition-transform">📍 مقاطعة باسكنو: 9/6، 14/6</div>
-            <div className="flex items-center gap-2 hover:translate-x-1 transition-transform">📍 مقاطعة جيكني: 9/6</div>
-            <div className="flex items-center gap-2 hover:translate-x-1 transition-transform">📍 مقاطعة أمرج: 9/6، 14/6</div>
-            <div className="flex items-center gap-2 hover:translate-x-1 transition-transform">📍 مقاطعة ولاته: 9/6</div>
-            <div className="flex items-center gap-2 hover:translate-x-1 transition-transform">📍 بلدية فصاله: 9/6، 10/6، 14/6</div>
-            <div className="flex items-center gap-2 hover:translate-x-1 transition-transform">📍 بلدية عدل بكرو: 9/6، 14/6</div>
-          </div>
+          {forecasts.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mt-3 text-xs md:text-sm font-medium text-gray-700">
+              {forecasts.map((forecast, idx) => (
+                <div key={idx} className="flex items-center gap-2 hover:translate-x-1 transition-transform">
+                  📍 {forecast.dateAr}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500 mt-3">لا توجد توقعات متاحة للمقاطعة المحددة</p>
+          )}
           <p className="text-[10px] text-gray-500 mt-4 italic border-t border-blue-100 pt-2">
             وتبقى هذه التوقعات قابلة للتحديث مع صدور النماذج الجوية الجديدة. تابع الموقع للحصول على آخر التحديثات.
           </p>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl text-sm text-slate-700 space-y-3">
-          <p className="font-semibold text-slate-800">يتشير التوقعات إلى بشائر الخير خلال الأيام القادمة في:</p>
-          <ul className="list-disc list-inside space-y-1">
-            <li>📍 <strong>مقاطعة كيفة:</strong> 9/6</li>
-            <li>📍 <strong>مقاطعة لعيون:</strong> 9/6</li>
-            <li>📍 <strong>مقاطعة النعمة:</strong> 9/6، 14/6</li>
-            <li>📍 <strong>مقاطعة باسكنو:</strong> 9/6، 14/6</li>
-            <li>📍 <strong>مقاطعة جيكني:</strong> 9/6</li>
-            <li>📍 <strong>مقاطعة أمرج:</strong> 9/6، 14/6</li>
-            <li>📍 <strong>مقاطعة ولاته:</strong> 9/6</li>
-            <li>📍 <strong>بلدية فصاله:</strong> 9/6، 10/6، 14/6</li>
-            <li>📍 <strong>بلدية عدل بكرو:</strong> 9/6، 14/6</li>
-          </ul>
-          <p className="text-xs text-slate-500">وتبقى هذه التوقعات قابلة للتحديث مع صدور النماذج الجوية الجديدة. تابع الموقع للحصول على آخر التحديثات.</p>
-        </div>
+        {!selectedCity || !selectedCity.name ? (
+        forecasts.length > 0 && (
+          <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl text-sm text-slate-700 space-y-3">
+            <p className="font-semibold text-slate-800">يتشير التوقعات إلى بشائر الخير خلال الأيام القادمة في:</p>
+            <ul className="list-disc list-inside space-y-2">
+              {forecasts.map((forecast, idx) => (
+                <li key={idx} className="flex flex-col">
+                  <strong>{forecast.dateAr}:</strong>
+                  <span className="text-xs text-slate-600 mr-4">
+                    {forecast.cities.map(city => city).join('، ')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-slate-500">وتبقى هذه التوقعات قابلة للتحديث مع صدور النماذج الجوية الجديدة. تابع الموقع للحصول على آخر التحديثات.</p>
+          </div>
+        )) : null}
       </div>
 
       {/* بطاقات التوقعات */}

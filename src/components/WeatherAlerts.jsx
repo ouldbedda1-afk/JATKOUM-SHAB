@@ -35,7 +35,19 @@ const WeatherAlerts = () => {
     const cities = citiesWeather || [];
 
     // 1. تحديد المدن التي يهطل فيها المطر حالياً
-    const currentlyRainy = cities.filter(c => c && c.current && (c.current.weather_code >= 80 || (c.daily?.precipitation_sum?.[0] || 0) > 5));
+    const currentlyRainy = cities.filter(city => {
+      if (!city.hourly || !city.hourly.time) return false;
+      const now = new Date();
+      // نقارب الوقت الحالي بالساعة القريبة
+      const nearestIndex = city.hourly.time.findIndex(t => new Date(t) > now);
+      if (nearestIndex === -1) return false;
+
+      // تحقق من المطر الحالي (الساعة الحالية أو الساعة السابقة)
+      const currentRain = city.hourly.precipitation?.[nearestIndex] || 0;
+      const previousRain = nearestIndex > 0 ? city.hourly.precipitation?.[nearestIndex - 1] || 0 : 0;
+      
+      return city.current && (city.current.weather_code >= 80 || currentRain > 0.1 || previousRain > 0.1);
+    });
     const currentlyRainyNames = currentlyRainy.map(c => c.city);
 
     // 2. التنبؤ بالمسار القادم (المدن التي سيصلها المطر خلال 30-60 دقيقة)
@@ -47,12 +59,20 @@ const WeatherAlerts = () => {
       const nextHourIndex = city.hourly.time.findIndex(t => new Date(t) > now);
       if (nextHourIndex === -1) return false;
 
-      // فحص الساعة القادمة بدقة عالية
-      const prob = city.hourly.precipitation_probability?.[nextHourIndex] || 0;
-      const rain = city.hourly.precipitation?.[nextHourIndex] || 0;
-      const storms = city.hourly.thunderstorms?.[nextHourIndex] || 0;
+      // فحص الساعات الثلاث القادمة بدقة عالية
+      let hasHighProb = false;
+      for (let i = nextHourIndex; i < nextHourIndex + 3 && i < city.hourly.time.length; i++) {
+        const prob = city.hourly.precipitation_probability?.[i] || 0;
+        const rain = city.hourly.precipitation?.[i] || 0;
+        const storms = city.hourly.thunderstorms?.[i] || 0;
+        
+        if (prob > 50 || rain > 0.5 || storms > 0) {
+          hasHighProb = true;
+          break;
+        }
+      }
       
-      return prob > 40 || rain > 0.3 || storms > 0;
+      return hasHighProb;
     });
 
     if (nextPathCities.length > 0) {
@@ -127,18 +147,62 @@ const WeatherAlerts = () => {
       });
     }
 
-    // 4. Check for Thunderstorms
-    const thunderstormCities = cities.filter(c => c && ( (c.current?.weather_code || 0) >= 95 || (c.daily?.weather_code?.[0] || 0) >= 95));
+    // 4. Check for Thunderstorms (تحديث منطقي فقط للمدن التي لا يوجد بها مطر حالياً)
+    const thunderstormCities = cities.filter(city => {
+      // نستثني المدن التي يهطل فيها مطر حالياً لتلافي التكرار
+      if (currentlyRainyNames.includes(city.city)) return false;
+      
+      // تحقق من بيانات الساعة الحالية
+      if (!city.hourly || !city.hourly.time) return false;
+      const now = new Date();
+      const nextHourIndex = city.hourly.time.findIndex(t => new Date(t) > now);
+      
+      const isStrongStorm = (city.current?.weather_code || 0) >= 95;
+      const willBeStormy = nextHourIndex !== -1 && (
+        city.hourly.thunderstorms?.[nextHourIndex] > 0 || 
+        city.hourly.cape?.[nextHourIndex] > 1000 ||
+        (city.daily?.weather_code?.[0] || 0) >= 95
+      );
+      
+      return isStrongStorm || willBeStormy;
+    }).map(city => {
+      const now = new Date();
+      const nextHourIndex = city.hourly.time.findIndex(t => new Date(t) > now);
+      let forecastTime = "الساعات القادمة";
+      let relativeDate = "";
+      
+      if (nextHourIndex !== -1 && city.hourly.time[nextHourIndex]) {
+        const forecastDate = new Date(city.hourly.time[nextHourIndex]);
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        
+        const forecastDateOnly = new Date(forecastDate.getFullYear(), forecastDate.getMonth(), forecastDate.getDate());
+        
+        if (forecastDateOnly.getTime() === today.getTime()) {
+          relativeDate = "الليلة";
+        } else if (forecastDateOnly.getTime() === tomorrow.getTime()) {
+          relativeDate = "بعد غد";
+        } else {
+          relativeDate = forecastDate.toLocaleDateString('ar-EG', { day: 'numeric', month: 'short' });
+        }
+        
+        forecastTime = `${forecastDate.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })} ${relativeDate}`;
+      }
+      return { ...city, forecastTime };
+    });
+    
     if (thunderstormCities.length > 0) {
       const cityNames = thunderstormCities.map(c => `${c.cityType} ${c.city}`).join('، ');
+      const forecastTime = thunderstormCities[0].forecastTime; // استخدام وقت أول مدينة
       result.push({
         id: 'thunderstorm-warning',
         type: 'danger',
         title: 'تحذير: عواصف رعدية قوية',
-        message: `يتوقع بإذن الله تشكل عواصف رعدية قوية في مناطق ${cityNames}. يرجى الحذر من الصواعق والابتعاد عن مجاري السيول والأودية.`,
+        message: `يتوقع بإذن الله تشكل عواصف رعدية قوية في مناطق ${cityNames} حوالي الساعة ${forecastTime}. يرجى الحذر من الصواعق والابتعاد عن مجاري السيول والأودية.`,
         icon: '⚡',
         color: 'bg-purple-900',
-        tags: ['عواصف رعدية', 'صواعق']
+        tags: ['عواصف رعدية', 'صواعق', `توقيت: ${forecastTime}`]
       });
     }
 
