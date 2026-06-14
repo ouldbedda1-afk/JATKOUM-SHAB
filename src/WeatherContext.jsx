@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useMemo 
 import { getAllCitiesWeather, getActiveFires, getMarineWeather, clearWeatherCache } from './weatherApi';
 import { getRecentRainReports, getRecentBawahReports, getUpcomingRainForecasts, getActiveAlerts } from './supabase';
 import { getSatelliteVegetationStatus } from './satelliteVegetation';
+import { getRainingNowFromSatellite } from './satelliteRain';
 
 const WeatherContext = createContext(null);
 
@@ -20,6 +21,7 @@ export const WeatherProvider = ({ children }) => {
   const [rainForecasts,    setRainForecasts]    = useState([]);
   const [manualAlerts,     setManualAlerts]     = useState([]);
   const [vegetationData,   setVegetationData]   = useState(null);
+  const [rainingNow,       setRainingNow]       = useState([]);
   const [loading,          setLoading]          = useState(true);
   const [lastUpdated,      setLastUpdated]      = useState(null);
   const [error,            setError]            = useState(null);
@@ -69,6 +71,13 @@ export const WeatherProvider = ({ children }) => {
       setVegetationData(vegetation);
       setRainForecasts(forecasts || []);
       setManualAlerts(alerts || []);
+
+      // 🛰️ رصد الأمطار عبر الأقمار الصناعية (RainViewer) — بعد جلب بيانات المدن
+      if (weather && weather.length > 0) {
+        getRainingNowFromSatellite(weather)
+          .then(raining => setRainingNow(raining || []))
+          .catch(e => console.warn('🛰️ satellite rain check:', e));
+      }
       setLastUpdated(new Date());
       setError(null);
       console.log('✅ تم تحديث البيانات المركزية بنجاح');
@@ -128,6 +137,7 @@ export const WeatherProvider = ({ children }) => {
     rainForecasts,
     manualAlerts,
     vegetationData,
+    rainingNow,
     loading,
     lastUpdated,
     error,
@@ -139,7 +149,7 @@ export const WeatherProvider = ({ children }) => {
   }), [
     weatherData, fires, marineData,
     rainReports, bawahReports, rainForecasts, vegetationData,
-    loading, lastUpdated, error,
+    rainingNow, loading, lastUpdated, error,
   ]);
 
   return (

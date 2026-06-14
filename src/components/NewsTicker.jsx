@@ -4,88 +4,155 @@ import { useWeatherContext } from '../WeatherContext';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 
+// تنسيق التاريخ والوقت بالأحرف اللاتينية فقط (en-GB)
+function fmtDate(dateStr) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+function fmtTime(dateStr) {
+  const d = new Date(dateStr);
+  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+function fmtDateTime(dateStr) {
+  return `${fmtDate(dateStr)} ${fmtTime(dateStr)}`;
+}
+
 const NewsTicker = () => {
-  const { weatherData, fires, rainReports, loading, refreshAllData, lastUpdated } = useWeatherContext();
+  const { weatherData, fires, rainReports, rainingNow, loading, refreshAllData, lastUpdated } = useWeatherContext();
 
   const newsItems = useMemo(() => {
     if (loading || !weatherData) return ["جاري تحميل آخر الأخبار..."];
 
-    // ✅ نعرض تنبيهات "الآن" فقط إذا كانت البيانات حديثة (أقل من ساعة)
     const dataAgeMs = lastUpdated ? Date.now() - lastUpdated.getTime() : Infinity;
     const dataIsFresh = dataAgeMs < 60 * 60 * 1000;
 
-    const alerts = [];
     const urgentAlerts = [];
+    const forecastAlerts = [];
+    const generalAlerts = [];
 
-    const hasClouds = weatherData.some(city => city.current?.weather_code >= 1);
+    const now = new Date();
 
     weatherData.forEach(cityData => {
-      const code = cityData.current?.weather_code ?? 0;
-      const temp = cityData.current?.temperature_2m ?? 0;
-      const wind = cityData.current?.wind_speed_10m ?? 0;
+      const code   = cityData.current?.weather_code   ?? 0;
+      const temp   = cityData.current?.temperature_2m ?? 0;
+      const wind   = cityData.current?.wind_speed_10m ?? 0;
 
-      // ✅ أمطار وعواصف — فقط إذا كانت البيانات حديثة
+      // weather_code >= 95 هو توقع نموذج وليس رصداً — لا يُستخدم لتنبيهات "الآن"
+      // العواصف الآن تُضاف أدناه من الأقمار الصناعية فقط
       if (dataIsFresh) {
-        if (code >= 95) {
-          urgentAlerts.push(`تنبيه عاجل: عواصف رعدية قوية ترصد الآن في مقاطعة ${cityData.city}. يرجى الحذر!`);
-        } else if (code >= 80 && code <= 82) {
-          urgentAlerts.push(`تنبيه: زخات مطرية تشهدها مقاطعة ${cityData.city} حالياً.`);
-        } else if (code >= 61 && code <= 67) {
-          urgentAlerts.push(`تنبيه: أمطار متوسطة إلى غزيرة تتساقط الآن في مقاطعة ${cityData.city}.`);
-        } else if (code >= 51 && code <= 55) {
-          urgentAlerts.push(`بشارة: رذاذ وأمطار خفيفة تشهدها مقاطعة ${cityData.city} الآن.`);
-        }
-
-        // رياح قوية
         if (wind > 45) {
-          urgentAlerts.push(`عاجل: رياح قوية جداً ترصد في ${cityData.city} تصل سرعتها إلى ${Math.round(wind)} كم/س.`);
+          urgentAlerts.push(`URGENT | رياح قوية ${Math.round(wind)} km/h في ${cityData.city} [${fmtTime(now)}]`);
         }
-
-        // حرارة مفرطة
         if (temp > 45) {
-          urgentAlerts.push(`تنبيه: موجة حر شديدة في ${cityData.city}، الحرارة تلامس ${Math.round(temp)}°م.`);
+          urgentAlerts.push(`URGENT | موجة حر ${Math.round(temp)}°C في ${cityData.city} [${fmtDate(now)}]`);
         }
       }
 
-      // انخفاض الحرارة (توقعات مستقبلية — دائماً صحيحة)
-      const todayMax = cityData.daily?.temperature_2m_max?.[0];
+      // --- توقعات المركز الأوروبي (Open-Meteo) للأيام القادمة ---
+      const dailyCodes  = cityData.daily?.weather_code          || [];
+      const dailyDates  = cityData.daily?.time                  || [];
+      const dailyWind   = cityData.daily?.wind_speed_10m_max    || [];
+      const dailyMaxT   = cityData.daily?.temperature_2m_max    || [];
+      const dailyRain   = cityData.daily?.precipitation_sum     || [];
+
+      dailyCodes.forEach((dCode, i) => {
+        if (!dailyDates[i]) return;
+        const dateLabel = fmtDate(dailyDates[i]);
+
+        if (dCode >= 95) {
+          forecastAlerts.push(
+            `عاصفة رعدية متوقعة في ${cityData.city} — ${dateLabel}`
+          );
+        } else if (dCode >= 80 && (dailyRain[i] ?? 0) >= 5) {
+          forecastAlerts.push(
+            `أمطار ${(dailyRain[i]).toFixed(1)} mm متوقعة في ${cityData.city} — ${dateLabel}`
+          );
+        }
+        if ((dailyWind[i] ?? 0) > 60) {
+          forecastAlerts.push(
+            `رياح عاتية ${Math.round(dailyWind[i])} km/h متوقعة في ${cityData.city} — ${dateLabel}`
+          );
+        }
+        if ((dailyMaxT[i] ?? 0) >= 45) {
+          forecastAlerts.push(
+            `حر شديد ${Math.round(dailyMaxT[i])}°C متوقع في ${cityData.city} — ${dateLabel}`
+          );
+        }
+      });
+
+      // انخفاض الحرارة الملموس غداً
+      const todayMax    = cityData.daily?.temperature_2m_max?.[0];
       const tomorrowMax = cityData.daily?.temperature_2m_max?.[1];
+      const tomorrowDate = dailyDates[1] ? fmtDate(dailyDates[1]) : '';
       if (todayMax && tomorrowMax && tomorrowMax <= todayMax - 5) {
-        alerts.push(`بشرى: يتوقع انخفاض ملموس في درجات الحرارة غداً في مقاطعة ${cityData.city} لتصل إلى ${tomorrowMax}°م.`);
+        generalAlerts.push(
+          `بشرى: انخفاض في الحرارة غداً في مقاطعة ${cityData.city} — ${tomorrowMax}°C (${tomorrowDate})`
+        );
       }
     });
 
-    // 2. بلاغات المواطنين — تُعرض فقط إذا كانت من آخر 3 ساعات
+    // --- أقمار صناعية: أمطار + عواصف مؤكدة ---
+    if (rainingNow && rainingNow.length > 0) {
+      const radarAge  = rainingNow[0]?.radarAge ?? null;
+      const ageLabel  = radarAge != null ? ` [Radar: ${radarAge} min ago]` : '';
+
+      // تمييز المقاطعات التي كودها >= 95 (عاصفة رعدية) مع تأكيد الأقمار
+      const satelliteNames = new Set(rainingNow.map(r => r.city));
+      const thunderConfirmed = weatherData.filter(
+        c => satelliteNames.has(c.city) && (c.current?.weather_code ?? 0) >= 95
+      ).map(c => c.city);
+
+      const rainOnly = rainingNow
+        .filter(r => !thunderConfirmed.includes(r.city))
+        .map(c => c.city);
+
+      if (thunderConfirmed.length > 0) {
+        urgentAlerts.unshift(`URGENT 🛰️⚡ | عواصف رعدية مؤكدة بالأقمار في: ${thunderConfirmed.join('، ')}${ageLabel} — يرجى الحذر!`);
+      }
+      if (rainOnly.length > 0) {
+        urgentAlerts.unshift(`بشائر الخير 🛰️ | أمطار رصدتها الأقمار في: ${rainOnly.join('، ')}${ageLabel}. جعلها الله خيراً.`);
+      }
+    }
+
+    // --- بلاغات المواطنين (آخر 3 ساعات) ---
     if (rainReports && rainReports.length > 0) {
       const threeHoursAgo = Date.now() - 3 * 60 * 60 * 1000;
       rainReports
         .filter(r => r.created_at && new Date(r.created_at).getTime() > threeHoursAgo)
         .slice(0, 3)
         .forEach(report => {
-          urgentAlerts.push(`تبشيرة: بلاغ عن هطول أمطار في ${report.location} (${report.intensity}).`);
+          const timeLabel = report.created_at ? ` [${fmtTime(report.created_at)}]` : '';
+          urgentAlerts.push(`تبشيرة: بلاغ ميداني — أمطار في ${report.location}${timeLabel} (${report.intensity})`);
         });
     }
 
-    // 3. أخبار الحرائق
-    const fireNews = fires.length > 0 
-      ? fires.map(f => `عاجل: رصد حريق نشط على بعد ${f.distanceKm} كلم ${f.direction} مقاطعة ${f.nearestCity}.`)
-      : [];
+    // --- حرائق ---
+    const fireNews = (fires || []).map(
+      f => `عاجل: حريق على بعد ${f.distanceKm} km ${f.direction} مقاطعة ${f.nearestCity}`
+    );
 
-    // 4. أخبار ثابتة
-    const staticNews = [
-      "جديد: تم تفعيل قسم 'الظالة' لمساعدة المنمين في العثور على مواشيهم المفقودة.",
-      "تنبيه: يرجى متابعة تحديثات 'بشائر الخير' يومياً لضمان سلامة القطعان والمراعي."
-    ];
-
-    const cloudNews = hasClouds 
-      ? ["جاتكم اسحاب: نراقب معكم حركة السحب والحرائق لحظة بلحظة لضمان سلامة المراعي."]
+    const hasClouds  = weatherData.some(c => c.current?.weather_code >= 1);
+    const cloudNews  = hasClouds
+      ? ["جاتكم اسحاب: نراقب معكم حركة السحب والحرائق لحظة بلحظة."]
       : ["جاتكم اسحاب: نراقب معكم حالة الطقس والحرائق لضمان سلامة المراعي."];
 
-    // ترتيب الأولوية: تنبيهات عاجلة (أمطار/عواصف/رياح) -> حرائق -> سحب -> أخبار عامة
-    const finalNews = [...urgentAlerts, ...fireNews, ...cloudNews, ...alerts.slice(0, 3), ...staticNews];
-    
+    const staticNews = [
+      "جديد: تم تفعيل قسم 'الظالة' لمساعدة المنمين في العثور على مواشيهم.",
+      "تنبيه: تابع تحديثات 'بشائر الخير' يومياً لضمان سلامة القطعان والمراعي."
+    ];
+
+    // ترتيب: عاجل → توقعات المركز الأوروبي → حرائق → سحب → عام → ثابت
+    const finalNews = [
+      ...urgentAlerts,
+      ...forecastAlerts.slice(0, 6),
+      ...fireNews,
+      ...cloudNews,
+      ...generalAlerts.slice(0, 3),
+      ...staticNews
+    ];
+
     return finalNews.length > 0 ? finalNews : ["لا توجد تنبيهات جوية خاصة حالياً. طقس مستقر."];
-  }, [loading, weatherData, fires, rainReports]);
+  }, [loading, weatherData, fires, rainReports, rainingNow, lastUpdated]);
 
   return (
     <div className="bg-yellow-400 py-2 overflow-hidden border-y border-yellow-500 shadow-sm relative z-40" dir="rtl">
@@ -93,24 +160,20 @@ const NewsTicker = () => {
         <div className="bg-red-600 text-white px-4 md:px-6 py-2 text-sm md:text-lg font-black rounded-l-2xl z-50 whitespace-nowrap shadow-xl flex items-center gap-2">
           <span className="animate-pulse w-2 h-2 bg-white rounded-full"></span>
           أخبار عاجلة
-          <button 
-            onClick={() => refreshAllData(true)} 
+          <button
+            onClick={() => refreshAllData(true)}
             className="mr-2 p-1 hover:bg-white/20 rounded-full transition-colors"
             title="تحديث البيانات الآن"
           >
             <SafeIcon icon={FiIcons.FiRefreshCw} className={`text-xs md:text-sm ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
-        
+
         <div className="flex-1 overflow-hidden relative">
-          <motion.div 
+          <motion.div
             initial={{ x: "-100%" }}
             animate={{ x: "100%" }}
-            transition={{ 
-              duration: 30, 
-              repeat: Infinity, 
-              ease: "linear" 
-            }}
+            transition={{ duration: 35, repeat: Infinity, ease: "linear" }}
             className="flex gap-12 whitespace-nowrap"
           >
             {newsItems.map((item, index) => (

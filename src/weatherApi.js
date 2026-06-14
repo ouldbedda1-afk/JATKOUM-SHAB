@@ -125,12 +125,23 @@ function lsSet(key, data) {
   }
 }
 
+function isValidWeatherData(data) {
+  // ترفض البيانات الصفرية أو الـ fallback
+  if (!data) return false;
+  if (Array.isArray(data)) {
+    return data.length > 0 && data.some(d => d?.current?.temperature_2m != null && !d.isFallback);
+  }
+  return !data.isFallback && data?.current?.temperature_2m != null;
+}
+
 function getCached(key, allowStale = false) {
   // 1) ذاكرة سريعة أولاً
   const mem = memoryCache.get(key);
-  if (mem && Date.now() - mem.timestamp < CACHE_DURATION) return mem.data;
+  if (mem && Date.now() - mem.timestamp < CACHE_DURATION && isValidWeatherData(mem.data)) return mem.data;
   // 2) localStorage ثانياً
-  return lsGet(key, allowStale);
+  const ls = lsGet(key, allowStale);
+  if (ls && isValidWeatherData(ls)) return ls;
+  return null;
 }
 
 function setCached(key, data) {
@@ -552,7 +563,6 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
         timezone: 'Africa/Nouakchott',
         temperature_unit: 'celsius',
         forecast_days: 7,
-        models: 'ecmwf_ifs04',
       });
 
       const sourceUrl = `${OPEN_METEO_API}?${params}`;
@@ -676,7 +686,6 @@ export async function getAllCitiesWeather() {
         daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max',
         timezone: 'Africa/Nouakchott',
         forecast_days: 7,
-        models: 'ecmwf_ifs04',
       });
 
       const sourceUrl = `${OPEN_METEO_API}?${params}`;

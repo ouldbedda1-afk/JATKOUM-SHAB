@@ -18,27 +18,40 @@ function formatDate(dateStr) {
 }
 
 export default function StormAlertBanner() {
-  const { weatherData, loading } = useWeatherContext();
+  const { weatherData, rainingNow, loading } = useWeatherContext();
   const [dismissed, setDismissed] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
   const alerts = useMemo(() => getThunderstormAlerts(weatherData), [weatherData]);
 
-  if (loading || alerts.length === 0 || dismissed) return null;
+  // التوقعات المستقبلية فقط — تنبيهات "الآن" من النموذج الرياضي غير موثوقة
+  const forecastAlerts = useMemo(() => alerts.filter(a => !a.isNow), [alerts]);
 
-  const topAlert = alerts[0];
+  // العواصف المؤكدة الآن: الأقمار الصناعية + كود >= 95
+  const satelliteSet = useMemo(
+    () => new Set((rainingNow || []).map(r => r.city)),
+    [rainingNow]
+  );
+  const confirmedNow = useMemo(
+    () => alerts.filter(a => a.isNow && satelliteSet.has(a.city)),
+    [alerts, satelliteSet]
+  );
+
+  // تجميع التوقعات حسب اليوم
+  const forecastByDate = useMemo(() => {
+    const map = {};
+    forecastAlerts.forEach(a => {
+      if (!map[a.date]) map[a.date] = [];
+      map[a.date].push(a);
+    });
+    return map;
+  }, [forecastAlerts]);
+
+  // لا نعرض البانر إذا لا توجد توقعات ولا عواصف مؤكدة
+  if (loading || (forecastAlerts.length === 0 && confirmedNow.length === 0) || dismissed) return null;
+
+  const topAlert = confirmedNow[0] || forecastAlerts[0];
   const style = SEVERITY_STYLE[topAlert.severity] || SEVERITY_STYLE['متوسطة'];
-
-  // تجميع المناطق المتأثرة حسب النوع والتاريخ
-  const nowAlerts = alerts.filter(a => a.isNow);
-  const forecastAlerts = alerts.filter(a => !a.isNow);
-
-  // تجميع المدن حسب اليوم للتوقعات
-  const forecastByDate = {};
-  forecastAlerts.forEach(a => {
-    if (!forecastByDate[a.date]) forecastByDate[a.date] = [];
-    forecastByDate[a.date].push(a);
-  });
 
   return (
     <motion.div
@@ -67,7 +80,7 @@ export default function StormAlertBanner() {
             onClick={() => setExpanded(!expanded)}
             className={`text-xs font-bold px-3 py-1 rounded-full bg-white/20 ${style.text} hover:bg-white/30 transition`}
           >
-            {expanded ? 'إخفاء' : `${alerts.length} تحذير`}
+            {expanded ? 'إخفاء' : `${forecastAlerts.length + confirmedNow.length} تحذير`}
           </button>
           <button
             onClick={() => setDismissed(true)}
@@ -88,14 +101,14 @@ export default function StormAlertBanner() {
             exit={{ height: 0, opacity: 0 }}
             className="bg-white divide-y divide-gray-100"
           >
-            {/* تحذيرات فورية */}
-            {nowAlerts.length > 0 && (
+            {/* عواصف مؤكدة الآن بالأقمار الصناعية فقط */}
+            {confirmedNow.length > 0 && (
               <div className="p-4">
                 <p className="text-xs font-black text-red-700 mb-3 flex items-center gap-1">
-                  🔴 حالة طوارئ الآن
+                  🔴 🛰️ عواصف مؤكدة الآن بالأقمار الصناعية
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {nowAlerts.map(alert => {
+                  {confirmedNow.map(alert => {
                     const s = SEVERITY_STYLE[alert.severity] || SEVERITY_STYLE['متوسطة'];
                     return (
                       <div key={alert.id} className={`rounded-xl p-3 border ${s.border} bg-gradient-to-r ${s.bg.replace('bg-', 'from-').replace('-600', '-50').replace('-700', '-50')} to-white`}>
