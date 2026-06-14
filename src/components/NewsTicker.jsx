@@ -5,46 +5,49 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 
 const NewsTicker = () => {
-  const { weatherData, fires, rainReports, loading, refreshAllData } = useWeatherContext();
+  const { weatherData, fires, rainReports, loading, refreshAllData, lastUpdated } = useWeatherContext();
 
   const newsItems = useMemo(() => {
     if (loading || !weatherData) return ["جاري تحميل آخر الأخبار..."];
 
+    // ✅ نعرض تنبيهات "الآن" فقط إذا كانت البيانات حديثة (أقل من ساعة)
+    const dataAgeMs = lastUpdated ? Date.now() - lastUpdated.getTime() : Infinity;
+    const dataIsFresh = dataAgeMs < 60 * 60 * 1000;
+
     const alerts = [];
     const urgentAlerts = [];
-    
-    // 1. التحقق من وجود سحب وأمطار وعواصف
-    const hasClouds = weatherData.some(city => city.current.weather_code >= 1);
-    
+
+    const hasClouds = weatherData.some(city => city.current?.weather_code >= 1);
+
     weatherData.forEach(cityData => {
-      const code = cityData.current.weather_code;
-      const temp = cityData.current.temperature_2m;
-      const wind = cityData.current.wind_speed_10m;
+      const code = cityData.current?.weather_code ?? 0;
+      const temp = cityData.current?.temperature_2m ?? 0;
+      const wind = cityData.current?.wind_speed_10m ?? 0;
 
-      // أمطار وعواصف رعدية
-      if (code >= 95) {
-        urgentAlerts.push(`تنبيه عاجل: عواصف رعدية قوية ترصد الآن في مقاطعة ${cityData.city}. يرجى الحذر!`);
-      } else if (code >= 80 && code <= 82) {
-        urgentAlerts.push(`تنبيه: زخات مطرية رعدية تشهدها مقاطعة ${cityData.city} حالياً.`);
-      } else if (code >= 61 && code <= 67) {
-        urgentAlerts.push(`تنبيه: أمطار متوسطة إلى غزيرة تتساقط الآن في مقاطعة ${cityData.city}.`);
-      } else if (code >= 51 && code <= 55) {
-        urgentAlerts.push(`بشارة: رذاذ وأمطار خفيفة تشهدها مقاطعة ${cityData.city} الآن.`);
-      } else if (code === 29 || code === 17) {
-        urgentAlerts.push(`تنبيه: نشاط رعدى يرصد بالقرب من مقاطعة ${cityData.city} الآن.`);
+      // ✅ أمطار وعواصف — فقط إذا كانت البيانات حديثة
+      if (dataIsFresh) {
+        if (code >= 95) {
+          urgentAlerts.push(`تنبيه عاجل: عواصف رعدية قوية ترصد الآن في مقاطعة ${cityData.city}. يرجى الحذر!`);
+        } else if (code >= 80 && code <= 82) {
+          urgentAlerts.push(`تنبيه: زخات مطرية تشهدها مقاطعة ${cityData.city} حالياً.`);
+        } else if (code >= 61 && code <= 67) {
+          urgentAlerts.push(`تنبيه: أمطار متوسطة إلى غزيرة تتساقط الآن في مقاطعة ${cityData.city}.`);
+        } else if (code >= 51 && code <= 55) {
+          urgentAlerts.push(`بشارة: رذاذ وأمطار خفيفة تشهدها مقاطعة ${cityData.city} الآن.`);
+        }
+
+        // رياح قوية
+        if (wind > 45) {
+          urgentAlerts.push(`عاجل: رياح قوية جداً ترصد في ${cityData.city} تصل سرعتها إلى ${Math.round(wind)} كم/س.`);
+        }
+
+        // حرارة مفرطة
+        if (temp > 45) {
+          urgentAlerts.push(`تنبيه: موجة حر شديدة في ${cityData.city}، الحرارة تلامس ${Math.round(temp)}°م.`);
+        }
       }
 
-      // رياح قوية
-      if (wind > 45) {
-        urgentAlerts.push(`عاجل: رياح قوية جداً ترصد في ${cityData.city} تصل سرعتها إلى ${Math.round(wind)} كم/س.`);
-      }
-
-      // حرارة مفرطة
-      if (temp > 45) {
-        urgentAlerts.push(`تنبيه: موجة حر شديدة في ${cityData.city}، الحرارة تلامس ${Math.round(temp)}°م.`);
-      }
-
-      // انخفاض الحرارة (توقعات)
+      // انخفاض الحرارة (توقعات مستقبلية — دائماً صحيحة)
       const todayMax = cityData.daily?.temperature_2m_max?.[0];
       const tomorrowMax = cityData.daily?.temperature_2m_max?.[1];
       if (todayMax && tomorrowMax && tomorrowMax <= todayMax - 5) {
@@ -52,11 +55,15 @@ const NewsTicker = () => {
       }
     });
 
-    // 2. بلاغات المواطنين (تبشيرة مطر)
+    // 2. بلاغات المواطنين — تُعرض فقط إذا كانت من آخر 3 ساعات
     if (rainReports && rainReports.length > 0) {
-      rainReports.slice(0, 3).forEach(report => {
-        urgentAlerts.push(`تبشيرة: بلاغ عن هطول أمطار في ${report.location} (${report.intensity}).`);
-      });
+      const threeHoursAgo = Date.now() - 3 * 60 * 60 * 1000;
+      rainReports
+        .filter(r => r.created_at && new Date(r.created_at).getTime() > threeHoursAgo)
+        .slice(0, 3)
+        .forEach(report => {
+          urgentAlerts.push(`تبشيرة: بلاغ عن هطول أمطار في ${report.location} (${report.intensity}).`);
+        });
     }
 
     // 3. أخبار الحرائق

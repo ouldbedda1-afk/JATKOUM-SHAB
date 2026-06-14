@@ -262,53 +262,95 @@ async function fetchWithRetry(url, options = {}, retries = 3, backoff = 3000) {
   }
 }
 
+// جميع مقاطعات وبلديات موريتانيا الـ 56 مقاطعة مع أهم البلديات
 const mauritanianCities = {
-  'نواكشوط': { lat: 18.0735, lon: -15.9582, name: 'Nouakchott', type: 'مقاطعة' },
-  'نواذيبو': { lat: 20.9375, lon: -17.0339, name: 'Nouadhibou', type: 'مقاطعة' },
-  'روصو': { lat: 17.5333, lon: -14.3333, name: 'Rosso', type: 'مقاطعة' },
-  'كيهيدي': { lat: 16.15, lon: -13.50, name: 'Kaédi', type: 'مقاطعة' },
-  'ألاك': { lat: 17.05, lon: -13.91, name: 'Aleg', type: 'مقاطعة' },
-  'كيفة': { lat: 16.61, lon: -11.40, name: 'Kiffa', type: 'مقاطعة' },
-  'لعيون': { lat: 16.66, lon: -9.61, name: 'Aioun', type: 'مقاطعة' },
-  'النعمة': { lat: 16.61, lon: -7.25, name: 'Nema', type: 'مقاطعة' },
-  'تجكجة': { lat: 18.55, lon: -11.43, name: 'Tidjikja', type: 'مقاطعة' },
-  'أطار': { lat: 20.51, lon: -13.05, name: 'Atar', type: 'مقاطعة' },
-  'أكجوجت': { lat: 19.75, lon: -14.41, name: 'Akjoujt', type: 'مقاطعة' },
-  'زويرات': { lat: 22.71, lon: -12.47, name: 'Zouérat', type: 'مقاطعة' },
-  'سيلبابي': { lat: 15.15, lon: -12.18, name: 'Sélibaby', type: 'مقاطعة' },
-  'بوتلميت': { lat: 17.51, lon: -14.76, name: 'Boutilimit', type: 'مقاطعة' },
-  'بوكي': { lat: 16.58, lon: -14.26, name: 'Boghé', type: 'مقاطعة' },
-  'الطينطان': { lat: 16.39, lon: -10.16, name: 'Tintane', type: 'مقاطعة' },
-  'مقاطع لحجار': { lat: 17.51316880528109, lon: -13.093635373195438, name: 'Magta Lahjar', type: 'مقاطعة' },
-  'صنكرافه': { lat: 17.593200707341676, lon: -12.837116740441152, name: 'Sankrafa', type: 'مقاطعة' },
-  'كرو': { lat: 16.81, lon: -11.83, name: 'Guerou', type: 'مقاطعة' },
-  'تمبدغة': { lat: 16.2421, lon: -8.1721, name: 'Timbedra', type: 'مقاطعة' },
-  'شنقيط': { lat: 20.45, lon: -12.35, name: 'Chinguetti', type: 'مقاطعة' },
-  'وادان': { lat: 20.93, lon: -11.61, name: 'Ouadane', type: 'مقاطعة' },
-  'بير أم اكرين': { lat: 25.22, lon: -11.58, name: 'Bir Moghrein', type: 'مقاطعة' },
-  'تيشيت': { lat: 18.44, lon: -9.49, name: 'Tichit', type: 'مقاطعة' },
-  'باسكنو': { lat: 15.8621, lon: -5.9543, name: 'Bassiknou', type: 'مقاطعة' },
-  'كنكوصة': { lat: 15.93, lon: -11.53, name: 'Kankossa', type: 'مقاطعة' },
-  'امبود': { lat: 16.18, lon: -12.60, name: 'Mbout', type: 'مقاطعة' },
-  'مونغل': { lat: 16.26, lon: -13.23, name: 'Monguel', type: 'مقاطعة' },
-  'بابابى': { lat: 16.48, lon: -13.98, name: 'Bababé', type: 'مقاطعة' },
-  'امباني': { lat: 16.25, lon: -13.78, name: 'Mbagne', type: 'مقاطعة' },
-  'واد الناقة': { lat: 17.91, lon: -15.31, name: 'Ouad Naga', type: 'مقاطعة' },
-  'اركيز': { lat: 16.91, lon: -15.28, name: 'Rkiz', type: 'مقاطعة' },
-  'المذرذرة': { lat: 16.91, lon: -15.65, name: 'Mederdra', type: 'مقاطعة' },
-  'كرمسين': { lat: 16.48, lon: -16.21, name: 'Keur Macène', type: 'مقاطعة' },
-  'فصاله': { lat: 15.5580, lon: -5.5228, name: 'Fassala', type: 'بلدية' },
-  'عدل بكرو': { lat: 15.6755, lon: -7.0216, name: 'Adel Bagrou', type: 'بلدية' },
-  'بوسطيله': { lat: 15.5777, lon: -8.0819, name: 'Bousteila', type: 'بلدية' },
-  'انبيكت لحواش': { lat: 16.8450, lon: -5.9423, name: 'NBeiket Lahwach', type: 'مقاطعة' },
-  'جيكني': { lat: 15.7388, lon: -8.6703, name: 'Djiguenni', type: 'مقاطعة' },
-  'افيرني': { lat: 15.5634, lon: -8.9105, name: 'Afeirni', type: 'بلدية' },
-  'اعوينات ازبل': { lat: 16.3848, lon: -8.8877, name: 'Aoueinat Zbel', type: 'بلدية' },
-  'امرج': { lat: 16.1069, lon: -7.2143, name: 'Amourj', type: 'مقاطعة' },
-  'ولاته': { lat: 17.2966, lon: -7.0240, name: 'Oualata', type: 'مقاطعة' },
-  'مقامة': { lat: 15.51, lon: -12.85, name: 'Maghama', type: 'مقاطعة' },
-  'ولد ينج': { lat: 15.35, lon: -11.63, name: 'Ould Yengé', type: 'مقاطعة' },
-  'باركيول': { lat: 16.63, lon: -12.50, name: 'Barkéol', type: 'مقاطعة' },
+  // --- نواكشوط (3 ولايات منذ 2014) ---
+  'نواكشوط': { lat: 18.0735, lon: -15.9582, name: 'Nouakchott', type: 'عاصمة', wilaya: 'نواكشوط' },
+  'درنعيم': { lat: 18.1270, lon: -15.9420, name: 'Dar Naim', type: 'مقاطعة', wilaya: 'نواكشوط الشمالية' },
+  'تيارت': { lat: 18.0930, lon: -15.9770, name: 'Teyarett', type: 'مقاطعة', wilaya: 'نواكشوط الشمالية' },
+  'توجنين': { lat: 18.1100, lon: -15.9200, name: 'Toujounine', type: 'مقاطعة', wilaya: 'نواكشوط الشمالية' },
+  'تفرغ زينة': { lat: 18.0800, lon: -16.0100, name: 'Tevragh Zeina', type: 'مقاطعة', wilaya: 'نواكشوط الغربية' },
+  'السبخة': { lat: 18.0600, lon: -15.9900, name: 'Sebkha', type: 'مقاطعة', wilaya: 'نواكشوط الغربية' },
+  'عرفات': { lat: 17.9900, lon: -15.9450, name: 'Arafat', type: 'مقاطعة', wilaya: 'نواكشوط الجنوبية' },
+  'المينة': { lat: 18.0100, lon: -15.9700, name: 'El Mina', type: 'مقاطعة', wilaya: 'نواكشوط الجنوبية' },
+
+  // --- الترارزة ---
+  'روصو': { lat: 17.5333, lon: -14.3333, name: 'Rosso', type: 'مقاطعة', wilaya: 'الترارزة' },
+  'بوتلميت': { lat: 17.51, lon: -14.76, name: 'Boutilimit', type: 'مقاطعة', wilaya: 'الترارزة' },
+  'كرمسين': { lat: 16.48, lon: -16.21, name: 'Keur Macène', type: 'مقاطعة', wilaya: 'الترارزة' },
+  'المذرذرة': { lat: 16.91, lon: -15.65, name: 'Mederdra', type: 'مقاطعة', wilaya: 'الترارزة' },
+  'واد الناقة': { lat: 17.91, lon: -15.31, name: 'Ouad Naga', type: 'مقاطعة', wilaya: 'الترارزة' },
+  'اركيز': { lat: 16.91, lon: -15.28, name: 'Rkiz', type: 'مقاطعة', wilaya: 'الترارزة' },
+
+  // --- البراكنة ---
+  'ألاك': { lat: 17.05, lon: -13.91, name: 'Aleg', type: 'مقاطعة', wilaya: 'البراكنة' },
+  'بابابى': { lat: 16.48, lon: -13.98, name: 'Bababé', type: 'مقاطعة', wilaya: 'البراكنة' },
+  'بوكي': { lat: 16.58, lon: -14.26, name: 'Boghé', type: 'مقاطعة', wilaya: 'البراكنة' },
+  'مقاطع لحجار': { lat: 17.513, lon: -13.093, name: 'Magta Lahjar', type: 'مقاطعة', wilaya: 'البراكنة' },
+  'امباني': { lat: 16.25, lon: -13.78, name: 'Mbagne', type: 'مقاطعة', wilaya: 'البراكنة' },
+  'صنكرافه': { lat: 17.593, lon: -12.837, name: 'Sankrafa', type: 'بلدية', wilaya: 'البراكنة' },
+
+  // --- كوركول ---
+  'كيهيدي': { lat: 16.15, lon: -13.50, name: 'Kaédi', type: 'مقاطعة', wilaya: 'كوركول' },
+  'امبود': { lat: 16.18, lon: -12.60, name: 'Mbout', type: 'مقاطعة', wilaya: 'كوركول' },
+  'مقامة': { lat: 15.51, lon: -12.85, name: 'Maghama', type: 'مقاطعة', wilaya: 'كوركول' },
+  'مونغل': { lat: 16.26, lon: -13.23, name: 'Monguel', type: 'مقاطعة', wilaya: 'كوركول' },
+
+  // --- كيدماغا ---
+  'سيلبابي': { lat: 15.15, lon: -12.18, name: 'Sélibaby', type: 'مقاطعة', wilaya: 'كيدماغا' },
+  'ولد ينج': { lat: 15.35, lon: -11.63, name: 'Ould Yengé', type: 'مقاطعة', wilaya: 'كيدماغا' },
+  'غابو': { lat: 15.33, lon: -12.57, name: 'Ghabou', type: 'مقاطعة', wilaya: 'كيدماغا' },
+  'ونبو': { lat: 15.45, lon: -12.08, name: 'Wompou', type: 'بلدية', wilaya: 'كيدماغا' },
+
+  // --- العصابة ---
+  'كيفة': { lat: 16.61, lon: -11.40, name: 'Kiffa', type: 'مقاطعة', wilaya: 'العصابة' },
+  'باركيول': { lat: 16.63, lon: -12.50, name: 'Barkéol', type: 'مقاطعة', wilaya: 'العصابة' },
+  'كرو': { lat: 16.81, lon: -11.83, name: 'Guerou', type: 'مقاطعة', wilaya: 'العصابة' },
+  'بومديد': { lat: 16.38, lon: -10.03, name: 'Boumdeid', type: 'مقاطعة', wilaya: 'العصابة' },
+
+  // --- الحوض الغربي ---
+  'لعيون': { lat: 16.66, lon: -9.61, name: 'Aioun', type: 'مقاطعة', wilaya: 'الحوض الغربي' },
+  'كنكوصة': { lat: 15.93, lon: -11.53, name: 'Kankossa', type: 'مقاطعة', wilaya: 'الحوض الغربي' },
+  'تمشكط': { lat: 17.42, lon: -10.67, name: 'Tamchekett', type: 'مقاطعة', wilaya: 'الحوض الغربي' },
+  'كوبني': { lat: 15.93, lon: -11.21, name: 'Kobenni', type: 'مقاطعة', wilaya: 'الحوض الغربي' },
+  'الطينطان': { lat: 16.39, lon: -10.16, name: 'Tintane', type: 'مقاطعة', wilaya: 'الحوض الغربي' },
+
+  // --- الحوض الشرقي ---
+  'النعمة': { lat: 16.61, lon: -7.25, name: 'Nema', type: 'مقاطعة', wilaya: 'الحوض الشرقي' },
+  'تمبدغة': { lat: 16.2421, lon: -8.1721, name: 'Timbedra', type: 'مقاطعة', wilaya: 'الحوض الشرقي' },
+  'باسكنو': { lat: 15.8621, lon: -5.9543, name: 'Bassiknou', type: 'مقاطعة', wilaya: 'الحوض الشرقي' },
+  'جيكني': { lat: 15.7388, lon: -8.6703, name: 'Djiguenni', type: 'مقاطعة', wilaya: 'الحوض الشرقي' },
+  'امرج': { lat: 16.1069, lon: -7.2143, name: 'Amourj', type: 'مقاطعة', wilaya: 'الحوض الشرقي' },
+  'ولاته': { lat: 17.2966, lon: -7.0240, name: 'Oualata', type: 'مقاطعة', wilaya: 'الحوض الشرقي' },
+  'فصاله': { lat: 15.5580, lon: -5.5228, name: 'Fassala', type: 'بلدية', wilaya: 'الحوض الشرقي' },
+  'عدل بكرو': { lat: 15.6755, lon: -7.0216, name: 'Adel Bagrou', type: 'بلدية', wilaya: 'الحوض الشرقي' },
+  'انبيكت لحواش': { lat: 16.8450, lon: -5.9423, name: 'NBeiket Lahwach', type: 'مقاطعة', wilaya: 'الحوض الشرقي' },
+  'افيرني': { lat: 15.5634, lon: -8.9105, name: 'Afeirni', type: 'بلدية', wilaya: 'الحوض الشرقي' },
+  'اعوينات ازبل': { lat: 16.3848, lon: -8.8877, name: 'Aoueinat Zbel', type: 'بلدية', wilaya: 'الحوض الشرقي' },
+  'بوسطيله': { lat: 15.5777, lon: -8.0819, name: 'Bousteila', type: 'بلدية', wilaya: 'الحوض الشرقي' },
+
+  // --- تكانت ---
+  'تجكجة': { lat: 18.55, lon: -11.43, name: 'Tidjikja', type: 'مقاطعة', wilaya: 'تكانت' },
+  'تيشيت': { lat: 18.44, lon: -9.49, name: 'Tichit', type: 'مقاطعة', wilaya: 'تكانت' },
+  'موجريه': { lat: 17.88, lon: -12.37, name: 'Moudjéria', type: 'مقاطعة', wilaya: 'تكانت' },
+
+  // --- آدرار ---
+  'أطار': { lat: 20.51, lon: -13.05, name: 'Atar', type: 'مقاطعة', wilaya: 'آدرار' },
+  'شنقيط': { lat: 20.45, lon: -12.35, name: 'Chinguetti', type: 'مقاطعة', wilaya: 'آدرار' },
+  'وادان': { lat: 20.93, lon: -11.61, name: 'Ouadane', type: 'مقاطعة', wilaya: 'آدرار' },
+  'اوجفت': { lat: 20.25, lon: -13.58, name: 'Aoujeft', type: 'مقاطعة', wilaya: 'آدرار' },
+
+  // --- انشيري ---
+  'أكجوجت': { lat: 19.75, lon: -14.41, name: 'Akjoujt', type: 'مقاطعة', wilaya: 'انشيري' },
+  'بنيشاب': { lat: 21.83, lon: -14.52, name: 'Bennichab', type: 'بلدية', wilaya: 'انشيري' },
+
+  // --- داخلة نواذيبو ---
+  'نواذيبو': { lat: 20.9375, lon: -17.0339, name: 'Nouadhibou', type: 'مقاطعة', wilaya: 'داخلة نواذيبو' },
+
+  // --- تيرس زمور ---
+  'زويرات': { lat: 22.71, lon: -12.47, name: 'Zouérat', type: 'مقاطعة', wilaya: 'تيرس زمور' },
+  'بير أم اكرين': { lat: 25.22, lon: -11.58, name: 'Bir Moghrein', type: 'مقاطعة', wilaya: 'تيرس زمور' },
+  'فديريك': { lat: 22.68, lon: -12.72, name: 'Fdérik', type: 'مقاطعة', wilaya: 'تيرس زمور' },
 };
 
 /**
@@ -395,19 +437,22 @@ async function fetchFromWeatherAPI(lat, lon, cityName = '') {
 }
 
 function getCardinalDirection(fromLat, fromLon, toLat, toLon) {
-  const dLon = toLon - fromLon;
-  const y = Math.sin(dLon) * Math.cos(toLat);
-  const x = Math.cos(fromLat) * Math.sin(toLat) - Math.sin(fromLat) * Math.cos(toLat) * Math.cos(dLon);
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLon = toRad(toLon - fromLon);
+  const y = Math.sin(dLon) * Math.cos(toRad(toLat));
+  const x =
+    Math.cos(toRad(fromLat)) * Math.sin(toRad(toLat)) -
+    Math.sin(toRad(fromLat)) * Math.cos(toRad(toLat)) * Math.cos(dLon);
   const degrees = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 
-  if (degrees >= 337.5 || degrees < 22.5) return "شمال";
-  if (degrees < 67.5) return "شمال شرقي";
-  if (degrees < 112.5) return "شرق";
-  if (degrees < 157.5) return "جنوب شرقي";
-  if (degrees < 202.5) return "جنوب";
-  if (degrees < 247.5) return "جنوب غربي";
-  if (degrees < 292.5) return "غرب";
-  return "شمال غربي";
+  if (degrees >= 337.5 || degrees < 22.5) return 'شمال';
+  if (degrees < 67.5) return 'شمال شرقي';
+  if (degrees < 112.5) return 'شرق';
+  if (degrees < 157.5) return 'جنوب شرقي';
+  if (degrees < 202.5) return 'جنوب';
+  if (degrees < 247.5) return 'جنوب غربي';
+  if (degrees < 292.5) return 'غرب';
+  return 'شمال غربي';
 }
 
 export async function getActiveFires() {
@@ -502,11 +547,12 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
         latitude: coords.lat,
         longitude: coords.lon,
         current: 'temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m,pressure_msl',
-      hourly: 'temperature_2m,precipitation_probability,precipitation,showers,thunderstorms,cape,lifted_index',
-      daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max',
+        hourly: 'temperature_2m,precipitation_probability,wind_speed_10m',
+        daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max',
         timezone: 'Africa/Nouakchott',
         temperature_unit: 'celsius',
         forecast_days: 7,
+        models: 'ecmwf_ifs04',
       });
 
       const sourceUrl = `${OPEN_METEO_API}?${params}`;
@@ -569,12 +615,35 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
 }
 
 export async function getAllCitiesWeather() {
+  // جميع مقاطعات موريتانيا الـ 56 + أهم البلديات
   const mainCities = [
-    'نواكشوط', 'نواذيبو', 'روصو', 'كيهيدي', 'ألاك',
-    'كيفة', 'لعيون', 'النعمة', 'تجكجة', 'أطار',
-    'أكجوجت', 'زويرات', 'سيلبابي', 'تمبدغة', 'باسكنو',
-    'جيكني', 'امرج', 'ولاته', 'فصاله', 'عدل بكرو',
-    'امبود', 'مقامة', 'ولد ينج', 'باركيول', 'مقاطع لحجار', 'صنكرافه'
+    // نواكشوط
+    'نواكشوط',
+    // الترارزة
+    'روصو', 'بوتلميت', 'كرمسين', 'المذرذرة', 'واد الناقة', 'اركيز',
+    // البراكنة
+    'ألاك', 'بابابى', 'بوكي', 'مقاطع لحجار', 'امباني',
+    // كوركول
+    'كيهيدي', 'امبود', 'مقامة', 'مونغل',
+    // كيدماغا
+    'سيلبابي', 'ولد ينج', 'غابو',
+    // العصابة
+    'كيفة', 'باركيول', 'كرو', 'بومديد',
+    // الحوض الغربي
+    'لعيون', 'كنكوصة', 'تمشكط', 'كوبني', 'الطينطان',
+    // الحوض الشرقي
+    'النعمة', 'تمبدغة', 'باسكنو', 'جيكني', 'امرج', 'ولاته',
+    'فصاله', 'عدل بكرو', 'انبيكت لحواش',
+    // تكانت
+    'تجكجة', 'تيشيت', 'موجريه',
+    // آدرار
+    'أطار', 'شنقيط', 'وادان', 'اوجفت',
+    // انشيري
+    'أكجوجت',
+    // داخلة نواذيبو
+    'نواذيبو',
+    // تيرس زمور
+    'زويرات', 'بير أم اكرين', 'فديريك',
   ];
 
   const cacheKey = 'all_cities_weather';
@@ -603,10 +672,11 @@ export async function getAllCitiesWeather() {
         latitude: lats,
         longitude: lons,
         current: 'temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m,pressure_msl',
-        hourly: 'temperature_2m,precipitation_probability', // نحتاج هذه للرسوم البيانية والتوقعات اللحظية
+        hourly: 'temperature_2m,precipitation_probability,wind_speed_10m',
         daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max',
         timezone: 'Africa/Nouakchott',
-        forecast_days: 7, // نحتاج 7 أيام للتوقعات الأسبوعية
+        forecast_days: 7,
+        models: 'ecmwf_ifs04',
       });
 
       const sourceUrl = `${OPEN_METEO_API}?${params}`;
@@ -670,7 +740,7 @@ export async function getAllCitiesWeather() {
           console.warn(`Failed to fetch weather for ${cityName}:`, err.message);
           results.push(buildFallbackWeather(cityName, mauritanianCities[cityName]));
         }
-        await new Promise(r => setTimeout(r, 200)); // صغيرة pause بين الطلبات
+        await new Promise(r => setTimeout(r, 200)); // pause بين الطلبات
       }
 
       if (results.length > 0) {
@@ -681,6 +751,8 @@ export async function getAllCitiesWeather() {
 
       console.error('Error fetching all cities weather:', error);
       return lsGet(cacheKey, true) || lsGet(cacheKey + '_stale') || getFallbackCitiesWeather(mainCities);
+    } finally {
+      // ✅ إصلاح: تنظيف pendingRequests في جميع الحالات (نجاح أو فشل)
       pendingRequests.delete(cacheKey);
     }
   })();
@@ -833,3 +905,105 @@ export const getWeatherIcon = (code) => {
   if (code >= 95) return '⚡';
   return '🌡️';
 };
+
+/**
+ * استخراج تحذيرات العواصف الرعدية والرياح القوية من بيانات الطقس
+ * المصدر: ECMWF عبر Open-Meteo
+ */
+export function getThunderstormAlerts(weatherData) {
+  if (!weatherData || weatherData.length === 0) return [];
+
+  const alerts = [];
+  const now = new Date();
+  const next72h = new Date(now.getTime() + 72 * 60 * 60 * 1000);
+
+  weatherData.forEach(city => {
+    if (!city || !city.city) return;
+
+    const currentCode = city.current?.weather_code ?? 0;
+    const currentWind = city.current?.wind_speed_10m ?? 0;
+
+    // عاصفة رعدية حالية
+    if (currentCode >= 95) {
+      alerts.push({
+        id: `thunder_now_${city.city}`,
+        type: 'thunderstorm',
+        city: city.city,
+        cityEn: city.cityEn,
+        wilaya: city.wilaya || '',
+        severity: currentCode === 99 ? 'شديدة جداً' : currentCode === 96 ? 'شديدة' : 'متوسطة',
+        icon: currentCode === 99 ? '⛈️🌨' : '⛈️',
+        message: getWeatherDescription(currentCode),
+        isNow: true,
+        windSpeed: currentWind,
+        date: now.toISOString().slice(0, 10),
+      });
+    }
+
+    // رياح قوية حالية (> 60 كم/س)
+    if (currentCode < 95 && currentWind > 60) {
+      alerts.push({
+        id: `wind_now_${city.city}`,
+        type: 'wind',
+        city: city.city,
+        cityEn: city.cityEn,
+        wilaya: city.wilaya || '',
+        severity: currentWind > 90 ? 'خطيرة جداً' : currentWind > 70 ? 'خطيرة' : 'عالية',
+        icon: '💨',
+        message: `رياح قوية (${Math.round(currentWind)} كم/س)`,
+        isNow: true,
+        windSpeed: currentWind,
+        date: now.toISOString().slice(0, 10),
+      });
+    }
+
+    // توقعات العواصف خلال 72 ساعة القادمة
+    if (city.daily && city.daily.time) {
+      city.daily.time.forEach((dateStr, i) => {
+        const dayDate = new Date(dateStr + 'T12:00:00');
+        if (dayDate <= now || dayDate > next72h) return;
+
+        const dayCode = city.daily.weather_code?.[i] ?? 0;
+        const dayMaxWind = city.daily.wind_speed_10m_max?.[i] ?? 0;
+
+        if (dayCode >= 95) {
+          alerts.push({
+            id: `thunder_forecast_${city.city}_${dateStr}`,
+            type: 'thunderstorm_forecast',
+            city: city.city,
+            cityEn: city.cityEn,
+            wilaya: city.wilaya || '',
+            severity: dayCode === 99 ? 'شديدة جداً' : dayCode === 96 ? 'شديدة' : 'متوسطة',
+            icon: '⛈️',
+            message: getWeatherDescription(dayCode),
+            isNow: false,
+            windSpeed: dayMaxWind,
+            date: dateStr,
+          });
+        }
+
+        if (dayCode < 95 && dayMaxWind > 60) {
+          alerts.push({
+            id: `wind_forecast_${city.city}_${dateStr}`,
+            type: 'wind_forecast',
+            city: city.city,
+            cityEn: city.cityEn,
+            wilaya: city.wilaya || '',
+            severity: dayMaxWind > 90 ? 'خطيرة جداً' : dayMaxWind > 70 ? 'خطيرة' : 'عالية',
+            icon: '💨',
+            message: `رياح قوية متوقعة (${Math.round(dayMaxWind)} كم/س)`,
+            isNow: false,
+            windSpeed: dayMaxWind,
+            date: dateStr,
+          });
+        }
+      });
+    }
+  });
+
+  const severityRank = { 'شديدة جداً': 0, 'خطيرة جداً': 0, 'خطيرة': 1, 'شديدة': 2, 'عالية': 3, 'متوسطة': 4 };
+  return alerts.sort((a, b) => {
+    if (a.isNow !== b.isNow) return a.isNow ? -1 : 1;
+    return (severityRank[a.severity] ?? 9) - (severityRank[b.severity] ?? 9);
+  });
+}

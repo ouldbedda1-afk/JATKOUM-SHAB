@@ -26,8 +26,18 @@ export const WeatherProvider = ({ children }) => {
 
   // ✅ نستخدم ref لمنع تشغيل refreshAllData أكثر من مرة في وقت واحد
   const isFetchingRef = useRef(false);
+  // ✅ تتبع رؤية الصفحة لإيقاف التحديثات عندما التبويب غير نشط
+  const isPageVisibleRef = useRef(true);
+  // ✅ تتبع الـ interval ID للتنظيف
+  const intervalRef = useRef(null);
 
   const refreshAllData = async (force = false) => {
+    // إذا كانت الصفحة غير مرئية، لا نجلب بيانات جديدة (نحافظ على الموارد)
+    if (!isPageVisibleRef.current && !force) {
+      console.log('👁️ الصفحة غير مرئية، تخطي التحديث...');
+      return;
+    }
+
     // إذا كان هناك جلب جارٍ بالفعل، لا نبدأ جلباً جديداً
     if (isFetchingRef.current && !force) {
       console.log('⏳ جلب البيانات جارٍ بالفعل، تخطي الطلب المكرر...');
@@ -76,8 +86,34 @@ export const WeatherProvider = ({ children }) => {
     refreshAllData();
 
     // ✅ تحديث كل 5 دقائق لضمان رصد العواصف والبرق والرياح لحظة بلحظة
-    const interval = setInterval(() => refreshAllData(true), 5 * 60 * 1000);
-    return () => clearInterval(interval);
+    intervalRef.current = setInterval(() => refreshAllData(true), 5 * 60 * 1000);
+
+    // ✅ استماع لتغير رؤية الصفحة (Page Visibility API)
+    const handleVisibilityChange = () => {
+      const isVisible = document.visibilityState === 'visible';
+      isPageVisibleRef.current = isVisible;
+      console.log(`👁️ Page visibility: ${isVisible ? 'visible' : 'hidden'}`);
+      
+      // إذا عاد التبويب للنشاط، جلب فوري (مع تأخير قصير لإعطاء المتصفح وقت للاستقرار)
+      if (isVisible) {
+        setTimeout(() => refreshAllData(true), 1000);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // ✅ استماع للاتصال بالإنترنت (إعادة جلب عند استعادة الاتصال)
+    const handleOnline = () => {
+      console.log('📡 الاتصال بالإنترنت عاد — جلب بيانات جديدة...');
+      refreshAllData(true);
+    };
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      clearInterval(intervalRef.current);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
+    };
 
     // ✅ [] يضمن أن useEffect لا يُشغَّل إلا مرة واحدة عند التحميل
     // eslint-disable-next-line react-hooks/exhaustive-deps

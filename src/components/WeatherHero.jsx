@@ -9,9 +9,37 @@ import { useWeatherContext } from '../WeatherContext';
 const { FiWind, FiDroplet, FiSun, FiThermometer, FiClock } = FiIcons;
 
 const WeatherHero = ({ city }) => {
-  const { lastUpdated } = useWeatherContext();
-  const cityName = typeof city === 'string' ? city : city.name;
-  const { data: weatherData, loading, error } = useWeather(cityName, typeof city === 'object' ? city : null);
+  const { lastUpdated, weatherData: contextWeatherData } = useWeatherContext();
+  const cityName = typeof city === 'string' ? city : city?.name || 'نواكشوط';
+  const coords   = typeof city === 'object' && city?.lat ? city : null;
+  const { data: fetchedData, loading, error } = useWeather(cityName, coords);
+
+  // إذا كانت البيانات المجلوبة صفرية (isFallback)، ابحث في Context عن أقرب مدينة
+  const weatherData = (() => {
+    if (fetchedData && !fetchedData.isFallback) return fetchedData;
+    // حاول إيجاد نواكشوط أو أي مدينة في Context كبديل
+    if (contextWeatherData?.length > 0) {
+      if (coords) {
+        // ابحث عن أقرب مدينة بالإحداثيات
+        let best = null, bestDist = Infinity;
+        contextWeatherData.forEach(c => {
+          const lat = c.latitude ?? c.lat;
+          const lon = c.longitude ?? c.lon;
+          if (!lat || !lon) return;
+          const d = Math.abs(lat - coords.lat) + Math.abs(lon - coords.lon);
+          if (d < bestDist) { bestDist = d; best = c; }
+        });
+        if (best && bestDist < 3) return best;
+      }
+      const match = contextWeatherData.find(c => c.city === cityName);
+      if (match && !match.isFallback) return match;
+      // آخر ملاذ: نواكشوط
+      const nouakchott = contextWeatherData.find(c => c.city === 'نواكشوط');
+      if (nouakchott && !nouakchott.isFallback) return nouakchott;
+    }
+    return fetchedData;
+  })();
+
   if (loading) {
     return (
       <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-emerald-600 rounded-[2rem] p-8 lg:p-12 text-white shadow-2xl mb-8 animate-pulse">
