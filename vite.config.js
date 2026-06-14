@@ -2,8 +2,11 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
+// تحديد المسار الأساسي حسب بيئة النشر
+const base = process.env.VERCEL ? '/' : '/JATKOUM-SHAB/';
+
 export default defineConfig({
-  base: '/JATKOUM-SHAB/',
+  base: base,
 
   plugins: [react()],
 
@@ -14,7 +17,7 @@ export default defineConfig({
   },
 
   server: {
-    host: true, // يسمح بالوصول من الشبكة المحلية
+    host: true,
     port: 5173,
     historyApiFallback: true,
   },
