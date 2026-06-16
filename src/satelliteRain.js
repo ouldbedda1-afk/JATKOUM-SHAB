@@ -11,9 +11,39 @@
 
 const RAINVIEWER_API = 'https://api.rainviewer.com/public/weather-maps.json';
 
+let cachedRadarMeta = null;
+let cachedRadarMetaTime = 0;
 let cachedFrame = null;
 let cachedFrameTime = 0;
+let cachedSameDayEvents = [];
+let cachedSameDayEventsTime = 0;
+let cachedSameDayEventsDay = '';
 const FRAME_TTL = 10 * 60 * 1000; // 10 دقائق (معدل تحديث RainViewer)
+const SAME_DAY_EVENTS_TTL = 20 * 60 * 1000; // 20 دقيقة لتخفيف الضغط
+const HEAVY_RAIN_MMH = 20;
+
+function getDayKey(date) {
+  return new Date(date).toISOString().slice(0, 10);
+}
+
+/**
+ * جلب بيانات الرادار الأساسية (المضيف + الإطارات الماضية)
+ */
+async function getRadarMeta() {
+  const now = Date.now();
+  if (cachedRadarMeta && now - cachedRadarMetaTime < FRAME_TTL) return cachedRadarMeta;
+
+  const res = await fetch(RAINVIEWER_API);
+  if (!res.ok) throw new Error('RainViewer API unavailable');
+  const data = await res.json();
+
+  const frames = data.radar?.past;
+  if (!frames || frames.length === 0) throw new Error('No radar frames available');
+
+  cachedRadarMeta = { host: data.host, frames };
+  cachedRadarMetaTime = now;
+  return cachedRadarMeta;
+}
 
 /**
  * جلب آخر إطار رادار من RainViewer
@@ -22,14 +52,8 @@ async function getLatestRadarFrame() {
   const now = Date.now();
   if (cachedFrame && now - cachedFrameTime < FRAME_TTL) return cachedFrame;
 
-  const res = await fetch(RAINVIEWER_API);
-  if (!res.ok) throw new Error('RainViewer API unavailable');
-  const data = await res.json();
-
-  // آخر إطار من الرادار (الأحدث = الأخير في المصفوفة)
-  const frames = data.radar?.past;
-  if (!frames || frames.length === 0) throw new Error('No radar frames available');
-
+  const data = await getRadarMeta();
+  const frames = data.frames;
   const latest = frames[frames.length - 1];
   cachedFrame = { path: latest.path, time: latest.time, host: data.host };
   cachedFrameTime = now;
@@ -163,6 +187,91 @@ export async function getRainingNowFromSatellite(cities) {
     .sort((a, b) => b.mmh - a.mmh);
 
   return rainingCities;
+}
+
+/**
+ * البحث في أرشيف الرادار المتاح لليوم نفسه عن أمطار غزيرة فوق المقاطعات
+ * يعيد المقاطعات التي ظهر فوقها مطر غزير مرة واحدة على الأقل خلال إطارات اليوم المتاحة
+ */
+export async function getSameDayHeavyRainEventsFromSatellite(cities) {
+  if (!cities || cities.length === 0) return [];
+
+  const todayKey = getDayKey(Date.now());
+  const now = Date.now();
+  if (
+    cachedSameDayEventsDay === todayKey &&
+    cachedSameDayEvents.length > 0 &&
+    now - cachedSameDayEventsTime < SAME_DAY_EVENTS_TTL
+  ) {
+    return cachedSameDayEvents;
+  }
+
+  let radarMeta;
+  try {
+    radarMeta = await getRadarMeta();
+  } catch (e) {
+    console.warn('🛰️ RainViewer archive غير متاح:', e.message);
+    return [];
+  }
+
+  const framesToday = (radarMeta.frames || []).filter((frame) => getDayKey(frame.time * 1000) === todayKey);
+  if (framesToday.length === 0) {
+    cachedSameDayEvents = [];
+    cachedSameDayEventsDay = todayKey;
+    cachedSameDayEventsTime = now;
+    return [];
+  }
+
+  const toCheck = cities.filter((c) => c.latitude != null || c.lat != null);
+  const eventMap = new Map();
+
+  for (const frame of framesToday) {
+    const frameTime = new Date(frame.time * 1000);
+    const results = await Promise.allSettled(
+      toCheck.map(async (city) => {
+        const lat = city.latitude ?? city.lat;
+        const lon = city.longitude ?? city.lon;
+        const rain = await checkRainAtLocation(lat, lon, frame.path, radarMeta.host);
+        return { city, rain };
+      })
+    );
+
+    results.forEach((result) => {
+      if (result.status !== 'fulfilled') return;
+      const { city, rain } = result.value;
+      if ((rain?.mmh ?? 0) < HEAVY_RAIN_MMH) return;
+
+      const key = city.city;
+      const existing = eventMap.get(key);
+      if (!existing) {
+        eventMap.set(key, {
+          city: city.city,
+          wilaya: city.wilaya || '',
+          maxMmh: rain.mmh,
+          label: rain.label || 'غزير',
+          firstSeen: frameTime.toISOString(),
+          lastSeen: frameTime.toISOString(),
+          framesDetected: 1,
+        });
+        return;
+      }
+
+      existing.maxMmh = Math.max(existing.maxMmh, rain.mmh);
+      existing.label = existing.maxMmh >= 50 ? 'غزير جداً' : existing.label || rain.label || 'غزير';
+      existing.lastSeen = frameTime.toISOString();
+      existing.framesDetected += 1;
+    });
+  }
+
+  const events = Array.from(eventMap.values()).sort((a, b) => {
+    if (b.maxMmh !== a.maxMmh) return b.maxMmh - a.maxMmh;
+    return b.framesDetected - a.framesDetected;
+  });
+
+  cachedSameDayEvents = events;
+  cachedSameDayEventsDay = todayKey;
+  cachedSameDayEventsTime = now;
+  return events;
 }
 
 /**

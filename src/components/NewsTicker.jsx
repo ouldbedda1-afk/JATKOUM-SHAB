@@ -18,7 +18,16 @@ function fmtDateTime(dateStr) {
 }
 
 const NewsTicker = () => {
-  const { weatherData, fires, rainReports, rainingNow, loading, refreshAllData, lastUpdated } = useWeatherContext();
+  const {
+    weatherData,
+    fires,
+    rainReports,
+    rainingNow,
+    sameDayRainEvents,
+    loading,
+    refreshAllData,
+    lastUpdated,
+  } = useWeatherContext();
 
   const newsItems = useMemo(() => {
     if (loading || !weatherData) return ["جاري تحميل آخر الأخبار..."];
@@ -31,6 +40,18 @@ const NewsTicker = () => {
     const generalAlerts = [];
 
     const now = new Date();
+    let sameDayHeadline = null;
+
+    if (sameDayRainEvents && sameDayRainEvents.length > 0) {
+      const topEvents = sameDayRainEvents.slice(0, 4);
+      const topEvent = topEvents[0];
+      const cityList = topEvents.map(event => event.city).join('، ');
+      const timeWindow = topEvent?.firstSeen && topEvent?.lastSeen
+        ? ` [${fmtTime(topEvent.firstSeen)} - ${fmtTime(topEvent.lastSeen)}]`
+        : '';
+
+      sameDayHeadline = `حدث في نفس اليوم 🛰️ | أرشيف الأقمار الصناعية يرصد أمطاراً غزيرة في: ${cityList}${timeWindow}.`;
+    }
 
     weatherData.forEach(cityData => {
       const code   = cityData.current?.weather_code   ?? 0;
@@ -143,6 +164,7 @@ const NewsTicker = () => {
 
     // ترتيب: عاجل → توقعات المركز الأوروبي → حرائق → سحب → عام → ثابت
     const finalNews = [
+      ...(sameDayHeadline ? [sameDayHeadline] : []),
       ...urgentAlerts,
       ...forecastAlerts.slice(0, 6),
       ...fireNews,
@@ -152,7 +174,7 @@ const NewsTicker = () => {
     ];
 
     return finalNews.length > 0 ? finalNews : ["لا توجد تنبيهات جوية خاصة حالياً. طقس مستقر."];
-  }, [loading, weatherData, fires, rainReports, rainingNow, lastUpdated]);
+  }, [loading, weatherData, fires, rainReports, rainingNow, sameDayRainEvents, lastUpdated]);
 
   return (
     <div className="bg-yellow-400 py-2 overflow-hidden border-y border-yellow-500 shadow-sm relative z-40" dir="rtl">

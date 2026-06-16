@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useMemo 
 import { getAllCitiesWeather, getActiveFires, getMarineWeather, clearWeatherCache } from './weatherApi';
 import { getRecentRainReports, getRecentBawahReports, getUpcomingRainForecasts, getActiveAlerts } from './supabase';
 import { getSatelliteVegetationStatus } from './satelliteVegetation';
-import { getRainingNowFromSatellite } from './satelliteRain';
+import { getRainingNowFromSatellite, getSameDayHeavyRainEventsFromSatellite } from './satelliteRain';
 
 const WeatherContext = createContext(null);
 
@@ -22,6 +22,7 @@ export const WeatherProvider = ({ children }) => {
   const [manualAlerts,     setManualAlerts]     = useState([]);
   const [vegetationData,   setVegetationData]   = useState(null);
   const [rainingNow,       setRainingNow]       = useState([]);
+  const [sameDayRainEvents, setSameDayRainEvents] = useState([]);
   const [loading,          setLoading]          = useState(true);
   const [lastUpdated,      setLastUpdated]      = useState(null);
   const [error,            setError]            = useState(null);
@@ -74,9 +75,22 @@ export const WeatherProvider = ({ children }) => {
 
       // 🛰️ رصد الأمطار عبر الأقمار الصناعية (RainViewer) — بعد جلب بيانات المدن
       if (weather && weather.length > 0) {
-        getRainingNowFromSatellite(weather)
-          .then(raining => setRainingNow(raining || []))
-          .catch(e => console.warn('🛰️ satellite rain check:', e));
+        Promise.all([
+          getRainingNowFromSatellite(weather).catch(e => {
+            console.warn('🛰️ satellite rain check:', e);
+            return [];
+          }),
+          getSameDayHeavyRainEventsFromSatellite(weather).catch(e => {
+            console.warn('🛰️ same-day rain archive check:', e);
+            return [];
+          }),
+        ]).then(([raining, sameDayEvents]) => {
+          setRainingNow(raining || []);
+          setSameDayRainEvents(sameDayEvents || []);
+        });
+      } else {
+        setRainingNow([]);
+        setSameDayRainEvents([]);
       }
       setLastUpdated(new Date());
       setError(null);
@@ -138,6 +152,7 @@ export const WeatherProvider = ({ children }) => {
     manualAlerts,
     vegetationData,
     rainingNow,
+    sameDayRainEvents,
     loading,
     lastUpdated,
     error,
@@ -149,7 +164,7 @@ export const WeatherProvider = ({ children }) => {
   }), [
     weatherData, fires, marineData,
     rainReports, bawahReports, rainForecasts, vegetationData,
-    rainingNow, loading, lastUpdated, error,
+    rainingNow, sameDayRainEvents, loading, lastUpdated, error,
   ]);
 
   return (

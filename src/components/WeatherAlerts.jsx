@@ -102,10 +102,7 @@ function WeatherBulletin({ cities, rainingNow }) {
 
     return Object.values(map)
       .sort((a, b) => new Date(a.dateStr) - new Date(b.dateStr))
-      .filter(d =>
-        d.thunder.length + d.heavy.length + d.moderate.length +
-        d.weak.length + d.wind.length > 0
-      );
+      .slice(0, 3);
   }, [cities, satelliteSet]);
 
   if (days.length === 0) return null;
@@ -114,112 +111,207 @@ function WeatherBulletin({ cities, rainingNow }) {
 
   // لون مختلف لكل يوم
   const DAY_THEMES = [
-    { card: 'bg-gradient-to-br from-blue-700 to-blue-900',     header: 'bg-blue-950/40 border-blue-500/30',    accent: 'text-blue-200' },
-    { card: 'bg-gradient-to-br from-teal-700 to-teal-900',     header: 'bg-teal-950/40 border-teal-500/30',    accent: 'text-teal-200' },
-    { card: 'bg-gradient-to-br from-indigo-700 to-indigo-900', header: 'bg-indigo-950/40 border-indigo-500/30', accent: 'text-indigo-200' },
+    {
+      card: 'bg-gradient-to-br from-sky-500 via-blue-700 to-indigo-900 border-sky-200/30',
+      header: 'bg-black/15 border-white/20',
+      accent: 'text-sky-100',
+      glow: 'shadow-sky-900/20',
+      chip: 'bg-sky-200/15 text-sky-100 border-sky-200/20',
+    },
+    {
+      card: 'bg-gradient-to-br from-emerald-500 via-green-700 to-lime-900 border-emerald-200/30',
+      header: 'bg-black/15 border-white/20',
+      accent: 'text-emerald-100',
+      glow: 'shadow-emerald-900/20',
+      chip: 'bg-emerald-200/15 text-emerald-100 border-emerald-200/20',
+    },
+    {
+      card: 'bg-gradient-to-br from-slate-400 via-slate-600 to-slate-900 border-slate-200/30',
+      header: 'bg-black/15 border-white/20',
+      accent: 'text-slate-100',
+      glow: 'shadow-slate-900/20',
+      chip: 'bg-slate-200/15 text-slate-100 border-slate-200/20',
+    },
   ];
 
+  const buildDaySections = (day) => {
+    const sections = [];
+
+    if (day.thunder.length > 0) {
+      sections.push({
+        key: 'thunder',
+        node: (
+          <UnifiedSection
+            icon="⚡"
+            bg="bg-red-500/18 border border-red-300/25"
+            dotColor="bg-red-300"
+            textColor="text-white"
+            label={<>يتوقع بإذن الله هطول أمطار <span className="text-red-300 font-black underline underline-offset-2">مصحوبة بعواصف رعدية قوية</span> — في المناطق التالية:</>}
+            items={day.thunder.map(t => ({ city: t.city, extra: t.rainDesc, confirmed: t.confirmed }))}
+            note="يُنصح بالابتعاد عن الأودية والمناطق المكشوفة والحذر من الصواعق"
+          />
+        ),
+      });
+    }
+
+    if (day.heavy.length > 0) {
+      sections.push({
+        key: 'heavy',
+        node: (
+          <UnifiedSection
+            icon="🌧️"
+            bg="bg-white/10 border border-white/15"
+            dotColor="bg-yellow-300"
+            textColor="text-white"
+            label={<>يتوقع بإذن الله هطول أمطار <span className="text-yellow-300 font-black underline underline-offset-2">غزيرة</span> — في المناطق التالية:</>}
+            items={day.heavy}
+          />
+        ),
+      });
+    }
+
+    if (day.moderate.length > 0) {
+      sections.push({
+        key: 'moderate',
+        node: (
+          <UnifiedSection
+            icon="🌦️"
+            bg="bg-white/10 border border-white/15"
+            dotColor="bg-sky-300"
+            textColor="text-white"
+            label={<>يتوقع بإذن الله هطول أمطار <span className="text-sky-300 font-black underline underline-offset-2">متوسطة</span> — في المناطق التالية:</>}
+            items={day.moderate}
+          />
+        ),
+      });
+    }
+
+    if (day.weak.length > 0) {
+      sections.push({
+        key: 'weak',
+        node: (
+          <UnifiedSection
+            icon="🌂"
+            bg="bg-white/10 border border-white/15"
+            dotColor="bg-white/60"
+            textColor="text-white"
+            label={<>يتوقع بإذن الله هطول أمطار <span className="text-white/80 font-black underline underline-offset-2">ضعيفة</span> — في المناطق التالية:</>}
+            items={day.weak}
+          />
+        ),
+      });
+    }
+
+    if (day.wind.length > 0) {
+      sections.push({
+        key: 'wind',
+        node: (
+          <UnifiedSection
+            icon="🌬️"
+            bg="bg-orange-400/18 border border-orange-300/25"
+            dotColor="bg-orange-300"
+            textColor="text-white"
+            label={<>يتوقع بإذن الله <span className="text-orange-300 font-black underline underline-offset-2">رياح قوية</span> — في المناطق التالية:</>}
+            items={day.wind.map(w => ({ city: w.city, extra: `${w.w} km/h` }))}
+          />
+        ),
+      });
+    }
+
+    if (sections.length === 0) {
+      sections.push({
+        key: 'stable',
+        node: (
+          <div className="rounded-2xl p-4 shadow-lg backdrop-blur-sm bg-white/10 border border-white/15">
+            <p className="text-base font-black text-white mb-2">✅ حالة مستقرة حتى الآن</p>
+            <p className="text-sm text-white/85 leading-relaxed">
+              لا توجد حتى الآن تنبيهات جوية بارزة لهذا اليوم، مع بقاء احتمال ظهور تطورات لاحقاً حسب حركة السحب.
+            </p>
+          </div>
+        ),
+      });
+    }
+
+    return sections;
+  };
+
+  const renderDayCard = (day, idx, sections, part = null) => {
+    const theme = DAY_THEMES[idx] || DAY_THEMES[2];
+    return (
+      <article
+        key={`${day.dateStr}-${part ?? 'full'}`}
+        className={`${theme.card} ${theme.glow} relative h-fit text-white rounded-[2rem] shadow-2xl overflow-hidden border-2 ring-1 ring-white/10 backdrop-blur-sm`}
+      >
+        <div className={`${theme.header} px-5 py-4 flex items-center justify-between gap-3 border-b`}>
+          <div className="flex items-center gap-3">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-xl shadow-sm">📅</span>
+            <div>
+              <span className={`block font-black text-xl ${theme.accent}`}>{day.dayAr || `اليوم ${idx + 1}`}</span>
+              <span className="block text-[11px] text-white/70 mt-1">
+                {part ? `توقعات هذا اليوم - الجزء ${part}` : 'توقعات هذا اليوم'}
+              </span>
+            </div>
+          </div>
+          <div className="text-left">
+            <span className={`inline-flex rounded-2xl border px-3 py-1.5 text-xs font-black shadow-sm ${theme.chip}`}>
+              {day.dateLabel || fmtDate(day.dateStr)}
+            </span>
+            <span className="block text-[10px] text-white/65 mt-1">
+              {part ? `بطاقة اليوم ${idx + 1} - ${part}` : `بطاقة اليوم ${idx + 1}`}
+            </span>
+          </div>
+        </div>
+
+        <div className="px-5 py-4 space-y-3">
+          {sections.map((section) => (
+            <React.Fragment key={section.key}>{section.node}</React.Fragment>
+          ))}
+        </div>
+      </article>
+    );
+  };
+
   return (
-    <div className="space-y-4" dir="rtl">
+    <div className="space-y-6" dir="rtl">
       {/* رأس النشرة */}
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
-          <span className="text-2xl">📋</span>
-          <h3 className="text-lg font-black text-gray-800 dark:text-white">النشرة الجوية</h3>
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-blue-700 text-2xl text-white shadow-lg">📋</span>
+          <div>
+            <h3 className="text-lg font-black text-gray-800 dark:text-white">النشرة الجوية</h3>
+            <p className="text-[11px] text-gray-500">عرض يومي منفصل للتوقعات والتنبيهات</p>
+          </div>
         </div>
-        <span className="text-xs text-gray-400 font-mono">{issuedAt}</span>
+        <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-500 font-mono shadow-sm">{issuedAt}</span>
       </div>
 
-      {days.map((day, idx) => {
-        const theme = DAY_THEMES[idx] || DAY_THEMES[2];
-        return (
-          <div key={day.dateStr} className={`${theme.card} text-white rounded-[2rem] shadow-xl overflow-hidden border-2`}>
-            {/* رأس اليوم */}
-            <div className={`${theme.header} px-5 py-3 flex items-center gap-3 border-b`}>
-              <span className="text-xl">📅</span>
-              <span className={`font-black text-base ${theme.accent}`}>{day.dayAr}</span>
-              <span className="font-mono text-xs text-white/50">{day.dateLabel}</span>
-            </div>
-
-            <div className="px-5 py-4 space-y-3">
-              {/* عواصف رعدية */}
-              {day.thunder.length > 0 && (
-                <UnifiedSection
-                  icon="⚡"
-                  bg="bg-red-500/20 border border-red-300/30"
-                  dotColor="bg-red-300"
-                  textColor="text-white"
-                  label={<>يتوقع بإذن الله هطول أمطار <span className="text-red-300 font-black underline underline-offset-2">مصحوبة بعواصف رعدية قوية</span> — في المناطق التالية:</>}
-                  items={day.thunder.map(t => ({ city: t.city, extra: t.rainDesc, confirmed: t.confirmed }))}
-                  note="يُنصح بالابتعاد عن الأودية والمناطق المكشوفة والحذر من الصواعق"
-                />
-              )}
-
-              {/* أمطار غزيرة */}
-              {day.heavy.length > 0 && (
-                <UnifiedSection
-                  icon="🌧️"
-                  bg="bg-white/10 border border-white/20"
-                  dotColor="bg-yellow-300"
-                  textColor="text-white"
-                  label={<>يتوقع بإذن الله هطول أمطار <span className="text-yellow-300 font-black underline underline-offset-2">غزيرة</span> — في المناطق التالية:</>}
-                  items={day.heavy}
-                />
-              )}
-
-              {/* أمطار متوسطة */}
-              {day.moderate.length > 0 && (
-                <UnifiedSection
-                  icon="🌦️"
-                  bg="bg-white/10 border border-white/20"
-                  dotColor="bg-sky-300"
-                  textColor="text-white"
-                  label={<>يتوقع بإذن الله هطول أمطار <span className="text-sky-300 font-black underline underline-offset-2">متوسطة</span> — في المناطق التالية:</>}
-                  items={day.moderate}
-                />
-              )}
-
-              {/* أمطار ضعيفة */}
-              {day.weak.length > 0 && (
-                <UnifiedSection
-                  icon="🌂"
-                  bg="bg-white/10 border border-white/20"
-                  dotColor="bg-white/60"
-                  textColor="text-white"
-                  label={<>يتوقع بإذن الله هطول أمطار <span className="text-white/80 font-black underline underline-offset-2">ضعيفة</span> — في المناطق التالية:</>}
-                  items={day.weak}
-                />
-              )}
-
-              {/* رياح قوية */}
-              {day.wind.length > 0 && (
-                <UnifiedSection
-                  icon="🌬️"
-                  bg="bg-orange-400/20 border border-orange-300/30"
-                  dotColor="bg-orange-300"
-                  textColor="text-white"
-                  label={<>يتوقع بإذن الله <span className="text-orange-300 font-black underline underline-offset-2">رياح قوية</span> — في المناطق التالية:</>}
-                  items={day.wind.map(w => ({ city: w.city, extra: `${w.w} km/h` }))}
-                />
-              )}
-            </div>
-          </div>
-        );
-      })}
+      <div className="space-y-5">
+        {days.flatMap((day, idx) => {
+          const sections = buildDaySections(day);
+          if (idx === 2 && sections.length > 1) {
+            const splitIndex = Math.ceil(sections.length / 2);
+            return [
+              renderDayCard(day, idx, sections.slice(0, splitIndex), 1),
+              renderDayCard(day, idx, sections.slice(splitIndex), 2),
+            ];
+          }
+          return renderDayCard(day, idx, sections);
+        })}
+      </div>
     </div>
   );
 }
 
 function UnifiedSection({ icon, bg, dotColor, label, items, note, textColor = 'text-white' }) {
   return (
-    <div className={`rounded-xl p-4 ${bg}`}>
+    <div className={`rounded-2xl p-4 shadow-lg backdrop-blur-sm ${bg}`}>
       <p className={`text-base font-black ${textColor} mb-3 leading-relaxed`}>
         {icon} {label}
       </p>
-      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5">
         {items.map((item, i) => (
-          <li key={i} className="flex items-start gap-2 text-sm">
-            <span className={`w-2 h-2 rounded-full ${dotColor} shrink-0 mt-1.5`} />
+          <li key={i} className="flex items-start gap-2.5 rounded-xl bg-black/5 px-2 py-1.5 text-sm">
+            <span className={`w-2 h-2 rounded-full ${dotColor} shrink-0 mt-1.5 shadow-sm`} />
             <div className="leading-relaxed">
               <span className="font-black">{item.city}</span>
               {item.extra && (
@@ -246,7 +338,15 @@ function UnifiedSection({ icon, bg, dotColor, label, items, note, textColor = 't
    المكوّن الرئيسي للتنبيهات
 ══════════════════════════════════════════ */
 const WeatherAlerts = () => {
-  const { weatherData: citiesWeather, manualAlerts, rainReports, rainingNow, loading, lastUpdated } = useWeatherContext();
+  const {
+    weatherData: citiesWeather,
+    manualAlerts,
+    rainReports,
+    rainingNow,
+    sameDayRainEvents,
+    loading,
+    lastUpdated,
+  } = useWeatherContext();
 
   const weatherAlerts = useMemo(() => {
     if (loading) return [];
@@ -254,12 +354,14 @@ const WeatherAlerts = () => {
     const dataAgeMs  = lastUpdated ? Date.now() - lastUpdated.getTime() : Infinity;
     const dataIsFresh = dataAgeMs < 60 * 60 * 1000;
 
+    const adminAlerts = [];
+    const priorityArchiveAlerts = [];
     const result = [];
     const cities = citiesWeather || [];
 
     /* ── 0. تنبيهات يدوية من الإدارة ── */
     (manualAlerts || []).forEach(alert => {
-      result.push({
+      adminAlerts.push({
         id: `manual-${alert.id}`,
         title: alert.title,
         message: alert.message,
@@ -269,7 +371,30 @@ const WeatherAlerts = () => {
       });
     });
 
-    /* ── 1. بشائر الخير الآن: الأقمار الصناعية ── */
+    /* ── 1. حدث في نفس اليوم: أرشيف الأقمار الصناعية ── */
+    if (sameDayRainEvents && sameDayRainEvents.length > 0) {
+      const topEvents = sameDayRainEvents.slice(0, 4);
+      const topEvent = topEvents[0];
+      const cityList = topEvents
+        .map(event => `${event.city}${event.wilaya ? ` (${event.wilaya})` : ''}`)
+        .join('، ');
+      const timeWindow = topEvent?.firstSeen && topEvent?.lastSeen
+        ? `${fmtTime(topEvent.firstSeen)} - ${fmtTime(topEvent.lastSeen)}`
+        : '';
+
+      priorityArchiveAlerts.push({
+        id: 'same-day-archive-event',
+        title: 'خبر حدث في نفس اليوم 🛰️',
+        message: `يكشف أرشيف الأقمار الصناعية اليوم عن أمطار غزيرة مرصودة في:\n${cityList}\n${
+          timeWindow ? `أبرز نافذة رصد: ${timeWindow}.\n` : ''
+        }تم تسجيل هذا الحدث من خلال إطارات اليوم نفسه، وهو خبر أرشيفي مستقل عن الرصد الآني الحالي.`,
+        icon: '🛰️',
+        color: 'bg-violet-700',
+        tags: ['أرشيف اليوم', `${sameDayRainEvents.length} مقاطعة`, topEvent?.label || 'أمطار غزيرة'].filter(Boolean),
+      });
+    }
+
+    /* ── 2. بشائر الخير الآن: الأقمار الصناعية ── */
     if (rainingNow && rainingNow.length > 0) {
       const radarAge  = rainingNow[0]?.radarAge ?? null;
       const ageLabel  = radarAge != null ? `Radar: ${radarAge} min ago` : '';
@@ -287,7 +412,7 @@ const WeatherAlerts = () => {
       });
     }
 
-    /* ── 2. بلاغات المواطنين (آخر 3 ساعات) ── */
+    /* ── 3. بلاغات المواطنين (آخر 3 ساعات) ── */
     const threeHoursAgo = Date.now() - 3 * 60 * 60 * 1000;
     const freshReports  = (rainReports || []).filter(
       r => r.created_at && new Date(r.created_at).getTime() > threeHoursAgo
@@ -308,7 +433,7 @@ const WeatherAlerts = () => {
     }
 
     if (dataIsFresh) {
-      /* ── 3. عواصف رعدية الآن — مؤكدة بالأقمار الصناعية فقط ──
+      /* ── 4. عواصف رعدية الآن — مؤكدة بالأقمار الصناعية فقط ──
          weather_code هو توقع نموذج رياضي وليس رصداً حقيقياً
          المصدر الوحيد الموثوق "الآن" هو رادار RainViewer (rainingNow) ── */
       if (rainingNow && rainingNow.length > 0) {
@@ -329,7 +454,7 @@ const WeatherAlerts = () => {
         }
       }
 
-      /* ── 4. رياح قوية الآن (wind_speed موثوق من محطات) ── */
+      /* ── 5. رياح قوية الآن (wind_speed موثوق من محطات) ── */
       const windNow = cities.filter(c => (c.current?.wind_speed_10m ?? 0) >= 45);
       if (windNow.length > 0) {
         result.push({
@@ -342,7 +467,7 @@ const WeatherAlerts = () => {
         });
       }
 
-      /* ── 5. موجة حر ── */
+      /* ── 6. موجة حر ── */
       const heatNow = cities.filter(c => (c.current?.temperature_2m ?? 0) >= 45);
       if (heatNow.length > 0) {
         result.push({
@@ -356,8 +481,8 @@ const WeatherAlerts = () => {
       }
     }
 
-    return result;
-  }, [loading, citiesWeather, manualAlerts, rainReports, rainingNow, lastUpdated]);
+    return [...adminAlerts, ...priorityArchiveAlerts, ...result];
+  }, [loading, citiesWeather, manualAlerts, rainReports, rainingNow, sameDayRainEvents, lastUpdated]);
 
   /* إشعارات المتصفح */
   useEffect(() => {
@@ -412,20 +537,6 @@ const WeatherAlerts = () => {
       {/* ═══ النشرة الجوية (3 أيام) ═══ */}
       <WeatherBulletin cities={cities} rainingNow={rainingNow} />
 
-      {/* لا توجد أي بيانات */}
-      {weatherAlerts.length === 0 && (
-        <div className="bg-emerald-700 text-white p-6 rounded-[2rem] shadow-xl relative overflow-hidden">
-          <div className="relative z-10">
-            <h3 className="text-lg font-black mb-2">حالة الطقس مستقرة</h3>
-            <p className="text-sm opacity-90 leading-relaxed">
-              لا توجد تنبيهات جوية خطيرة حالياً في عموم مقاطعات موريتانيا. الأجواء مستقرة بشكل عام.
-            </p>
-          </div>
-          <div className="absolute -bottom-2 -left-2 opacity-20">
-            <span className="text-6xl">✅</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -1,18 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 import { useWeatherContext } from '../WeatherContext';
 import { getWeatherIcon, getWeatherDescription } from '../weatherApi';
 
-const { FiCloudRain, FiWind, FiThermometer, FiChevronDown, FiChevronUp } = FiIcons;
+const { FiCloudRain, FiWind } = FiIcons;
 
-const SHOW_STEP = 10;
+const TOP_LIMIT = 3;
 
 const CityGrid = () => {
   const { weatherData: cities, loading } = useWeatherContext();
-  const [hotLimit, setHotLimit] = useState(SHOW_STEP);
-  const [coldLimit, setColdLimit] = useState(SHOW_STEP);
 
   const sorted = useMemo(() => {
     if (!cities?.length) return { hot: [], cold: [] };
@@ -106,47 +104,21 @@ const CityGrid = () => {
     );
   };
 
-  const Section = ({ title, emoji, data, limit, setLimit, isHot }) => (
+  const Section = ({ title, emoji, data, isHot }) => (
     <div>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
           <span className={`w-2 h-8 rounded-full ${isHot ? 'bg-orange-500' : 'bg-blue-500'}`}></span>
           {title} {emoji}
-          <span className="text-sm font-normal text-gray-400">({data.length} مقاطعة)</span>
+          <span className="text-sm font-normal text-gray-400">({Math.min(TOP_LIMIT, data.length)} مقاطعات)</span>
         </h3>
         <span className="text-[10px] text-gray-400 font-medium">المصدر: ECMWF</span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-        {data.slice(0, limit).map((city, i) => (
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {data.slice(0, TOP_LIMIT).map((city, i) => (
           <MoughataaCard key={city.city} city={city} rank={i} isHot={isHot} />
         ))}
-      </div>
-
-      {/* زر عرض المزيد / أقل */}
-      <div className="flex justify-center mt-4 gap-3">
-        {limit < data.length && (
-          <button
-            onClick={() => setLimit(l => Math.min(l + SHOW_STEP, data.length))}
-            className={`flex items-center gap-1 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
-              isHot
-                ? 'bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200'
-                : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
-            }`}
-          >
-            <SafeIcon icon={FiChevronDown} />
-            عرض {Math.min(SHOW_STEP, data.length - limit)} أخرى
-          </button>
-        )}
-        {limit > SHOW_STEP && (
-          <button
-            onClick={() => setLimit(SHOW_STEP)}
-            className="flex items-center gap-1 px-4 py-2 rounded-xl text-sm font-bold bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200 transition-colors"
-          >
-            <SafeIcon icon={FiChevronUp} />
-            طيّ القائمة
-          </button>
-        )}
       </div>
     </div>
   );
@@ -157,16 +129,12 @@ const CityGrid = () => {
         title="المقاطعات الأكثر حرارة"
         emoji="🔥"
         data={sorted.hot}
-        limit={hotLimit}
-        setLimit={setHotLimit}
         isHot={true}
       />
       <Section
         title="المقاطعات الأكثر برودة"
         emoji="❄️"
         data={sorted.cold}
-        limit={coldLimit}
-        setLimit={setColdLimit}
         isHot={false}
       />
     </div>
