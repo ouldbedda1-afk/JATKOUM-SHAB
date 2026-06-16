@@ -4,7 +4,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 import { useWeatherContext } from '../WeatherContext';
 
-const { FiCloud, FiTrendingUp, FiTrendingDown, FiShare2, FiBell, FiClock, FiMapPin } =
+const { FiCloud, FiShare2, FiClock } =
   FiIcons;
 
 /**
@@ -371,15 +371,7 @@ const CloudTracker = () => {
     loading,
     lastUpdated,
   } = useWeatherContext();
-  const [selectedPath, setSelectedPath] = useState(null);
   const [showSharePanel, setShowSharePanel] = useState(false);
-  const [subscribedCities, setSubscribedCities] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('cloud_alert_cities') || '[]');
-    } catch {
-      return [];
-    }
-  });
 
   const paths = useMemo(() => {
     if (loading || !weatherData) return [];
@@ -403,14 +395,6 @@ const CloudTracker = () => {
     [paths, rainingNow, rainReports, manualAlerts, weatherData, lastUpdated]
   );
 
-  const topPath = paths[0];
-  const stormCount = paths.filter((p) => p.isStormy).length;
-  const rainyCount = paths.filter((p) => p.isRainy && !p.isStormy).length;
-  const averageWind =
-    paths.length > 0
-      ? Math.round(paths.reduce((acc, path) => acc + path.windSpeed, 0) / paths.length)
-      : 0;
-
   const bulletinToneClasses = {
     danger:
       'border-red-200 bg-gradient-to-br from-red-50 via-rose-50 to-amber-50 text-red-950',
@@ -432,18 +416,6 @@ const CloudTracker = () => {
     const fbText = shareText.replace(/\*/g, '').replace(/📡/g, '').substring(0, 500);
     const url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.origin)}&quote=${encodeURIComponent(fbText)}`;
     window.open(url, '_blank');
-  };
-
-  const toggleCitySubscription = (cityName) => {
-    const newList = subscribedCities.includes(cityName)
-      ? subscribedCities.filter((c) => c !== cityName)
-      : [...subscribedCities, cityName];
-    setSubscribedCities(newList);
-    try {
-      localStorage.setItem('cloud_alert_cities', JSON.stringify(newList));
-    } catch {
-      // ignore
-    }
   };
 
   if (loading) {
@@ -483,10 +455,6 @@ const CloudTracker = () => {
               <span className="px-2.5 py-1 rounded-full bg-white/85 border border-white text-[11px] font-bold text-slate-700 inline-flex items-center gap-1.5">
                 <SafeIcon icon={FiClock} className="text-[10px]" />
                 {formatLastUpdated(lastUpdated)}
-              </span>
-              <span className="px-2.5 py-1 rounded-full bg-white/85 border border-white text-[11px] font-bold text-slate-700 inline-flex items-center gap-1.5">
-                <SafeIcon icon={FiMapPin} className="text-[10px]" />
-                {paths.length} مناطق تحت المتابعة
               </span>
             </div>
             <div className="flex items-start gap-3 mb-3">
@@ -567,209 +535,6 @@ const CloudTracker = () => {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Cloud Paths */}
-      {paths.length === 0 ? (
-        <div className="text-center py-10 rounded-[1.75rem] border border-slate-100 bg-gradient-to-br from-slate-50 to-blue-50">
-          <span className="text-5xl block mb-3">☀️</span>
-          <p className="text-base font-extrabold text-slate-800">الأجواء هادئة حالياً</p>
-          <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto leading-7">
-            لا تظهر بيانات الساعات القادمة مسارات سحب نشطة تستحق التنبيه في الوقت الحالي.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {topPath && (
-            <div className="rounded-[1.75rem] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-sky-50 p-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <p className="text-[11px] font-bold text-sky-700 mb-2">أبرز مسار تحت المتابعة</p>
-                  <h3 className="text-lg font-extrabold text-slate-900">
-                    {topPath.cityType} {topPath.city}
-                  </h3>
-                  <p className="text-sm text-slate-600 mt-1 leading-6">
-                    {topPath.severity} خلال نحو {topPath.hours} ساعات، مع اتجاه حركة {getWindDirectionText(topPath.windDir)}.
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full lg:w-auto">
-                  <div className="rounded-2xl bg-white border border-slate-100 px-4 py-3 text-center min-w-[110px]">
-                    <p className="text-[11px] text-slate-500 mb-1">المدينة الأبرز</p>
-                    <p className="text-sm font-extrabold text-slate-800">{topPath.city}</p>
-                  </div>
-                  <div className="rounded-2xl bg-white border border-slate-100 px-4 py-3 text-center min-w-[110px]">
-                    <p className="text-[11px] text-slate-500 mb-1">اتجاه الحركة</p>
-                    <p className="text-sm font-extrabold text-slate-800">
-                      {getWindDirectionArrow(topPath.windDir)} {getWindDirectionText(topPath.windDir)}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl bg-white border border-slate-100 px-4 py-3 text-center min-w-[110px]">
-                    <p className="text-[11px] text-slate-500 mb-1">احتمال المطر</p>
-                    <p className="text-sm font-extrabold text-sky-700">{topPath.maxPrecipProb}%</p>
-                  </div>
-                  <div className="rounded-2xl bg-white border border-slate-100 px-4 py-3 text-center min-w-[110px]">
-                    <p className="text-[11px] text-slate-500 mb-1">سرعة الرياح</p>
-                    <p className="text-sm font-extrabold text-slate-800">{topPath.windSpeed} كم/س</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Summary */}
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-1">
-            <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-4 rounded-2xl border border-amber-100 text-center">
-              <p className="text-xl text-amber-700 font-extrabold">{stormCount}</p>
-              <p className="text-[11px] text-amber-700 font-bold">مناطق ذات نشاط رعدي</p>
-            </div>
-            <div className="bg-gradient-to-br from-sky-50 to-cyan-50 p-4 rounded-2xl border border-sky-100 text-center">
-              <p className="text-xl text-sky-700 font-extrabold">{rainyCount}</p>
-              <p className="text-[11px] text-sky-700 font-bold">مناطق مرشحة للمطر</p>
-            </div>
-            <div className="bg-gradient-to-br from-slate-50 to-gray-50 p-4 rounded-2xl border border-slate-100 text-center">
-              <p className="text-xl text-slate-700 font-extrabold">{paths.length}</p>
-              <p className="text-[11px] text-slate-700 font-bold">إجمالي المناطق المتابعة</p>
-            </div>
-            <div className="bg-gradient-to-br from-emerald-50 to-teal-50 p-4 rounded-2xl border border-emerald-100 text-center">
-              <p className="text-xl text-emerald-700 font-extrabold">{averageWind} كم/س</p>
-              <p className="text-[11px] text-emerald-700 font-bold">متوسط سرعة الدفع</p>
-            </div>
-          </div>
-
-          {/* Paths List */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            {paths.slice(0, 8).map((path, idx) => {
-              const theme = getPathTheme(path);
-
-              return (
-                <motion.div
-                  key={path.city}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className={`border rounded-[1.75rem] overflow-hidden transition-all shadow-sm hover:shadow-md ${theme.card}`}
-                >
-                  <button
-                    onClick={() => setSelectedPath(selectedPath === path.city ? null : path.city)}
-                    className="w-full text-right p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div className="w-12 h-12 rounded-2xl bg-white/70 border border-white/80 flex items-center justify-center text-2xl shrink-0">
-                          <span>{theme.icon}</span>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <p className={`font-extrabold text-base ${theme.title}`}>
-                              {path.cityType} {path.city}
-                            </p>
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${theme.badge}`}>
-                              {theme.label}
-                            </span>
-                          </div>
-                          <p className={`text-sm leading-6 ${theme.sub}`}>
-                            حركة سحب متوقعة نحو {getWindDirectionText(path.windDir)} خلال {path.hours} ساعات قادمة.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="w-9 h-9 rounded-2xl bg-white/80 shadow-sm flex items-center justify-center shrink-0">
-                        <SafeIcon
-                          icon={selectedPath === path.city ? FiTrendingUp : FiTrendingDown}
-                          className={`text-sm ${theme.accent}`}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 mt-4">
-                      <div className="rounded-2xl bg-white/80 border border-white/90 px-3 py-2 text-center">
-                        <p className="text-[10px] text-slate-500 mb-1">احتمال المطر</p>
-                        <p className="text-xs font-extrabold text-slate-800">{path.maxPrecipProb}%</p>
-                      </div>
-                      <div className="rounded-2xl bg-white/80 border border-white/90 px-3 py-2 text-center">
-                        <p className="text-[10px] text-slate-500 mb-1">سرعة الرياح</p>
-                        <p className="text-xs font-extrabold text-slate-800">{path.windSpeed} كم/س</p>
-                      </div>
-                      <div className="rounded-2xl bg-white/80 border border-white/90 px-3 py-2 text-center">
-                        <p className="text-[10px] text-slate-500 mb-1">الاتجاه</p>
-                        <p className="text-xs font-extrabold text-slate-800">
-                          {getWindDirectionArrow(path.windDir)} {getWindDirectionText(path.windDir)}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-
-                  <AnimatePresence>
-                    {selectedPath === path.city && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="px-4 pb-4"
-                      >
-                        <div className={`rounded-[1.25rem] p-4 border space-y-3 ${theme.panel}`}>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="rounded-2xl bg-white border border-white/90 p-3">
-                              <p className="text-[11px] text-slate-500 mb-1">ملخص الحالة</p>
-                              <p className="text-sm font-extrabold text-slate-800">{path.severity}</p>
-                            </div>
-                            <div className="rounded-2xl bg-white border border-white/90 p-3">
-                              <p className="text-[11px] text-slate-500 mb-1">مدة التأثير</p>
-                              <p className="text-sm font-extrabold text-slate-800">{path.hours} ساعات</p>
-                            </div>
-                          </div>
-
-                          <div className="rounded-2xl bg-white border border-white/90 p-3">
-                            <p className="text-[11px] text-slate-500 mb-2">قراءة سريعة</p>
-                            <p className="text-sm leading-7 text-slate-700">
-                              تشير البيانات إلى نشاط سحب فوق <span className="font-bold">{path.city}</span> مع
-                              احتمال هطول يصل إلى <span className="font-bold">{path.maxPrecipProb}%</span>، ورياح
-                              دافعة بسرعة <span className="font-bold">{path.windSpeed} كم/س</span>.
-                            </p>
-                          </div>
-
-                          <div className="flex items-center gap-2 pt-1">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleCitySubscription(path.city);
-                              }}
-                              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
-                                subscribedCities.includes(path.city)
-                                  ? 'bg-emerald-100 text-emerald-700'
-                                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                              }`}
-                            >
-                              <SafeIcon icon={FiBell} className="text-[11px]" />
-                              {subscribedCities.includes(path.city)
-                                ? 'مشترك في التنبيهات'
-                                : 'اشترك في التنبيهات'}
-                            </button>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              );
-            })}
-          </div>
-
-          {/* Legend */}
-          <div className="flex flex-wrap gap-3 justify-center pt-2">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-100">
-              <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-              <span className="text-[11px] text-amber-800 font-bold">نشاط رعدي</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-sky-50 border border-sky-100">
-              <span className="w-2 h-2 rounded-full bg-sky-500"></span>
-              <span className="text-[11px] text-sky-800 font-bold">أمطار محتملة</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-100">
-              <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-              <span className="text-[11px] text-slate-700 font-bold">سحب متفرقة</span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
