@@ -19,6 +19,13 @@ function dayName(dateStr) {
   return DAYS_AR[new Date(dateStr).getDay()];
 }
 
+function formatShortList(items, limit = 4) {
+  const uniqueItems = [...new Set((items || []).filter(Boolean))];
+  if (uniqueItems.length === 0) return '';
+  if (uniqueItems.length <= limit) return uniqueItems.join('، ');
+  return `${uniqueItems.slice(0, limit).join('، ')}، وغيرها`;
+}
+
 /* ── تصنيف شدة المطر ── */
 function rainLevel(mm) {
   if (mm >= 20) return 'غزيرة جداً';
@@ -38,7 +45,7 @@ function isRainySeason(dateStr) {
 /* ══════════════════════════════════════════
    مكوّن النشرة الجوية الرسمية (3 أيام موحدة)
 ══════════════════════════════════════════ */
-function WeatherBulletin({ cities, rainingNow }) {
+function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNow }) {
   // أسماء المقاطعات التي يرصدها الرادار الآن (للتأكيد)
   const satelliteSet = useMemo(
     () => new Set((rainingNow || []).map(r => r.city)),
@@ -108,6 +115,47 @@ function WeatherBulletin({ cities, rainingNow }) {
   if (days.length === 0) return null;
 
   const issuedAt = `${fmtDate(new Date())} — ${fmtTime(new Date())}`;
+  const todayLabel = `${dayName(new Date())} ${fmtDate(new Date())}`;
+
+  const todayObservation = useMemo(() => {
+    if ((sameDayRainEvents || []).length > 0) {
+      const topEvents = sameDayRainEvents.slice(0, 4);
+      const topEvent = topEvents[0];
+      return {
+        tone: 'archive',
+        title: 'حدث اليوم عبر أرشيف الأقمار الصناعية',
+        summary: `سجل أرشيف اليوم أمطاراً غزيرة في ${formatShortList(topEvents.map((event) => event.city), 4)}.`,
+        details: topEvent?.firstSeen && topEvent?.lastSeen
+          ? `أبرز نافذة رصد اليوم كانت بين ${fmtTime(topEvent.firstSeen)} و${fmtTime(topEvent.lastSeen)}، ما يؤكد أن اليوم شهد حالة مطرية فعلية وليست مجرد توقع.`
+          : 'هذا خبر يومي مبني على أرشيف الإطارات المتاحة لليوم نفسه.',
+        chips: ['حدث اليوم', 'أرشيف الأقمار', `${sameDayRainEvents.length} مقاطعة`],
+      };
+    }
+
+    if ((rainingNow || []).length > 0) {
+      const topRains = rainingNow.slice(0, 4);
+      return {
+        tone: 'live',
+        title: 'رصد اليوم: أمطار جارية الآن',
+        summary: `يرصد النظام حالياً أمطاراً على ${formatShortList(topRains.map((item) => item.city), 4)}.`,
+        details: 'تُعرض هذه البطاقة قبل التوقعات لأن الحالة المرصودة اليوم أهم من الاكتفاء ببطاقات الأيام القادمة.',
+        chips: ['رصد مباشر', `${rainingNow.length} مقاطعة`, topRains[0]?.label || 'مطر'],
+      };
+    }
+
+    if ((modelRainingNow || []).length > 0) {
+      const topModel = modelRainingNow.slice(0, 4);
+      return {
+        tone: 'model',
+        title: 'رصد اليوم من النموذج',
+        summary: `تشير البيانات الحالية إلى هطول قائم أو قريب في ${formatShortList(topModel.map((item) => item.city), 4)}.`,
+        details: 'هذه قراءة داعمة من النموذج الحالي، وتُستخدم لإبراز حالة اليوم حتى عندما يكون الرادار اللحظي أقل وضوحاً محلياً.',
+        chips: ['اليوم', 'قراءة نموذج', `${modelRainingNow.length} مقاطعة`],
+      };
+    }
+
+    return null;
+  }, [sameDayRainEvents, rainingNow, modelRainingNow]);
 
   // لون مختلف لكل يوم
   const DAY_THEMES = [
@@ -223,9 +271,9 @@ function WeatherBulletin({ cities, rainingNow }) {
         key: 'stable',
         node: (
           <div className="rounded-2xl p-4 shadow-lg backdrop-blur-sm bg-white/10 border border-white/15">
-            <p className="text-base font-black text-white mb-2">ℹ️ لا مؤشرات بارزة في التوقعات لهذا اليوم</p>
+            <p className="text-base font-black text-white mb-2">ℹ️ لا مؤشرات بارزة في التوقعات لهذا التاريخ</p>
             <p className="text-sm text-white/85 leading-relaxed">
-              لا تُظهر بيانات التوقعات المتاحة لهذا اليوم تنبيهات بارزة حالياً، مع بقاء احتمال تشكل حالات محلية أو تطورات سريعة حسب حركة السحب والرصد المباشر.
+              لا تُظهر بيانات التوقعات المتاحة لهذا التاريخ تنبيهات بارزة حالياً، مع بقاء احتمال تشكل حالات محلية أو تطورات سريعة حسب حركة السحب والرصد المباشر.
             </p>
           </div>
         ),
@@ -248,7 +296,7 @@ function WeatherBulletin({ cities, rainingNow }) {
             <div>
               <span className={`block font-black text-xl ${theme.accent}`}>{day.dayAr || `اليوم ${idx + 1}`}</span>
               <span className="block text-[11px] text-white/70 mt-1">
-                {part ? `توقعات هذا اليوم - الجزء ${part}` : 'توقعات هذا اليوم'}
+                {part ? `توقعات هذا التاريخ - الجزء ${part}` : 'توقعات هذا التاريخ'}
               </span>
             </div>
           </div>
@@ -279,13 +327,46 @@ function WeatherBulletin({ cities, rainingNow }) {
           <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-blue-700 text-2xl text-white shadow-lg">📋</span>
           <div>
             <h3 className="text-lg font-black text-gray-800 dark:text-white">النشرة الجوية</h3>
-            <p className="text-[11px] text-gray-500">عرض يومي منفصل للتوقعات والتنبيهات</p>
+            <p className="text-[11px] text-gray-500">عرض يومي منفصل لرصد اليوم والتوقعات والتنبيهات</p>
           </div>
         </div>
         <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-500 font-mono shadow-sm">{issuedAt}</span>
       </div>
 
       <div className="space-y-5">
+        {todayObservation && (
+          <article className="relative h-fit rounded-[2rem] border-2 border-violet-200 bg-gradient-to-br from-violet-600 via-fuchsia-700 to-rose-900 text-white shadow-2xl ring-1 ring-white/10 overflow-hidden">
+            <div className="px-5 py-4 flex items-center justify-between gap-3 border-b border-white/15 bg-black/15">
+              <div className="flex items-center gap-3">
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-xl shadow-sm">🛰️</span>
+                <div>
+                  <span className="block font-black text-xl text-violet-100">حدث اليوم</span>
+                  <span className="block text-[11px] text-white/70 mt-1">رصد فعلي قبل بطاقات التوقعات</span>
+                </div>
+              </div>
+              <div className="text-left">
+                <span className="inline-flex rounded-2xl border border-violet-200/30 bg-violet-200/15 px-3 py-1.5 text-xs font-black shadow-sm text-violet-100">
+                  {todayLabel}
+                </span>
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div className="rounded-2xl p-4 shadow-lg backdrop-blur-sm bg-white/10 border border-white/15">
+                <p className="text-base font-black text-white mb-2">{todayObservation.title}</p>
+                <p className="text-sm font-bold text-white/95 leading-relaxed mb-2">{todayObservation.summary}</p>
+                <p className="text-sm text-white/85 leading-relaxed">{todayObservation.details}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {todayObservation.chips.map((chip) => (
+                    <span key={chip} className="px-3 py-1 rounded-full border border-white/15 bg-white/10 text-[10px] font-black text-white/90">
+                      {chip}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </article>
+        )}
+
         {days.flatMap((day, idx) => {
           const sections = buildDaySections(day);
           if (idx === 2 && sections.length > 1) {
@@ -343,6 +424,7 @@ const WeatherAlerts = () => {
     manualAlerts,
     rainReports,
     rainingNow,
+    modelRainingNow,
     sameDayRainEvents,
     loading,
     lastUpdated,
@@ -535,7 +617,12 @@ const WeatherAlerts = () => {
       ))}
 
       {/* ═══ النشرة الجوية (3 أيام) ═══ */}
-      <WeatherBulletin cities={cities} rainingNow={rainingNow} />
+      <WeatherBulletin
+        cities={cities}
+        rainingNow={rainingNow}
+        sameDayRainEvents={sameDayRainEvents}
+        modelRainingNow={modelRainingNow}
+      />
 
     </div>
   );
