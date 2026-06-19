@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useWeatherContext } from '../WeatherContext';
-import { sendLocalNotification } from '../pwa';
+import { requestNotificationPermission, sendLocalNotification } from '../pwa';
 
 /* ── تنسيق التواريخ والأوقات بالأحرف اللاتينية فقط ── */
 function fmtDate(dateStr) {
@@ -250,7 +250,7 @@ function buildCurrentRainNarrative({ rainingNow, modelRainingNow, cities }) {
     summary: `${sourceLabel} تُظهر خلايا أو غيوماً ماطرة محلية ${buildLocalAreaLabel(
       wilayas,
       cityNames
-    )}${movementText}، وليست أمطاراً على عموم موريتانيا الآن.`,
+    )}${movementText}.`,
     details: `المؤشرات الحالية ظهرت في: ${areasText}${wilayas.length > 0 ? ` ضمن ${formatShortList(wilayas, 3)}` : ''}. ستظهر كل منطقة مرصودة في الصفحة الرئيسية ما دامت المؤشرات قائمة.`,
     chips: ['حالة محلية', sourceChip, `${cityNames.length} مقاطعات`, topLabel, targetWilaya ? `صوب ${targetWilaya}` : null].filter(Boolean),
   };
@@ -276,6 +276,9 @@ function isRainySeason(dateStr) {
    مكوّن النشرة الجوية الرسمية (3 أيام موحدة)
 ══════════════════════════════════════════ */
 function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNow }) {
+  const [isTodayObservationFlashing, setIsTodayObservationFlashing] = useState(false);
+  const flashTimeoutRef = useRef(null);
+
   // أسماء المقاطعات التي يرصدها الرادار الآن (للتأكيد)
   const satelliteSet = useMemo(
     () => new Set((rainingNow || []).map(r => r.city)),
@@ -353,6 +356,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
     if (currentRainNarrative) {
       return {
         tone: 'live',
+        coverage: currentRainNarrative.coverage || 'local',
         title: currentRainNarrative.title,
         summary: currentRainNarrative.summary,
         details: currentRainNarrative.details,
@@ -405,6 +409,97 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       chips: ['اليوم', 'متابعة مستمرة', 'تحديث آلي'],
     };
   }, [currentRainNarrative, sameDayRainEvents, rainingNow, modelRainingNow]);
+
+  const todayTheme = useMemo(() => {
+    if (todayObservation.tone === 'live') {
+      if (todayObservation.coverage === 'wide') {
+        return {
+          card: 'border-sky-200 bg-gradient-to-br from-sky-500 via-blue-700 to-indigo-900',
+          accent: 'text-sky-100',
+          pill: 'border-sky-200/30 bg-sky-200/15 text-sky-100',
+        };
+      }
+
+      return {
+        card: 'border-emerald-200 bg-gradient-to-br from-emerald-500 via-green-700 to-lime-900',
+        accent: 'text-emerald-100',
+        pill: 'border-emerald-200/30 bg-emerald-200/15 text-emerald-100',
+      };
+    }
+
+    if (todayObservation.tone === 'archive') {
+      return {
+        card: 'border-violet-200 bg-gradient-to-br from-violet-600 via-fuchsia-700 to-rose-900',
+        accent: 'text-violet-100',
+        pill: 'border-violet-200/30 bg-violet-200/15 text-violet-100',
+      };
+    }
+
+    if (todayObservation.tone === 'model') {
+      return {
+        card: 'border-orange-200 bg-gradient-to-br from-orange-500 via-amber-600 to-orange-900',
+        accent: 'text-orange-100',
+        pill: 'border-orange-200/30 bg-orange-200/15 text-orange-100',
+      };
+    }
+
+    return {
+      card: 'border-slate-200 bg-gradient-to-br from-slate-500 via-slate-700 to-slate-900',
+      accent: 'text-slate-100',
+      pill: 'border-slate-200/30 bg-slate-200/15 text-slate-100',
+    };
+  }, [todayObservation]);
+
+  const todayObservationKey = useMemo(() => {
+    if (todayObservation.tone === 'calm') return '';
+    return JSON.stringify({
+      tone: todayObservation.tone,
+      coverage: todayObservation.coverage || '',
+      title: todayObservation.title,
+      summary: todayObservation.summary,
+      chips: todayObservation.chips,
+    });
+  }, [todayObservation]);
+
+  useEffect(() => {
+    return () => {
+      if (flashTimeoutRef.current) {
+        clearTimeout(flashTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!todayObservationKey) {
+      setIsTodayObservationFlashing(false);
+      return;
+    }
+
+    const storageKey = 'last_today_observation_key';
+    const lastKey = localStorage.getItem(storageKey);
+    if (lastKey === todayObservationKey) return;
+
+    localStorage.setItem(storageKey, todayObservationKey);
+    setIsTodayObservationFlashing(true);
+
+    if (flashTimeoutRef.current) {
+      clearTimeout(flashTimeoutRef.current);
+    }
+    flashTimeoutRef.current = window.setTimeout(() => {
+      setIsTodayObservationFlashing(false);
+    }, 15000);
+
+    requestNotificationPermission()
+      .then((granted) => {
+        if (!granted) return;
+        sendLocalNotification(`رصد اليوم: ${todayObservation.title}`, {
+          body: todayObservation.summary,
+          tag: 'today-observation',
+          renotify: true,
+        });
+      })
+      .catch(() => {});
+  }, [todayObservationKey, todayObservation]);
 
   // لون مختلف لكل يوم
   const DAY_THEMES = [
@@ -583,22 +678,32 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       </div>
 
       <div className="space-y-5">
-        <article className="relative h-fit rounded-[2rem] border-2 border-violet-200 bg-gradient-to-br from-violet-600 via-fuchsia-700 to-rose-900 text-white shadow-2xl ring-1 ring-white/10 overflow-hidden">
+        <article
+          className={`${todayTheme.card} ${
+            isTodayObservationFlashing ? 'animate-pulse ring-4 ring-white/20 shadow-[0_0_45px_rgba(255,255,255,0.28)]' : ''
+          } relative h-fit rounded-[2rem] border-2 text-white shadow-2xl ring-1 ring-white/10 overflow-hidden transition-all duration-500`}
+        >
             <div className="px-5 py-4 flex items-center justify-between gap-3 border-b border-white/15 bg-black/15">
               <div className="flex items-center gap-3">
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-xl shadow-sm">🛰️</span>
+                <span className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-xl shadow-sm ${isTodayObservationFlashing ? 'animate-bounce' : ''}`}>🛰️</span>
                 <div>
-                  <span className="block font-black text-xl text-violet-100">رصد اليوم</span>
+                  <span className={`block font-black text-xl ${todayTheme.accent}`}>رصد اليوم</span>
                   <span className="block text-[11px] text-white/70 mt-1">بطاقة اليوم قبل بطاقات التوقعات القادمة</span>
                 </div>
               </div>
               <div className="text-left">
-                <span className="inline-flex rounded-2xl border border-violet-200/30 bg-violet-200/15 px-3 py-1.5 text-xs font-black shadow-sm text-violet-100">
+                <span className={`inline-flex rounded-2xl border px-3 py-1.5 text-xs font-black shadow-sm ${todayTheme.pill}`}>
                   {todayLabel}
                 </span>
               </div>
             </div>
             <div className="px-5 py-4 space-y-3">
+              {isTodayObservationFlashing && (
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-black text-white shadow-sm animate-pulse">
+                  <span className="h-2 w-2 rounded-full bg-white animate-ping" />
+                  رصد جديد
+                </div>
+              )}
               <div className="rounded-2xl p-4 shadow-lg backdrop-blur-sm bg-white/10 border border-white/15">
                 <p className="text-base font-black text-white mb-2">{todayObservation.title}</p>
                 <p className="text-sm font-bold text-white/95 leading-relaxed mb-2">{todayObservation.summary}</p>
@@ -731,21 +836,7 @@ const WeatherAlerts = () => {
       });
     }
 
-    /* ── 2. رصد النطاق الحالي عبر الرادار/الأقمار ── */
-    if (currentRainNarrative) {
-      const radarAge = rainingNow?.[0]?.radarAge ?? null;
-      const ageLabel = radarAge != null ? `قبل ${radarAge} د` : '';
-      result.push({
-        id: 'rain-now-scope',
-        title: `${currentRainNarrative.title} 🛰️`,
-        message: `${currentRainNarrative.summary}\n${currentRainNarrative.details}`,
-        icon: '🌦️',
-        color: currentRainNarrative.coverage === 'wide' ? 'bg-sky-800' : 'bg-emerald-700',
-        tags: [...currentRainNarrative.chips, ageLabel].filter(Boolean),
-      });
-    }
-
-    /* ── 3. بلاغات المواطنين (آخر 3 ساعات) ── */
+    /* ── 2. بلاغات المواطنين (آخر 3 ساعات) ── */
     const threeHoursAgo = Date.now() - 3 * 60 * 60 * 1000;
     const freshReports  = (rainReports || []).filter(
       r => r.created_at && new Date(r.created_at).getTime() > threeHoursAgo
@@ -820,6 +911,7 @@ const WeatherAlerts = () => {
   /* إشعارات المتصفح */
   useEffect(() => {
     if (!loading && weatherAlerts.length > 0) {
+      if (weatherAlerts[0].id === 'same-day-archive-event') return;
       const key = weatherAlerts[0].id + weatherAlerts[0].title;
       if (localStorage.getItem('last_alert_id') !== key) {
         sendLocalNotification(`تنبيه جوي: ${weatherAlerts[0].title}`, {
