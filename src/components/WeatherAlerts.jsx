@@ -26,6 +26,236 @@ function formatShortList(items, limit = 4) {
   return `${uniqueItems.slice(0, limit).join('، ')}، وغيرها`;
 }
 
+function uniqueByCity(items) {
+  const seen = new Set();
+  return (items || []).filter((item) => {
+    const key = item?.city;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function getRainCoverageLevel(affectedCities, affectedWilayas, totalCities) {
+  if (affectedWilayas >= 5 || affectedCities >= Math.max(8, Math.ceil(totalCities * 0.35))) {
+    return 'wide';
+  }
+  if (affectedWilayas >= 3 || affectedCities >= 4) {
+    return 'regional';
+  }
+  return 'local';
+}
+
+function buildLocalAreaLabel(wilayas, cityNames) {
+  if ((wilayas || []).length === 1) {
+    return `في أجزاء من ${wilayas[0]}`;
+  }
+  if ((wilayas || []).length > 1) {
+    return `على نطاق محلي بين ${formatShortList(wilayas, 3)}`;
+  }
+  if ((cityNames || []).length > 0) {
+    return `حول ${formatShortList(cityNames, 3)}`;
+  }
+  return 'على نطاق محلي';
+}
+
+function getWindDirectionArrow(degrees) {
+  if (degrees === undefined || degrees === null) return '';
+  if (degrees >= 337.5 || degrees < 22.5) return '↑';
+  if (degrees < 67.5) return '↗';
+  if (degrees < 112.5) return '→';
+  if (degrees < 157.5) return '↘';
+  if (degrees < 202.5) return '↓';
+  if (degrees < 247.5) return '↙';
+  if (degrees < 292.5) return '←';
+  return '↖';
+}
+
+function getAverageWindDirection(entries, cities) {
+  const cityByName = new Map((cities || []).map((city) => [city.city, city]));
+  const values = (entries || [])
+    .map((entry) => cityByName.get(entry.city)?.current?.wind_direction_10m)
+    .filter((value) => value !== undefined && value !== null && !Number.isNaN(value));
+
+  if (values.length === 0) return null;
+
+  const vector = values.reduce(
+    (acc, degrees) => {
+      const radians = (degrees * Math.PI) / 180;
+      acc.x += Math.cos(radians);
+      acc.y += Math.sin(radians);
+      return acc;
+    },
+    { x: 0, y: 0 }
+  );
+
+  const angle = (Math.atan2(vector.y, vector.x) * 180) / Math.PI;
+  return (angle + 360) % 360;
+}
+
+function getLikelyTargetWilaya(primaryWilaya, direction) {
+  if (direction === null || direction === undefined || !primaryWilaya) return '';
+
+  const eastward = direction >= 67.5 && direction < 157.5;
+  const southeastward = direction >= 112.5 && direction < 202.5;
+  const southward = direction >= 157.5 && direction < 247.5;
+
+  if (primaryWilaya === 'الحوض الغربي') {
+    if (eastward || southeastward) return 'العصابة';
+    if (southward) return 'كيدماغا';
+  }
+  if (primaryWilaya === 'الحوض الشرقي' && southward) return 'كيدماغا';
+  if (primaryWilaya === 'العصابة' && southward) return 'كوركول';
+  if (primaryWilaya === 'كوركول' && eastward) return 'كيدماغا';
+
+  return '';
+}
+
+function getPotentialRainPaths(cities, hoursAhead = 9) {
+  if (!cities || cities.length === 0) return [];
+
+  const now = new Date();
+  const paths = [];
+
+  cities.forEach((city) => {
+    if (!city?.hourly?.time) return;
+
+    const hourly = city.hourly;
+    const windows = [];
+    let futureHoursCount = 0;
+
+    for (let i = 0; i < hourly.time.length && futureHoursCount < hoursAhead; i++) {
+      const time = new Date(hourly.time[i]);
+      if (time < now) continue;
+      futureHoursCount += 1;
+
+      const precipProb = hourly.precipitation_probability?.[i] ?? 0;
+      const windSpeed = hourly.wind_speed_10m?.[i] ?? city.current?.wind_speed_10m ?? 0;
+      const weatherCode = hourly.weather_code?.[i] ?? city.current?.weather_code ?? 0;
+      const windDir = hourly.wind_direction_10m?.[i] ?? city.current?.wind_direction_10m ?? null;
+      const isStormy = weatherCode >= 95 || (precipProb >= 65 && windSpeed >= 28);
+      const isRainy = weatherCode >= 61 || precipProb >= 40;
+
+      if (isStormy || isRainy || precipProb >= 25 || (weatherCode >= 2 && windSpeed >= 18)) {
+        windows.push({
+          precipProb,
+          windSpeed,
+          windDir,
+          isStormy,
+          isRainy,
+          activityScore:
+            precipProb +
+            Math.min(windSpeed, 40) +
+            (isStormy ? 30 : 0) +
+            (isRainy ? 15 : 0) +
+            (weatherCode >= 2 ? 10 : 0),
+        });
+      }
+    }
+
+    if (windows.length === 0) return;
+
+    const avgWindDir = windows
+      .filter((item) => item.windDir !== null)
+      .reduce((acc, item, _, arr) => acc + item.windDir / arr.length, 0);
+
+    paths.push({
+      city: city.city,
+      wilaya: city.wilaya || '',
+      windDir: avgWindDir || null,
+      maxPrecipProb: Math.max(...windows.map((item) => item.precipProb)),
+      windSpeed: Math.round(windows.reduce((acc, item) => acc + item.windSpeed, 0) / windows.length),
+      isStormy: windows.some((item) => item.isStormy),
+      isRainy: windows.some((item) => item.isRainy),
+      activityScore: Math.max(...windows.map((item) => item.activityScore)),
+    });
+  });
+
+  return paths.sort((a, b) => {
+    const score = (item) =>
+      (item.isStormy ? 100 : 0) + (item.isRainy ? 50 : 0) + item.maxPrecipProb + item.activityScore;
+    return score(b) - score(a);
+  });
+}
+
+function buildCurrentRainNarrative({ rainingNow, modelRainingNow, cities }) {
+  const liveEntries = uniqueByCity(rainingNow);
+  const liveCitySet = new Set(liveEntries.map((entry) => entry.city));
+  const modelEntries = uniqueByCity((modelRainingNow || []).filter((entry) => !liveCitySet.has(entry.city)));
+  const entries = liveEntries.length > 0 ? liveEntries : modelEntries;
+  const potentialPaths = entries.length === 0 ? getPotentialRainPaths(cities).slice(0, 4) : [];
+  const narrativeEntries = entries.length > 0
+    ? entries
+    : potentialPaths.map((path) => ({
+        city: path.city,
+        wilaya: path.wilaya,
+        label: path.isStormy ? 'رعدية' : path.isRainy ? 'ممطرة' : 'مرشحة للمطر',
+      }));
+
+  if (narrativeEntries.length === 0) return null;
+
+  const cityNames = narrativeEntries.map((entry) => entry.city);
+  const wilayas = [...new Set(narrativeEntries.map((entry) => entry.wilaya).filter(Boolean))];
+  const totalCities = cities?.length || 0;
+  const coverage = getRainCoverageLevel(cityNames.length, wilayas.length, totalCities);
+  const sourceLabel = liveEntries.length > 0
+    ? 'الرادار والأقمار الصناعية'
+    : modelEntries.length > 0
+      ? 'الأقمار الصناعية وقراءة النموذج الحالي'
+      : 'مؤشرات حركة السحب وقراءة النموذج';
+  const sourceChip = liveEntries.length > 0 ? 'رادار مباشر' : modelEntries.length > 0 ? 'قراءة داعمة' : 'حركة السحب';
+  const topLabel = narrativeEntries[0]?.label || 'أمطار';
+  const averageDirection = entries.length > 0
+    ? getAverageWindDirection(entries, cities)
+    : potentialPaths[0]?.windDir ?? null;
+  const directionArrow = getWindDirectionArrow(averageDirection);
+  const primaryWilaya = wilayas[0] || '';
+  const targetWilaya = getLikelyTargetWilaya(primaryWilaya, averageDirection);
+  const movementText = targetWilaya
+    ? ` وتتجه صوب ${targetWilaya}`
+    : averageDirection != null
+      ? ` مع حركة مرجحة ${directionArrow || ''}`.trimEnd()
+      : '';
+  const areasText = cityNames.join('، ');
+
+  if (coverage === 'wide') {
+    return {
+      coverage,
+      title: 'رصد اليوم: حالة مطرية واسعة',
+      summary: `${sourceLabel} تُظهر حالة مطرية على عدة ولايات من موريتانيا حالياً، مع نشاط ظاهر في ${formatShortList(
+        wilayas,
+        5
+      )}.`,
+      details: `المؤشرات الحالية ظهرت في: ${areasText}. هذا يعني أن الحالة ليست محصورة في نقطة واحدة، بل تشمل ${cityNames.length} مقاطعات على الأقل ضمن نطاق متابعة اليوم.`,
+      chips: ['على عدة ولايات', sourceChip, `${cityNames.length} مقاطعات`, topLabel, targetWilaya ? `صوب ${targetWilaya}` : null].filter(Boolean),
+    };
+  }
+
+  if (coverage === 'regional') {
+    return {
+      coverage,
+      title: 'رصد اليوم: نشاط مطري على عدة مناطق',
+      summary: `${sourceLabel} تُظهر أمطاراً أو سحباً ماطرة على أجزاء متفرقة من ${formatShortList(
+        wilayas,
+        4
+      )}${movementText}، مع تأثر ${cityNames.length} مقاطعات حتى الآن.`,
+      details: `المؤشرات الحالية ظهرت في: ${areasText}. الحالة ليست على عموم الخريطة الموريتانية، لكنها تتجاوز نطاق الخلية المحلية الواحدة وتستحق المتابعة المباشرة.`,
+      chips: ['عدة مناطق', sourceChip, `${cityNames.length} مقاطعات`, topLabel, targetWilaya ? `صوب ${targetWilaya}` : null].filter(Boolean),
+    };
+  }
+
+  return {
+    coverage,
+    title: 'رصد اليوم: حالة مطرية محلية',
+    summary: `${sourceLabel} تُظهر خلايا أو غيوماً ماطرة محلية ${buildLocalAreaLabel(
+      wilayas,
+      cityNames
+    )}${movementText}، وليست أمطاراً على عموم موريتانيا الآن.`,
+    details: `المؤشرات الحالية ظهرت في: ${areasText}${wilayas.length > 0 ? ` ضمن ${formatShortList(wilayas, 3)}` : ''}. ستظهر كل منطقة مرصودة في الصفحة الرئيسية ما دامت المؤشرات قائمة.`,
+    chips: ['حالة محلية', sourceChip, `${cityNames.length} مقاطعات`, topLabel, targetWilaya ? `صوب ${targetWilaya}` : null].filter(Boolean),
+  };
+}
+
 /* ── تصنيف شدة المطر ── */
 function rainLevel(mm) {
   if (mm >= 20) return 'غزيرة جداً';
@@ -50,6 +280,10 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
   const satelliteSet = useMemo(
     () => new Set((rainingNow || []).map(r => r.city)),
     [rainingNow]
+  );
+  const currentRainNarrative = useMemo(
+    () => buildCurrentRainNarrative({ rainingNow, modelRainingNow, cities }),
+    [rainingNow, modelRainingNow, cities]
   );
 
   // نجمع البيانات مقسّمة حسب اليوم (3 أيام قادمة)
@@ -112,12 +346,20 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       .slice(0, 3);
   }, [cities, satelliteSet]);
 
-  if (days.length === 0) return null;
-
   const issuedAt = `${fmtDate(new Date())} — ${fmtTime(new Date())}`;
   const todayLabel = `${dayName(new Date())} ${fmtDate(new Date())}`;
 
   const todayObservation = useMemo(() => {
+    if (currentRainNarrative) {
+      return {
+        tone: 'live',
+        title: currentRainNarrative.title,
+        summary: currentRainNarrative.summary,
+        details: currentRainNarrative.details,
+        chips: currentRainNarrative.chips,
+      };
+    }
+
     if ((sameDayRainEvents || []).length > 0) {
       const topEvents = sameDayRainEvents.slice(0, 4);
       const topEvent = topEvents[0];
@@ -154,8 +396,15 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       };
     }
 
-    return null;
-  }, [sameDayRainEvents, rainingNow, modelRainingNow]);
+    return {
+      tone: 'calm',
+      title: 'متابعة اليوم',
+      summary: 'لا توجد حالياً مؤشرات مؤكدة كافية لتكوين نشرة رصد قوية لهذا اليوم.',
+      details:
+        'تستمر متابعة الرادار وأرشيف اليوم وقراءة النموذج وحركة السحب، وتُحدَّث هذه البطاقة تلقائياً عند ظهور أي مؤشرات محلية أو مسار ممطر نحو أي ولاية.',
+      chips: ['اليوم', 'متابعة مستمرة', 'تحديث آلي'],
+    };
+  }, [currentRainNarrative, sameDayRainEvents, rainingNow, modelRainingNow]);
 
   // لون مختلف لكل يوم
   const DAY_THEMES = [
@@ -334,14 +583,13 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       </div>
 
       <div className="space-y-5">
-        {todayObservation && (
-          <article className="relative h-fit rounded-[2rem] border-2 border-violet-200 bg-gradient-to-br from-violet-600 via-fuchsia-700 to-rose-900 text-white shadow-2xl ring-1 ring-white/10 overflow-hidden">
+        <article className="relative h-fit rounded-[2rem] border-2 border-violet-200 bg-gradient-to-br from-violet-600 via-fuchsia-700 to-rose-900 text-white shadow-2xl ring-1 ring-white/10 overflow-hidden">
             <div className="px-5 py-4 flex items-center justify-between gap-3 border-b border-white/15 bg-black/15">
               <div className="flex items-center gap-3">
                 <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-xl shadow-sm">🛰️</span>
                 <div>
-                  <span className="block font-black text-xl text-violet-100">حدث اليوم</span>
-                  <span className="block text-[11px] text-white/70 mt-1">رصد فعلي قبل بطاقات التوقعات</span>
+                  <span className="block font-black text-xl text-violet-100">رصد اليوم</span>
+                  <span className="block text-[11px] text-white/70 mt-1">بطاقة اليوم قبل بطاقات التوقعات القادمة</span>
                 </div>
               </div>
               <div className="text-left">
@@ -365,7 +613,6 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
               </div>
             </div>
           </article>
-        )}
 
         {days.flatMap((day, idx) => {
           const sections = buildDaySections(day);
@@ -429,6 +676,14 @@ const WeatherAlerts = () => {
     loading,
     lastUpdated,
   } = useWeatherContext();
+  const currentRainNarrative = useMemo(
+    () => buildCurrentRainNarrative({
+      rainingNow,
+      modelRainingNow,
+      cities: citiesWeather,
+    }),
+    [rainingNow, modelRainingNow, citiesWeather]
+  );
 
   const weatherAlerts = useMemo(() => {
     if (loading) return [];
@@ -476,21 +731,17 @@ const WeatherAlerts = () => {
       });
     }
 
-    /* ── 2. بشائر الخير الآن: الأقمار الصناعية ── */
-    if (rainingNow && rainingNow.length > 0) {
-      const radarAge  = rainingNow[0]?.radarAge ?? null;
-      const ageLabel  = radarAge != null ? `Radar: ${radarAge} min ago` : '';
-      const cityList  = rainingNow.map(c => {
-        const w = c.wilaya ? ` (${c.wilaya})` : '';
-        return `${c.city}${w} — ${c.label}`;
-      }).join('، ');
+    /* ── 2. رصد النطاق الحالي عبر الرادار/الأقمار ── */
+    if (currentRainNarrative) {
+      const radarAge = rainingNow?.[0]?.radarAge ?? null;
+      const ageLabel = radarAge != null ? `قبل ${radarAge} د` : '';
       result.push({
-        id: 'rain-now-satellite',
-        title: 'بشائر الخير الآن 🛰️',
-        message: `رصدت أقمار RainViewer الصناعية هطول أمطار الآن في:\n${cityList}\nجعلها الله أمطار خير وبركة.`,
+        id: 'rain-now-scope',
+        title: `${currentRainNarrative.title} 🛰️`,
+        message: `${currentRainNarrative.summary}\n${currentRainNarrative.details}`,
         icon: '🌦️',
-        color: 'bg-emerald-700',
-        tags: ['🛰️ RainViewer', `${rainingNow.length} مقاطعة`, ageLabel].filter(Boolean)
+        color: currentRainNarrative.coverage === 'wide' ? 'bg-sky-800' : 'bg-emerald-700',
+        tags: [...currentRainNarrative.chips, ageLabel].filter(Boolean),
       });
     }
 
@@ -564,7 +815,7 @@ const WeatherAlerts = () => {
     }
 
     return [...adminAlerts, ...priorityArchiveAlerts, ...result];
-  }, [loading, citiesWeather, manualAlerts, rainReports, rainingNow, sameDayRainEvents, lastUpdated]);
+  }, [loading, citiesWeather, manualAlerts, rainReports, rainingNow, modelRainingNow, sameDayRainEvents, lastUpdated, currentRainNarrative]);
 
   /* إشعارات المتصفح */
   useEffect(() => {

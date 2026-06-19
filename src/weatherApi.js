@@ -452,13 +452,18 @@ async function fetchFromWeatherAPI(lat, lon, cityName = '') {
         temperature_2m: current.temp_c,
         weather_code: current.condition.code, // WeatherAPI code
         wind_speed_10m: current.wind_kph,
+        wind_direction_10m: current.wind_degree,
         relative_humidity_2m: current.humidity,
         pressure_msl: current.pressure_mb,
+        precipitation: current.precip_mm ?? 0,
       },
       hourly: {
         time: [],
         temperature_2m: [],
         precipitation_probability: [],
+        wind_speed_10m: [],
+        wind_direction_10m: [],
+        weather_code: [],
       },
       daily: {
         time: [],
@@ -479,6 +484,15 @@ async function fetchFromWeatherAPI(lat, lon, cityName = '') {
         result.daily.temperature_2m_min.push(day.day.mintemp_c);
         result.daily.precipitation_sum.push(day.day.totalprecip_mm);
         result.daily.wind_speed_10m_max.push(day.day.maxwind_kph);
+
+        (day.hour || []).forEach((hour) => {
+          result.hourly.time.push(hour.time);
+          result.hourly.temperature_2m.push(hour.temp_c);
+          result.hourly.precipitation_probability.push(hour.chance_of_rain ?? 0);
+          result.hourly.wind_speed_10m.push(hour.wind_kph);
+          result.hourly.wind_direction_10m.push(hour.wind_degree);
+          result.hourly.weather_code.push(hour.condition.code);
+        });
       });
     }
 
@@ -601,8 +615,8 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
       const params = new URLSearchParams({
         latitude: coords.lat,
         longitude: coords.lon,
-        current: 'temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m,pressure_msl,precipitation',
-        hourly: 'temperature_2m,precipitation_probability,wind_speed_10m',
+        current: 'temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,pressure_msl,precipitation',
+        hourly: 'temperature_2m,precipitation_probability,wind_speed_10m,wind_direction_10m,weather_code',
         daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max',
         timezone: 'Africa/Nouakchott',
         temperature_unit: 'celsius',
@@ -725,8 +739,8 @@ export async function getAllCitiesWeather() {
       const params = new URLSearchParams({
         latitude: lats,
         longitude: lons,
-        current: 'temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m,pressure_msl,precipitation',
-        hourly: 'temperature_2m,precipitation_probability,wind_speed_10m',
+        current: 'temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,pressure_msl,precipitation',
+        hourly: 'temperature_2m,precipitation_probability,wind_speed_10m,wind_direction_10m,weather_code',
         daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max',
         timezone: 'Africa/Nouakchott',
         forecast_days: 7,
@@ -913,13 +927,18 @@ function buildFallbackWeather(city, coords) {
       temperature_2m: 0,
       weather_code: 0,
       wind_speed_10m: 0,
+      wind_direction_10m: 0,
       relative_humidity_2m: 0,
       pressure_msl: 1013,
+      precipitation: 0,
     },
     hourly: {
       time: Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`),
       temperature_2m: Array(24).fill(0),
       precipitation_probability: Array(24).fill(0),
+      wind_speed_10m: Array(24).fill(0),
+      wind_direction_10m: Array(24).fill(0),
+      weather_code: Array(24).fill(0),
     },
     daily: {
       time: dailyTime,
