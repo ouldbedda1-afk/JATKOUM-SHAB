@@ -17,6 +17,30 @@ function fmtDateTime(dateStr) {
   return `${fmtDate(dateStr)} ${fmtTime(dateStr)}`;
 }
 
+function formatShortList(items, limit = 5) {
+  const uniqueItems = [...new Set((items || []).filter(Boolean))];
+  if (uniqueItems.length === 0) return '';
+  if (uniqueItems.length <= limit) return uniqueItems.join('، ');
+  return `${uniqueItems.slice(0, limit).join('، ')}، وغيرها`;
+}
+
+function uniqueByCity(items) {
+  const seen = new Set();
+  return (items || []).filter((item) => {
+    const key = item?.city;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function buildLocalAreaLabel(wilayas, cityNames) {
+  if ((wilayas || []).length === 1) return `في أجزاء من ${wilayas[0]}`;
+  if ((wilayas || []).length > 1) return `على نطاق محلي بين ${formatShortList(wilayas, 3)}`;
+  if ((cityNames || []).length > 0) return `حول ${formatShortList(cityNames, 3)}`;
+  return 'على نطاق محلي';
+}
+
 const NewsTicker = () => {
   const {
     weatherData,
@@ -52,6 +76,29 @@ const NewsTicker = () => {
         : '';
 
       sameDayHeadline = `حدث في نفس اليوم 🛰️ | أرشيف الأقمار الصناعية يرصد أمطاراً غزيرة في: ${cityList}${timeWindow}.`;
+    }
+
+    const liveEntries = uniqueByCity(rainingNow);
+    const liveCitySet = new Set(liveEntries.map((entry) => entry.city));
+    const modelEntries = uniqueByCity((modelRainingNow || []).filter((entry) => !liveCitySet.has(entry.city)));
+    const currentRainEntries = liveEntries.length > 0 ? liveEntries : modelEntries;
+
+    if (currentRainEntries.length > 0) {
+      const cityNames = currentRainEntries.map((entry) => entry.city);
+      const wilayas = [...new Set(
+        currentRainEntries
+          .map((entry) => entry.wilaya || weatherData.find((city) => city.city === entry.city)?.wilaya || '')
+          .filter(Boolean)
+      )];
+      const sourceLabel = liveEntries.length > 0 ? 'الأقمار الصناعية' : 'النموذج الحالي';
+      const sourceTag = liveEntries.length > 0 ? '🛰️' : '📊';
+
+      urgentAlerts.unshift(
+        `🔴 عاجل الآن ${sourceTag} | ${sourceLabel} تُظهر خلايا أو غيوماً ماطرة محلية ${buildLocalAreaLabel(
+          wilayas,
+          cityNames
+        )}. المناطق الحالية: ${formatShortList(cityNames, 8)}.`
+      );
     }
 
     weatherData.forEach(cityData => {

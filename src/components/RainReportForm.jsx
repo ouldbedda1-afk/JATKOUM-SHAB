@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { addRainReport, uploadLivestockImage } from '../supabase';
 import { getWeatherData } from '../weatherApi';
+import { mauritaniaCommuneDistricts } from '../mauritaniaCommunes';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 
@@ -18,7 +19,7 @@ const {
 
 const MIN_FACEBOOK_FOLLOWERS = 100;
 
-const districts = [
+const baseDistricts = [
   { name: 'نواكشوط', lat: 18.0735, lon: -15.9582 },
   { name: 'نواذيبو', lat: 20.9375, lon: -17.0339 },
   { name: 'روصو', lat: 17.5333, lon: -14.3333 },
@@ -51,14 +52,34 @@ const districts = [
   { name: 'مونغل', lat: 16.26, lon: -13.23 },
   { name: 'بابابى', lat: 16.48, lon: -13.98 },
   { name: 'امباني', lat: 16.25, lon: -13.78 },
+  { name: 'صنكرافه', lat: 17.593, lon: -12.837 },
   { name: 'واد الناقة', lat: 17.91, lon: -15.31 },
   { name: 'اركيز', lat: 16.91, lon: -15.28 },
   { name: 'المذرذرة', lat: 16.91, lon: -15.65 },
   { name: 'كرمسين', lat: 16.48, lon: -16.21 },
+  { name: 'ونبو', lat: 15.45, lon: -12.08 },
   { name: 'انبيكت لحواش', lat: 16.845, lon: -5.9423 },
   { name: 'جيكني', lat: 15.7388, lon: -8.6703 },
   { name: 'امرج', lat: 16.1069, lon: -7.2143 },
   { name: 'ولاته', lat: 17.2966, lon: -7.024 },
+  { name: 'فصاله', lat: 15.558, lon: -5.5228 },
+  { name: 'عدل بكرو', lat: 15.6755, lon: -7.0216 },
+  { name: 'افيرني', lat: 15.5634, lon: -8.9105 },
+  { name: 'اعوينات ازبل', lat: 16.3848, lon: -8.8877 },
+  { name: 'بوسطيله', lat: 15.5777, lon: -8.0819 },
+  { name: 'بنيشاب', lat: 21.83, lon: -14.52 },
+];
+
+const districts = [
+  ...baseDistricts,
+  ...mauritaniaCommuneDistricts.filter(
+    (commune) =>
+      !baseDistricts.some(
+        (district) =>
+          district.name === commune.name ||
+          (Math.abs(district.lat - commune.lat) < 0.0001 && Math.abs(district.lon - commune.lon) < 0.0001)
+      )
+  ),
 ];
 
 function getDistanceKm(fromLat, fromLon, toLat, toLon) {
