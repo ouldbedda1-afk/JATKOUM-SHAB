@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import NewsTicker from '../components/NewsTicker';
 import WeatherHero from '../components/WeatherHero';
+import WeeklyForecast from '../components/WeeklyForecast';
 import SatelliteViewer from '../components/SatelliteViewer';
 import CityGrid from '../components/CityGrid';
 import RuralTools from '../components/RuralTools';
@@ -78,6 +79,7 @@ export default function Home() {
           {/* Main Content */}
           <div className="lg:col-span-8 space-y-6 md:space-y-8">
             <WeatherHero city={selectedCity} />
+            <WeeklyForecast city={selectedCity} />
             <WeatherAlerts />
             <WeatherCharts city={selectedCity} />
             <CloudTracker />

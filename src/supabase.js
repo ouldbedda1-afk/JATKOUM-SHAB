@@ -396,11 +396,76 @@ export async function deleteRainForecast(forecastId) {
       .from('rain_forecasts')
       .delete()
       .eq('id', forecastId);
-    
+
     if (error) throw error;
     return true;
   } catch (error) {
     console.error('خطأ في حذف توقعات الأمطار:', error);
     throw error;
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// Web Push: اشتراكات الإشعارات الفورية
+// ═══════════════════════════════════════════════════
+
+/** حفظ (أو تحديث) اشتراك المتصفح في جدول push_subscriptions */
+export async function savePushSubscription(subscription) {
+  if (!isSupabaseConfigured) return null;
+  try {
+    const sub = subscription.toJSON ? subscription.toJSON() : subscription;
+    const { error } = await supabase
+      .from('push_subscriptions')
+      .upsert(
+        {
+          endpoint: sub.endpoint,
+          p256dh: sub.keys?.p256dh,
+          auth: sub.keys?.auth,
+          user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+        },
+        { onConflict: 'endpoint' }
+      );
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('خطأ في حفظ اشتراك الإشعارات:', error);
+    return null;
+  }
+}
+
+/**
+ * طلب بثّ إشعار فوري لكل المشتركين عبر دالة send-push الخلفية.
+ * تتكفّل الدالة بمنع التكرار عبر dedupeKey/signature، فلا تُرسل
+ * نفس الحدث مرتين حتى لو استدعاها أكثر من زائر.
+ */
+export async function broadcastPush({ title, body, url, tag, dedupeKey, signature, windowMinutes }) {
+  if (!isSupabaseConfigured) return null;
+  try {
+    const { data, error } = await supabase.functions.invoke('send-push', {
+      body: { title, body, url, tag, dedupeKey, signature, windowMinutes },
+    });
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('خطأ في بثّ الإشعار الفوري:', error);
+    return null;
+  }
+}
+
+/** حذف اشتراك عند إلغائه أو انتهاء صلاحيته */
+export async function deletePushSubscription(endpoint) {
+  if (!isSupabaseConfigured) return null;
+  try {
+    const { error } = await supabase
+      .from('push_subscriptions')
+      .delete()
+      .eq('endpoint', endpoint);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('خطأ في حذف اشتراك الإشعارات:', error);
+    return null;
   }
 }

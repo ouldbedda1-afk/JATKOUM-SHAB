@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
-import { getAllCitiesWeather, getActiveFires, getMarineWeather, clearWeatherCache } from './weatherApi';
+import { getAllCitiesWeather, getActiveFires, getMarineWeather, clearWeatherCache, getModelRainingNow } from './weatherApi';
 import { getRecentRainReports, getRecentBawahReports, getUpcomingRainForecasts, getActiveAlerts } from './supabase';
 import { getSatelliteVegetationStatus } from './satelliteVegetation';
 import { getRainingNowFromSatellite, getSameDayHeavyRainEventsFromSatellite } from './satelliteRain';
@@ -142,6 +142,9 @@ export const WeatherProvider = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // رصد المطر حسب النموذج (مصدر داعم للرادار) — مشتق من بيانات المدن
+  const modelRainingNow = useMemo(() => getModelRainingNow(weatherData), [weatherData]);
+
   const value = useMemo(() => ({
     weatherData,
     fires,
@@ -152,6 +155,7 @@ export const WeatherProvider = ({ children }) => {
     manualAlerts,
     vegetationData,
     rainingNow,
+    modelRainingNow,
     sameDayRainEvents,
     loading,
     lastUpdated,
@@ -164,7 +168,7 @@ export const WeatherProvider = ({ children }) => {
   }), [
     weatherData, fires, marineData,
     rainReports, bawahReports, rainForecasts, vegetationData,
-    rainingNow, sameDayRainEvents, loading, lastUpdated, error,
+    rainingNow, modelRainingNow, sameDayRainEvents, loading, lastUpdated, error,
   ]);
 
   return (

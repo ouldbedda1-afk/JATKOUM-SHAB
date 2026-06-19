@@ -93,8 +93,8 @@ const WeeklyForecast = ({ city }) => {
     <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-gray-100">
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h3 className="text-2xl font-extrabold text-gray-800">النشرة الجوية</h3>
-          <p className="text-xs text-gray-500 mt-1">توقعات الثلاثة أيام القادمة في {cityName}</p>
+          <h3 className="text-2xl font-extrabold text-gray-800">توقعات {cityName} 🇲🇷</h3>
+          <p className="text-xs text-gray-500 mt-1">توقعات الثلاثة أيام القادمة للمدينة المختارة</p>
         </div>
         <Link to="/forecast" className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1">
           عرض الكل

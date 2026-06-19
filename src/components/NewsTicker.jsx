@@ -23,6 +23,7 @@ const NewsTicker = () => {
     fires,
     rainReports,
     rainingNow,
+    modelRainingNow,
     sameDayRainEvents,
     loading,
     refreshAllData,
@@ -128,10 +129,24 @@ const NewsTicker = () => {
         .map(c => c.city);
 
       if (thunderConfirmed.length > 0) {
-        urgentAlerts.unshift(`URGENT 🛰️⚡ | عواصف رعدية مؤكدة بالأقمار في: ${thunderConfirmed.join('، ')}${ageLabel} — يرجى الحذر!`);
+        urgentAlerts.unshift(`🔴 عاجل الآن ⚡ | عواصف رعدية وبرق مرصودة بالأقمار في: ${thunderConfirmed.join('، ')}${ageLabel} — يرجى الحذر!`);
       }
       if (rainOnly.length > 0) {
-        urgentAlerts.unshift(`بشائر الخير 🛰️ | أمطار رصدتها الأقمار في: ${rainOnly.join('، ')}${ageLabel}. جعلها الله خيراً.`);
+        urgentAlerts.unshift(`🔴 عاجل الآن 🌧️ | غيوم ماطرة رصدتها الأقمار في: ${rainOnly.join('، ')}${ageLabel}. جعلها الله خيراً.`);
+      }
+    }
+
+    // --- رصد داعم حسب النموذج (Open-Meteo) لما لم يرصده الرادار ---
+    if (modelRainingNow && modelRainingNow.length > 0) {
+      const radarSet = new Set((rainingNow || []).map(r => r.city));
+      const modelThunder = modelRainingNow.filter(m => m.isThunder && !radarSet.has(m.city)).map(m => m.city);
+      const modelRain = modelRainingNow.filter(m => !m.isThunder && !radarSet.has(m.city)).map(m => m.city);
+
+      if (modelThunder.length > 0) {
+        urgentAlerts.push(`عاجل ⚡ (حسب النموذج) | عواصف رعدية متوقعة الآن في: ${modelThunder.slice(0, 5).join('، ')} — يرجى الحذر.`);
+      }
+      if (modelRain.length > 0) {
+        forecastAlerts.unshift(`🌧️ (حسب النموذج) | أمطار متوقعة الآن في: ${modelRain.slice(0, 6).join('، ')}.`);
       }
     }
 
@@ -173,8 +188,10 @@ const NewsTicker = () => {
       ...staticNews
     ];
 
-    return finalNews.length > 0 ? finalNews : ["لا توجد تنبيهات جوية خاصة حالياً. طقس مستقر."];
-  }, [loading, weatherData, fires, rainReports, rainingNow, sameDayRainEvents, lastUpdated]);
+    return finalNews.length > 0
+      ? finalNews
+      : ["لا توجد حالياً تنبيهات جوية مؤكدة في النظام الآلي. تستمر المتابعة المباشرة لأي تطور جديد."];
+  }, [loading, weatherData, fires, rainReports, rainingNow, modelRainingNow, sameDayRainEvents, lastUpdated]);
 
   return (
     <div className="bg-yellow-400 py-2 overflow-hidden border-y border-yellow-500 shadow-sm relative z-40" dir="rtl">

@@ -383,6 +383,48 @@ export async function searchCities(query) {
 }
 
 /**
+ * رصد "الأمطار الآن" حسب نموذج Open-Meteo (مصدر داعم للرادار).
+ * يعتمد على current.precipitation و weather_code الحاليين.
+ * تُوسَم النتائج بـ source: 'model' لتمييزها عن الرصد الراداري المؤكد.
+ *
+ * أكواد WMO: 51-57 رذاذ، 61-67 مطر، 80-82 زخات، 95-99 رعدية.
+ */
+export function getModelRainingNow(weatherData) {
+  if (!weatherData || weatherData.length === 0) return [];
+
+  const out = [];
+  weatherData.forEach((c) => {
+    const code = c.current?.weather_code ?? 0;
+    const precip = c.current?.precipitation ?? 0;
+
+    const isThunder = code >= 95;
+    const isRainCode = (code >= 51 && code <= 67) || (code >= 80 && code <= 82) || isThunder;
+    const isRaining = precip > 0.1 || isRainCode;
+    if (!isRaining) return;
+
+    let mmh = precip > 0 ? precip : 0.5;
+    let label;
+    if (isThunder) label = 'رعدية';
+    else if (mmh >= 20 || code === 65 || code === 82) label = 'غزير';
+    else if (mmh >= 8 || code === 63 || code === 81) label = 'متوسط';
+    else if (mmh >= 2 || code === 61 || code === 80) label = 'خفيف';
+    else label = 'رذاذ';
+
+    out.push({
+      city: c.city,
+      wilaya: c.wilaya || '',
+      mmh: Math.round(mmh * 10) / 10,
+      label,
+      code,
+      isThunder,
+      source: 'model',
+    });
+  });
+
+  return out.sort((a, b) => b.mmh - a.mmh);
+}
+
+/**
  * جلب البيانات من WeatherAPI.com كـ fallback provider
  * تحويل الاستجابة إلى صيغة مشابهة للـ Open-Meteo للتوافقية
  */
@@ -529,12 +571,14 @@ export async function getActiveFires() {
   return promise;
 }
 
-export async function getWeatherData(city = 'نواكشوط', customCoords = null) {
+export async function getWeatherData(city = 'نواكشوط', customCoords = null, { forecastDays = 7 } = {}) {
   // تقريب الإحداثيات لمنع طلبات مكررة بسبب فروقات بسيطة جداً في الموقع
   const lat = customCoords ? Math.round(customCoords.lat * 100) / 100 : null; // تقليل الدقة لزيادة فرصة الـ Cache
   const lon = customCoords ? Math.round(customCoords.lon * 100) / 100 : null;
   
-  const cacheKey = customCoords ? `coord_${lat}_${lon}` : `city_${city}`;
+  // نُضمّن عدد الأيام في المفتاح حتى لا تُخلط بيانات 7 أيام مع 14 يوم
+  const daysSuffix = forecastDays > 7 ? `_d${forecastDays}` : '';
+  const cacheKey = (customCoords ? `coord_${lat}_${lon}` : `city_${city}`) + daysSuffix;
 
   const allowStale = isCircuitOpen || isDailyLimitBlocked();
   const cached = getCached(cacheKey, allowStale);
@@ -557,12 +601,12 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
       const params = new URLSearchParams({
         latitude: coords.lat,
         longitude: coords.lon,
-        current: 'temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m,pressure_msl',
+        current: 'temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m,pressure_msl,precipitation',
         hourly: 'temperature_2m,precipitation_probability,wind_speed_10m',
         daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max',
         timezone: 'Africa/Nouakchott',
         temperature_unit: 'celsius',
-        forecast_days: 7,
+        forecast_days: forecastDays,
       });
 
       const sourceUrl = `${OPEN_METEO_API}?${params}`;
@@ -681,7 +725,7 @@ export async function getAllCitiesWeather() {
       const params = new URLSearchParams({
         latitude: lats,
         longitude: lons,
-        current: 'temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m,pressure_msl',
+        current: 'temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m,pressure_msl,precipitation',
         hourly: 'temperature_2m,precipitation_probability,wind_speed_10m',
         daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max',
         timezone: 'Africa/Nouakchott',

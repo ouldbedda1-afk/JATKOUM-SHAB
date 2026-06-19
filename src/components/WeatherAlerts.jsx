@@ -223,9 +223,9 @@ function WeatherBulletin({ cities, rainingNow }) {
         key: 'stable',
         node: (
           <div className="rounded-2xl p-4 shadow-lg backdrop-blur-sm bg-white/10 border border-white/15">
-            <p className="text-base font-black text-white mb-2">✅ حالة مستقرة حتى الآن</p>
+            <p className="text-base font-black text-white mb-2">ℹ️ لا مؤشرات بارزة في التوقعات لهذا اليوم</p>
             <p className="text-sm text-white/85 leading-relaxed">
-              لا توجد حتى الآن تنبيهات جوية بارزة لهذا اليوم، مع بقاء احتمال ظهور تطورات لاحقاً حسب حركة السحب.
+              لا تُظهر بيانات التوقعات المتاحة لهذا اليوم تنبيهات بارزة حالياً، مع بقاء احتمال تشكل حالات محلية أو تطورات سريعة حسب حركة السحب والرصد المباشر.
             </p>
           </div>
         ),

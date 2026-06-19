@@ -33,6 +33,47 @@ self.addEventListener('activate', (event) => {
 });
 
 // استراتيجية الاستجابة: الشبكة أولاً للملفات الأساسية لضمان التحديث
+// ═══════════════════════════════════════════════════
+// Web Push: استقبال الإشعارات الفورية من الخادم
+// ═══════════════════════════════════════════════════
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch (e) {
+    payload = { title: 'جاتكم اسحاب', body: event.data ? event.data.text() : '' };
+  }
+
+  const title = payload.title || '🔴 عاجل · جاتكم اسحاب';
+  const options = {
+    body: payload.body || 'تحديث جوي عاجل، يرجى متابعة الموقع.',
+    icon: payload.icon || './logo.png',
+    badge: './logo.png',
+    dir: 'rtl',
+    lang: 'ar',
+    tag: payload.tag || 'breaking-weather',
+    renotify: true,
+    requireInteraction: payload.requireInteraction ?? false,
+    data: { url: payload.url || './' },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// النقر على الإشعار: فتح الموقع أو التركيز على تبويب مفتوح
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || './';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ('focus' in client) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+    })
+  );
+});
+
 self.addEventListener('fetch', (event) => {
   // تجاهل طلبات الـ API لضمان بيانات حية
   if (

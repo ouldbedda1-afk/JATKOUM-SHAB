@@ -77,9 +77,11 @@ function latLonToTile(lat, lon, zoom = 4) {
 }
 
 /**
- * قراءة لون بكسل في صورة بلاطة عبر Canvas (يعمل في المتصفح)
+ * قراءة أعلى شدة مطر داخل منطقة محيطة بنقطة (px, py) في بلاطة الرادار.
+ * نمسح مربعاً نصف قطره `radius` بكسل بدل بكسل واحد، لالتقاط الخلايا
+ * القريبة أو المتّجهة نحو المدينة (zoom 4 ≈ 10كم/بكسل).
  */
-async function getTilePixelColor(tileUrl, px, py) {
+async function getTileMaxRain(tileUrl, px, py, radius = 3) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -90,8 +92,19 @@ async function getTilePixelColor(tileUrl, px, py) {
         canvas.height = 256;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0);
-        const [r, g, b, a] = ctx.getImageData(px, py, 1, 1).data;
-        resolve({ r, g, b, a });
+
+        const x0 = Math.max(0, px - radius);
+        const y0 = Math.max(0, py - radius);
+        const w = Math.min(256 - x0, radius * 2 + 1);
+        const h = Math.min(256 - y0, radius * 2 + 1);
+        const { data } = ctx.getImageData(x0, y0, w, h);
+
+        let best = { mmh: 0, label: null };
+        for (let i = 0; i < data.length; i += 4) {
+          const intensity = colorToRainIntensity(data[i], data[i + 1], data[i + 2], data[i + 3]);
+          if (intensity.mmh > best.mmh) best = intensity;
+        }
+        resolve(best);
       } catch (e) {
         reject(e);
       }
@@ -108,23 +121,21 @@ async function getTilePixelColor(tileUrl, px, py) {
  *   أزرق → أخضر → أصفر → برتقالي → أحمر = مطر متزايد
  */
 function colorToRainIntensity(r, g, b, a) {
-  if (a < 50) return { mmh: 0, label: null }; // شفاف = لا مطر
+  if (a < 40) return { mmh: 0, label: null }; // شفاف = لا مطر
 
-  // نحسب "الحرارة" اللونية
-  const rNorm = r / 255;
-  const gNorm = g / 255;
-  const bNorm = b / 255;
-
-  // أحمر قوي = مطر غزير جداً
-  if (r > 200 && g < 80 && b < 80)  return { mmh: 50, label: 'غزير جداً' };
+  // أحمر/وردي قوي = مطر غزير جداً
+  if (r > 190 && g < 90 && b < 110) return { mmh: 50, label: 'غزير جداً' };
   // برتقالي = مطر غزير
-  if (r > 200 && g > 100 && b < 80) return { mmh: 20, label: 'غزير' };
+  if (r > 190 && g > 90 && b < 90)  return { mmh: 20, label: 'غزير' };
   // أصفر = مطر متوسط
-  if (r > 180 && g > 180 && b < 80) return { mmh: 8,  label: 'متوسط' };
+  if (r > 160 && g > 160 && b < 110) return { mmh: 8, label: 'متوسط' };
   // أخضر = مطر خفيف
-  if (r < 100 && g > 150 && b < 100) return { mmh: 2, label: 'خفيف' };
-  // أزرق = رذاذ
-  if (r < 100 && g < 150 && b > 150) return { mmh: 0.5, label: 'رذاذ' };
+  if (g > 120 && g > r && b < 140)  return { mmh: 2, label: 'خفيف' };
+  // أزرق/سماوي = رذاذ
+  if (b > 120 && b >= g)            return { mmh: 0.5, label: 'رذاذ' };
+
+  // أي بكسل ملوّن معتم بما يكفي ولا يطابق الخلفية = مطر خفيف على الأقل
+  if (a >= 80 && (r + g + b) > 60)  return { mmh: 1, label: 'خفيف' };
 
   return { mmh: 0, label: null };
 }
@@ -138,8 +149,7 @@ async function checkRainAtLocation(lat, lon, radarPath, host) {
   const tileUrl = `https://${host}${radarPath}/256/${zoom}/${x}/${y}/4/1_1.png`;
 
   try {
-    const color = await getTilePixelColor(tileUrl, px, py);
-    return colorToRainIntensity(color.r, color.g, color.b, color.a);
+    return await getTileMaxRain(tileUrl, px, py, 3);
   } catch {
     return { mmh: 0, label: null };
   }

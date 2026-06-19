@@ -11,9 +11,11 @@ export async function registerServiceWorker() {
       const registration = await navigator.serviceWorker.register(swPath);
       console.log('✅ Service Worker تم تسجيله بنجاح:', registration);
       
-      // طلب إذن الإشعارات فور التسجيل
-      requestNotificationPermission();
-      
+      // طلب إذن الإشعارات ثم الاشتراك في Web Push (إن توفّر مفتاح VAPID)
+      requestNotificationPermission().then((granted) => {
+        if (granted) subscribeToPush();
+      });
+
       return registration;
     } catch (error) {
       console.error('❌ خطأ في تسجيل Service Worker:', error);
@@ -67,6 +69,80 @@ export function sendLocalNotification(title, options = {}) {
   } else {
     // إرسال إشعار متصفح عادي
     new Notification(title, defaultOptions);
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// Web Push: الاشتراك في الإشعارات الفورية من الخادم
+// ═══════════════════════════════════════════════════
+
+// تحويل مفتاح VAPID العام (Base64URL) إلى Uint8Array
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+/**
+ * اشتراك المتصفح في Web Push وحفظه في Supabase.
+ * يحتاج VITE_VAPID_PUBLIC_KEY في ملف البيئة.
+ */
+export async function subscribeToPush() {
+  const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+  if (!vapidPublicKey) {
+    console.warn('⚠️ Web Push معطّل: VITE_VAPID_PUBLIC_KEY غير مضبوط.');
+    return null;
+  }
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    console.warn('⚠️ هذا المتصفح لا يدعم Web Push.');
+    return null;
+  }
+
+  const granted = await requestNotificationPermission();
+  if (!granted) return null;
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    let subscription = await registration.pushManager.getSubscription();
+
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+      });
+    }
+
+    // حفظ الاشتراك في قاعدة البيانات (استيراد كسول لتفادي حلقات الاعتماد)
+    const { savePushSubscription } = await import('./supabase');
+    await savePushSubscription(subscription);
+    console.log('✅ تم الاشتراك في الإشعارات الفورية');
+    return subscription;
+  } catch (error) {
+    console.error('❌ فشل الاشتراك في Web Push:', error);
+    return null;
+  }
+}
+
+/** إلغاء الاشتراك من Web Push */
+export async function unsubscribeFromPush() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    if (subscription) {
+      const endpoint = subscription.endpoint;
+      await subscription.unsubscribe();
+      const { deletePushSubscription } = await import('./supabase');
+      await deletePushSubscription(endpoint);
+      console.log('🔕 تم إلغاء الاشتراك من الإشعارات الفورية');
+    }
+  } catch (error) {
+    console.error('❌ فشل إلغاء الاشتراك:', error);
   }
 }
 

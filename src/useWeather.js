@@ -6,7 +6,7 @@ import { useWeatherContext } from './WeatherContext';
  * Hook لجلب بيانات طقس مدينة واحدة.
  * يعطي الأولوية لبيانات Context المركزي لتجنب طلبات زائدة.
  */
-export function useWeather(city = 'نواكشوط', coords = null) {
+export function useWeather(city = 'نواكشوط', coords = null, { forecastDays = 7 } = {}) {
   const context = useWeatherContext();
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
@@ -19,13 +19,38 @@ export function useWeather(city = 'نواكشوط', coords = null) {
     setData(null);
     setError(null);
     setLoading(true);
-  }, [city, coords?.lat, coords?.lon]); // استخدام lon بدلاً من lng ليتوافق مع App.jsx
+  }, [city, coords?.lat, coords?.lon, forecastDays]);
+
+  // ✅ مسار التوقعات الموسّعة (>7 أيام): جلب مستقل لا يعتمد على Context
+  // لتجنّب سباق إلغاء الطلب عند تحديث Context أثناء الجلب.
+  useEffect(() => {
+    if (forecastDays <= 7) return;
+
+    let active = true;
+    fetchedRef.current = true; // نمنع الـ effect الأساسي من التدخل
+    setLoading(true);
+    setError(null);
+    (async () => {
+      try {
+        const result = await getWeatherData(city, coords, { forecastDays });
+        if (active) setData(result);
+      } catch (err) {
+        if (active) setError(err.message);
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city, coords?.lat, coords?.lon, forecastDays]);
 
   useEffect(() => {
+    if (forecastDays > 7) return; // يتكفّل به الـ effect المخصص أعلاه
     if (fetchedRef.current) return;
 
-    // ✅ الحالة 1: البيانات موجودة في Context (لا إحداثيات مخصصة)
-    if (!coords && context?.weatherData?.length > 0) {
+    // ✅ الحالة 1: البيانات موجودة في Context (لا إحداثيات مخصصة) وعدد الأيام لا يتجاوز 7
+    if (!coords && forecastDays <= 7 && context?.weatherData?.length > 0) {
       const cityData = context.weatherData.find(c => c.city === city);
       if (cityData) {
         setData(cityData);
@@ -35,8 +60,8 @@ export function useWeather(city = 'نواكشوط', coords = null) {
       }
     }
 
-    // ✅ الحالة 2: Context لا يزال يحمّل — انتظر حتى يكتمل
-    if (!coords && context?.loading) {
+    // ✅ الحالة 2: Context لا يزال يحمّل — انتظر حتى يكتمل (إلا عند طلب توقعات موسّعة)
+    if (!coords && forecastDays <= 7 && context?.loading) {
       return;
     }
 
@@ -70,7 +95,7 @@ export function useWeather(city = 'نواكشوط', coords = null) {
     (async () => {
       try {
         setLoading(true);
-        const result = await getWeatherData(city, coords);
+        const result = await getWeatherData(city, coords, { forecastDays });
         if (isMounted) setData(result);
       } catch (err) {
         if (isMounted) setError(err.message);
@@ -80,7 +105,7 @@ export function useWeather(city = 'نواكشوط', coords = null) {
     })();
 
     return () => { isMounted = false; };
-  }, [city, coords?.lat, coords?.lon, coords?.lng, context?.weatherData, context?.loading]);
+  }, [city, coords?.lat, coords?.lon, coords?.lng, forecastDays, context?.weatherData, context?.loading]);
 
   return { data, loading, error };
 }
