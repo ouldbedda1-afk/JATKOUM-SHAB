@@ -28,6 +28,11 @@ const LivestockReportForm = ({ onClose, onSuccess }) => {
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      if (!file.type.startsWith('image/')) {
+        alert('يسمح فقط برفع صور الحيوانات في هذا القسم.');
+        e.target.value = '';
+        return;
+      }
       setImage(file);
       setPreview(URL.createObjectURL(file));
     }
@@ -62,7 +67,9 @@ const LivestockReportForm = ({ onClose, onSuccess }) => {
     }
   };
 
-  const animalTypes = ['ناقة', 'جمل', 'بقرة', 'ثور', 'خروف', 'تيس', 'ماعز', 'حمار'];
+  const animalTypes = ['ناقة', 'جمل', 'بقرة', 'ثور', 'خروف', 'نعجة', 'تيس', 'ماعز', 'حمار'];
+  const optionalContactAndPlaceAnimals = new Set(['ناقة', 'جمل', 'بقرة', 'ثور', 'خروف', 'نعجة', 'تيس', 'ماعز']);
+  const isContactAndPlaceOptional = optionalContactAndPlaceAnimals.has(formData.animal_type);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -145,6 +152,7 @@ const LivestockReportForm = ({ onClose, onSuccess }) => {
                 )}
                 <input id="imageInput" type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
               </div>
+              <p className="mt-2 text-xs text-gray-500">يسمح فقط برفع صور بصيغ الصور المعتادة مثل `jpg` و`png` و`webp`.</p>
             </div>
 
             {/* Animal Type */}
@@ -167,10 +175,11 @@ const LivestockReportForm = ({ onClose, onSuccess }) => {
               <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
                 <SafeIcon icon={FiPhone} className="text-amber-600" />
                 رقم التواصل
+                {isContactAndPlaceOptional && <span className="text-[11px] font-medium text-gray-400">(اختياري)</span>}
               </label>
               <input 
                 type="tel"
-                required
+                required={!isContactAndPlaceOptional}
                 placeholder="00000000"
                 value={formData.contact_phone}
                 onChange={(e) => setFormData({...formData, contact_phone: e.target.value})}
@@ -183,9 +192,10 @@ const LivestockReportForm = ({ onClose, onSuccess }) => {
               <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
                 <SafeIcon icon={FiMapPin} className="text-amber-600" />
                 الولاية
+                {isContactAndPlaceOptional && <span className="text-[11px] font-medium text-gray-400">(اختياري)</span>}
               </label>
               <select 
-                required
+                required={!isContactAndPlaceOptional}
                 value={formData.region}
                 onChange={(e) => setFormData({...formData, region: e.target.value})}
                 className="w-full bg-gray-50 border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-amber-500 outline-none"
@@ -200,10 +210,11 @@ const LivestockReportForm = ({ onClose, onSuccess }) => {
               <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
                 <SafeIcon icon={FiMapPin} className="text-amber-600" />
                 المنطقة / القرية
+                {isContactAndPlaceOptional && <span className="text-[11px] font-medium text-gray-400">(اختياري)</span>}
               </label>
               <input 
                 type="text"
-                required
+                required={!isContactAndPlaceOptional}
                 placeholder="اسم المكان بالتحديد"
                 value={formData.village}
                 onChange={(e) => setFormData({...formData, village: e.target.value})}

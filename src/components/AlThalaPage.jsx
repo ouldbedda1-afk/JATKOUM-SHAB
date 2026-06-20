@@ -122,6 +122,13 @@ const AlThalaPage = () => {
 
                 {/* Details */}
                 <div className="p-6">
+                  {(() => {
+                    const locationParts = [report.region, report.village].filter(Boolean);
+                    const locationLabel = locationParts.length > 0 ? locationParts.join(' - ') : 'لم يُحدد المكان بعد';
+                    const hasPhone = Boolean(report.contact_phone);
+
+                    return (
+                      <>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xl font-black text-gray-900">{report.animal_type}</h3>
                     <span className="text-xs text-gray-400 font-medium flex items-center gap-1">
@@ -133,7 +140,7 @@ const AlThalaPage = () => {
                   <div className="space-y-3 mb-6">
                     <div className="flex items-center gap-2 text-gray-600 text-sm">
                       <SafeIcon icon={FiMapPin} className="text-amber-600" />
-                      <span>{report.region} - {report.village}</span>
+                      <span>{locationLabel}</span>
                     </div>
                     <p className="text-gray-500 text-sm leading-relaxed line-clamp-2">
                       {report.description}
@@ -149,17 +156,27 @@ const AlThalaPage = () => {
                   </div>
 
                   <div className="flex items-center gap-2 border-t pt-4">
-                    <a 
-                      href={`tel:${report.contact_phone}`}
-                      className="flex-1 bg-amber-50 text-amber-900 py-3 rounded-xl font-bold text-center flex items-center justify-center gap-2 hover:bg-amber-100 transition-all"
-                    >
-                      <SafeIcon icon={FiPhone} />
-                      اتصال
-                    </a>
+                    {hasPhone ? (
+                      <a 
+                        href={`tel:${report.contact_phone}`}
+                        className="flex-1 bg-amber-50 text-amber-900 py-3 rounded-xl font-bold text-center flex items-center justify-center gap-2 hover:bg-amber-100 transition-all"
+                      >
+                        <SafeIcon icon={FiPhone} />
+                        اتصال
+                      </a>
+                    ) : (
+                      <div className="flex-1 bg-gray-50 text-gray-400 py-3 rounded-xl font-bold text-center flex items-center justify-center gap-2">
+                        <SafeIcon icon={FiPhone} />
+                        لا يوجد رقم
+                      </div>
+                    )}
                     <button className="w-12 h-12 bg-gray-50 text-gray-400 rounded-xl flex items-center justify-center hover:bg-gray-100 transition-all">
                       <span className="text-xl">💬</span>
                     </button>
                   </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             ))}

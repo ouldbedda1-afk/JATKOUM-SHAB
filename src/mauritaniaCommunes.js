@@ -1,3 +1,8 @@
+import {
+  normalizeMauritaniaMoughataaName,
+  normalizeMauritaniaWilayaName,
+} from './mauritaniaPlaceNames';
+
 export const mauritaniaCommunesList = [
   {
     "city": "Amourj",
@@ -2216,7 +2221,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.543,
     "lon": -11.738,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Ould Yengé",
     "id": "MR01302",
     "source": "open-admin-data"
@@ -2227,7 +2232,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.354,
     "lon": -11.863,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Ould Yengé",
     "id": "MR01303",
     "source": "open-admin-data"
@@ -2238,7 +2243,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.619,
     "lon": -11.93,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Ould Yengé",
     "id": "MR01304",
     "source": "open-admin-data"
@@ -2249,7 +2254,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.588,
     "lon": -12.064,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Ould Yengé",
     "id": "MR01305",
     "source": "open-admin-data"
@@ -2260,7 +2265,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.828,
     "lon": -12.121,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Ould Yengé",
     "id": "MR01306",
     "source": "open-admin-data"
@@ -2271,7 +2276,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.88,
     "lon": -11.801,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Ould Yengé",
     "id": "MR01307",
     "source": "open-admin-data"
@@ -2282,7 +2287,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.692,
     "lon": -11.761,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Ould Yengé",
     "id": "MR01308",
     "source": "open-admin-data"
@@ -2293,7 +2298,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.159,
     "lon": -12.183,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Sélibaby",
     "id": "MR01309",
     "source": "open-admin-data"
@@ -2304,7 +2309,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.723,
     "lon": -12.275,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Sélibaby",
     "id": "MR01310",
     "source": "open-admin-data"
@@ -2315,7 +2320,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.448,
     "lon": -12.181,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Sélibaby",
     "id": "MR01311",
     "source": "open-admin-data"
@@ -2326,7 +2331,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.337,
     "lon": -12.1,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Sélibaby",
     "id": "MR01312",
     "source": "open-admin-data"
@@ -2337,7 +2342,7 @@ export const mauritaniaCommunesList = [
     "lat": 14.805,
     "lon": -12.057,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Ghabou",
     "id": "MR01313",
     "source": "open-admin-data"
@@ -2348,7 +2353,7 @@ export const mauritaniaCommunesList = [
     "lat": 14.872,
     "lon": -11.981,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Ghabou",
     "id": "MR01314",
     "source": "open-admin-data"
@@ -2359,7 +2364,7 @@ export const mauritaniaCommunesList = [
     "lat": 14.958,
     "lon": -12.201,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Ghabou",
     "id": "MR01315",
     "source": "open-admin-data"
@@ -2370,7 +2375,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.046,
     "lon": -11.984,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Ghabou",
     "id": "MR01316",
     "source": "open-admin-data"
@@ -2381,7 +2386,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.002,
     "lon": -12.376,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Ghabou",
     "id": "MR01317",
     "source": "open-admin-data"
@@ -2392,7 +2397,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.232,
     "lon": -11.984,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Ghabou",
     "id": "MR01318",
     "source": "open-admin-data"
@@ -2403,7 +2408,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.176,
     "lon": -12.688,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Wompou",
     "id": "MR01319",
     "source": "open-admin-data"
@@ -2414,7 +2419,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.578,
     "lon": -12.409,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Wompou",
     "id": "MR01320",
     "source": "open-admin-data"
@@ -2425,7 +2430,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.504,
     "lon": -12.497,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Wompou",
     "id": "MR01321",
     "source": "open-admin-data"
@@ -2436,7 +2441,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.154,
     "lon": -12.527,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Wompou",
     "id": "MR01322",
     "source": "open-admin-data"
@@ -2447,7 +2452,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.366,
     "lon": -12.476,
     "type": "بلدية",
-    "wilaya": "Guidimagha",
+    "wilaya": "كيدماغا",
     "moughataa": "Wompou",
     "id": "MR01323",
     "source": "open-admin-data"
@@ -2627,8 +2632,8 @@ export const mauritaniaCommunes = Object.fromEntries(
       lon: commune.lon,
       name: commune.name,
       type: commune.type,
-      wilaya: commune.wilaya,
-      moughataa: commune.moughataa,
+      wilaya: normalizeMauritaniaWilayaName(commune.wilaya),
+      moughataa: normalizeMauritaniaMoughataaName(commune.moughataa),
       id: commune.id,
       source: commune.source,
     },
@@ -2641,3 +2646,25 @@ export const mauritaniaCommuneDistricts = mauritaniaCommunesList.map((commune) =
   lat: commune.lat,
   lon: commune.lon,
 }));
+
+export const mauritaniaAdministrativeWilayas = [
+  ...new Set(
+    mauritaniaCommunesList
+      .map((commune) => normalizeMauritaniaWilayaName(commune.wilaya))
+      .filter(Boolean)
+  ),
+].sort((a, b) => a.localeCompare(b, 'ar'));
+
+export const mauritaniaAdministrativeMoughataas = [
+  ...new Set(
+    mauritaniaCommunesList
+      .map((commune) => normalizeMauritaniaMoughataaName(commune.moughataa))
+      .filter(Boolean)
+  ),
+].sort((a, b) => a.localeCompare(b, 'ar'));
+
+export const mauritaniaAdministrativeCounts = {
+  wilayas: mauritaniaAdministrativeWilayas.length,
+  moughataas: mauritaniaAdministrativeMoughataas.length,
+  communes: mauritaniaCommunesList.length,
+};

@@ -1,4 +1,9 @@
-import { mauritaniaCommunes, mauritaniaCommunesList } from './mauritaniaCommunes';
+import { mauritaniaCommunesList } from './mauritaniaCommunes';
+import {
+  getCanonicalMauritaniaPlaceKey,
+  normalizeMauritaniaMoughataaName,
+  normalizeMauritaniaWilayaName,
+} from './mauritaniaPlaceNames';
 
 /**
  * Weather API Service - Open-Meteo
@@ -23,7 +28,7 @@ function buildProxyTarget(sourceUrl) {
 const memoryCache = new Map();
 
 // --- Cache دائم في localStorage (يبقى بعد إعادة التحميل) ---
-const LS_PREFIX = 'wx_cache_';
+const LS_PREFIX = 'wx_cache_v2_';
 const DAILY_LIMIT_KEY = `${LS_PREFIX}daily_limit_blocked`;
 const ALL_CITIES_CACHE_KEY = 'all_cities_weather';
 const ALL_CITIES_STALE_CACHE_KEY = `${ALL_CITIES_CACHE_KEY}_stale`;
@@ -102,12 +107,12 @@ function lsGet(key, allowStale = false) {
     const { data, timestamp } = JSON.parse(raw);
     
     const age = Date.now() - timestamp;
-    if (age < CACHE_DURATION) return data;
+    if (age < CACHE_DURATION) return normalizeWeatherPayload(data);
     
     // إذا كانت البيانات "قديمة" ولكن مسموح بها (عند فشل الـ API)
     if (allowStale && age < STALE_DURATION) {
       console.warn(`📜 استخدام بيانات قديمة لـ ${key} (عمرها: ${Math.round(age/60000)} دقيقة)`);
-      return data;
+      return normalizeWeatherPayload(data);
     }
     
     if (age >= STALE_DURATION) {
@@ -119,14 +124,14 @@ function lsGet(key, allowStale = false) {
 
 function lsSet(key, data) {
   try {
-    localStorage.setItem(LS_PREFIX + key, JSON.stringify({ data, timestamp: Date.now() }));
+    localStorage.setItem(LS_PREFIX + key, JSON.stringify({ data: normalizeWeatherPayload(data), timestamp: Date.now() }));
   } catch (e) {
     // localStorage ممتلئ — نمسح البيانات القديمة
     try {
       Object.keys(localStorage)
         .filter(k => k.startsWith(LS_PREFIX))
         .forEach(k => localStorage.removeItem(k));
-      localStorage.setItem(LS_PREFIX + key, JSON.stringify({ data, timestamp: Date.now() }));
+      localStorage.setItem(LS_PREFIX + key, JSON.stringify({ data: normalizeWeatherPayload(data), timestamp: Date.now() }));
     } catch {}
   }
 }
@@ -143,7 +148,9 @@ function isValidWeatherData(data) {
 function getCached(key, allowStale = false) {
   // 1) ذاكرة سريعة أولاً
   const mem = memoryCache.get(key);
-  if (mem && Date.now() - mem.timestamp < CACHE_DURATION && isValidWeatherData(mem.data)) return mem.data;
+  if (mem && Date.now() - mem.timestamp < CACHE_DURATION && isValidWeatherData(mem.data)) {
+    return normalizeWeatherPayload(mem.data);
+  }
   // 2) localStorage ثانياً
   const ls = lsGet(key, allowStale);
   if (ls && isValidWeatherData(ls)) return ls;
@@ -151,12 +158,46 @@ function getCached(key, allowStale = false) {
 }
 
 function setCached(key, data) {
-  memoryCache.set(key, { data, timestamp: Date.now() });
-  lsSet(key, data);
+  const normalizedData = normalizeWeatherPayload(data);
+  memoryCache.set(key, { data: normalizedData, timestamp: Date.now() });
+  lsSet(key, normalizedData);
 }
 
 function normalizeCityLookupName(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+function getCommuneCanonicalKeys(commune) {
+  return [
+    commune?.city,
+    commune?.name,
+    commune?.moughataa,
+  ]
+    .map((value) => getCanonicalMauritaniaPlaceKey(value))
+    .filter(Boolean);
+}
+
+function getAdministrativeContext(coords = {}) {
+  return {
+    wilaya: normalizeMauritaniaWilayaName(coords.administrativeWilaya || coords.wilaya),
+    moughataa: normalizeMauritaniaMoughataaName(coords.administrativeMoughataa || coords.moughataa),
+  };
+}
+
+function normalizeWeatherEntry(entry) {
+  if (!entry || typeof entry !== 'object') return entry;
+  const admin = getAdministrativeContext(entry);
+  return {
+    ...entry,
+    ...admin,
+  };
+}
+
+function normalizeWeatherPayload(payload) {
+  if (Array.isArray(payload)) {
+    return payload.map((entry) => normalizeWeatherEntry(entry));
+  }
+  return normalizeWeatherEntry(payload);
 }
 
 /**
@@ -283,10 +324,10 @@ async function fetchWithRetry(url, options = {}, retries = 3, backoff = 3000) {
   }
 }
 
-// جميع مقاطعات وبلديات موريتانيا الـ 56 مقاطعة مع أهم البلديات
+// مدن ومقاطعات وبلديات مستخدمة للرصد والعرض، مع الاحتفاظ بالهيكلة الإدارية الرسمية في المصدر المستورد
 const manualMauritanianCities = {
   // --- نواكشوط (3 ولايات منذ 2014) ---
-  'نواكشوط': { lat: 18.0735, lon: -15.9582, name: 'Nouakchott', type: 'عاصمة', wilaya: 'نواكشوط' },
+  'نواكشوط': { lat: 18.0735, lon: -15.9582, name: 'Nouakchott', type: 'عاصمة', wilaya: 'نواكشوط', administrativeWilaya: 'نواكشوط الغربية' },
   'درنعيم': { lat: 18.1270, lon: -15.9420, name: 'Dar Naim', type: 'مقاطعة', wilaya: 'نواكشوط الشمالية' },
   'تيارت': { lat: 18.0930, lon: -15.9770, name: 'Teyarett', type: 'مقاطعة', wilaya: 'نواكشوط الشمالية' },
   'توجنين': { lat: 18.1100, lon: -15.9200, name: 'Toujounine', type: 'مقاطعة', wilaya: 'نواكشوط الشمالية' },
@@ -377,8 +418,40 @@ const manualMauritanianCities = {
   'فديريك': { lat: 22.68, lon: -12.72, name: 'Fdérik', type: 'مقاطعة', wilaya: 'تيرس زمور' },
 };
 
+const manualCityCanonicalKeySet = new Set(
+  Object.entries(manualMauritanianCities)
+    .flatMap(([cityKey, city]) => [
+      getCanonicalMauritaniaPlaceKey(cityKey),
+      getCanonicalMauritaniaPlaceKey(city.name),
+    ])
+    .filter(Boolean)
+);
+
+const filteredMauritaniaCommunesList = mauritaniaCommunesList.filter(
+  (commune) =>
+    commune?.city &&
+    Number.isFinite(commune.lat) &&
+    Number.isFinite(commune.lon) &&
+    !getCommuneCanonicalKeys(commune).some((key) => manualCityCanonicalKeySet.has(key))
+);
+
+const filteredMauritaniaCommunes = Object.fromEntries(
+  filteredMauritaniaCommunesList.map((commune) => [
+    commune.city,
+    {
+      lat: commune.lat,
+      lon: commune.lon,
+      name: commune.name,
+      type: commune.type,
+      ...getAdministrativeContext(commune),
+      id: commune.id,
+      source: commune.source,
+    },
+  ])
+);
+
 const mauritanianCities = {
-  ...mauritaniaCommunes,
+  ...filteredMauritaniaCommunes,
   ...manualMauritanianCities,
 };
 
@@ -413,25 +486,12 @@ const coreMauritanianCities = [
 ];
 
 const EXTRA_COVERAGE_BATCH_COUNT = 5;
-const manualCityNameSet = new Set(
-  Object.values(manualMauritanianCities)
-    .map((city) => normalizeCityLookupName(city.name))
-    .filter(Boolean)
-);
-
 const rotatingCommuneCoverageBatches = Array.from(
   { length: EXTRA_COVERAGE_BATCH_COUNT },
   () => []
 );
 
-mauritaniaCommunesList
-  .filter(
-    (commune) =>
-      commune?.city &&
-      Number.isFinite(commune.lat) &&
-      Number.isFinite(commune.lon) &&
-      !manualCityNameSet.has(normalizeCityLookupName(commune.name))
-  )
+filteredMauritaniaCommunesList
   .sort((a, b) => {
     const wilayaCompare = (a.wilaya || '').localeCompare(b.wilaya || '');
     if (wilayaCompare !== 0) return wilayaCompare;
@@ -461,26 +521,62 @@ function getNextCoverageBatchIndex() {
 }
 
 function mergeTrackedWeatherResults(freshResults, previousResults, prioritizedCityNames) {
-  const mergedByCity = new Map();
+  const prioritizedEntriesByKey = new Map(
+    (prioritizedCityNames || [])
+      .map((cityName) => [getCanonicalMauritaniaPlaceKey(cityName), cityName])
+      .filter(([key]) => key)
+  );
+  const mergedByCanonicalKey = new Map();
 
-  (previousResults || []).forEach((entry) => {
-    if (entry?.city) mergedByCity.set(entry.city, entry);
-  });
+  const mergeEntry = (entry) => {
+    if (!entry?.city) return;
 
-  (freshResults || []).forEach((entry) => {
-    if (entry?.city) mergedByCity.set(entry.city, entry);
-  });
+    const canonicalKey = getCanonicalMauritaniaPlaceKey(entry.city);
+    const prioritizedCityName = prioritizedEntriesByKey.get(canonicalKey);
 
-  const orderedCityNames = [
+    if (!canonicalKey) {
+      mergedByCanonicalKey.set(entry.city, entry);
+      return;
+    }
+
+    const currentEntry = mergedByCanonicalKey.get(canonicalKey);
+    const nextEntry =
+      prioritizedCityName && prioritizedCityName !== entry.city
+        ? {
+            ...entry,
+            city: prioritizedCityName,
+            ...getAdministrativeContext({
+              wilaya: manualMauritanianCities[prioritizedCityName]?.wilaya || entry.wilaya,
+              moughataa: manualMauritanianCities[prioritizedCityName]?.moughataa || entry.moughataa,
+              administrativeWilaya: manualMauritanianCities[prioritizedCityName]?.administrativeWilaya,
+              administrativeMoughataa: manualMauritanianCities[prioritizedCityName]?.administrativeMoughataa,
+            }),
+          }
+        : entry;
+
+    if (!currentEntry) {
+      mergedByCanonicalKey.set(canonicalKey, nextEntry);
+      return;
+    }
+
+    const currentIsPrioritized = prioritizedEntriesByKey.get(canonicalKey) === currentEntry.city;
+    const nextIsPrioritized = prioritizedEntriesByKey.get(canonicalKey) === nextEntry.city;
+    if (!currentIsPrioritized || nextIsPrioritized) {
+      mergedByCanonicalKey.set(canonicalKey, nextEntry);
+    }
+  };
+
+  (previousResults || []).forEach(mergeEntry);
+  (freshResults || []).forEach(mergeEntry);
+
+  const orderedKeys = [
     ...new Set([
-      ...(prioritizedCityNames || []),
-      ...Array.from(mergedByCity.keys()),
+      ...(prioritizedCityNames || []).map((cityName) => getCanonicalMauritaniaPlaceKey(cityName)),
+      ...Array.from(mergedByCanonicalKey.keys()),
     ]),
   ];
 
-  return orderedCityNames
-    .map((cityName) => mergedByCity.get(cityName))
-    .filter(Boolean);
+  return orderedKeys.map((key) => mergedByCanonicalKey.get(key)).filter(Boolean);
 }
 
 /**
@@ -752,8 +848,7 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
         city,
         cityEn: coords.name,
         cityType: coords.type || 'مدينة',
-        wilaya: coords.wilaya || '',
-        moughataa: coords.moughataa || '',
+        ...getAdministrativeContext(coords),
         ...data,
       };
 
@@ -776,8 +871,7 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
             city,
             cityEn: coords.name,
             cityType: coords.type || 'مدينة',
-            wilaya: coords.wilaya || '',
-            moughataa: coords.moughataa || '',
+            ...getAdministrativeContext(coords),
             source: 'weatherapi',
             ...weatherAPIData,
           };
@@ -865,8 +959,7 @@ export async function getAllCitiesWeather() {
           city: cityName,
           cityEn: coords.name,
           cityType: coords.type || 'مقاطعة',
-          wilaya: coords.wilaya || '',
-          moughataa: coords.moughataa || '',
+          ...getAdministrativeContext(coords),
           ...item
         };
       });
@@ -1032,8 +1125,7 @@ function buildFallbackWeather(city, coords) {
     city,
     cityEn: coords?.name || city,
     cityType: coords?.type || 'مدينة',
-    wilaya: coords?.wilaya || '',
-    moughataa: coords?.moughataa || '',
+    ...getAdministrativeContext(coords),
     latitude: coords?.lat || null,
     longitude: coords?.lon || null,
     isFallback: true,

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { addRainReport, uploadLivestockImage } from '../supabase';
 import { getWeatherData } from '../weatherApi';
 import { mauritaniaCommuneDistricts } from '../mauritaniaCommunes';
+import { areMauritaniaPlaceNamesEquivalent } from '../mauritaniaPlaceNames';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 
@@ -76,8 +77,9 @@ const districts = [
     (commune) =>
       !baseDistricts.some(
         (district) =>
-          district.name === commune.name ||
-          (Math.abs(district.lat - commune.lat) < 0.0001 && Math.abs(district.lon - commune.lon) < 0.0001)
+          areMauritaniaPlaceNamesEquivalent(district.name, commune.name) ||
+          (Math.abs(district.lat - commune.lat) < 0.12 &&
+            Math.abs(district.lon - commune.lon) < 0.12)
       )
   ),
 ];

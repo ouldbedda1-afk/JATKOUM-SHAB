@@ -49,6 +49,7 @@ const NewsTicker = () => {
     rainingNow,
     modelRainingNow,
     sameDayRainEvents,
+    ecmwfBriefs,
     loading,
     refreshAllData,
     lastUpdated,
@@ -61,6 +62,7 @@ const NewsTicker = () => {
     const dataIsFresh = dataAgeMs < 60 * 60 * 1000;
 
     const urgentAlerts = [];
+    const externalAlerts = [];
     const forecastAlerts = [];
     const generalAlerts = [];
 
@@ -76,6 +78,12 @@ const NewsTicker = () => {
         : '';
 
       sameDayHeadline = `حدث في نفس اليوم 🛰️ | أرشيف الأقمار الصناعية يرصد أمطاراً غزيرة في: ${cityList}${timeWindow}.`;
+    }
+
+    if (ecmwfBriefs && ecmwfBriefs.length > 0) {
+      ecmwfBriefs.slice(0, 3).forEach((item) => {
+        externalAlerts.push(`ECMWF | ${item.brief}`);
+      });
     }
 
     const liveEntries = uniqueByCity(rainingNow);
@@ -227,6 +235,7 @@ const NewsTicker = () => {
     // ترتيب: عاجل → توقعات المركز الأوروبي → حرائق → سحب → عام → ثابت
     const finalNews = [
       ...(sameDayHeadline ? [sameDayHeadline] : []),
+      ...externalAlerts,
       ...urgentAlerts,
       ...forecastAlerts.slice(0, 6),
       ...fireNews,
@@ -238,7 +247,7 @@ const NewsTicker = () => {
     return finalNews.length > 0
       ? finalNews
       : ["لا توجد حالياً تنبيهات جوية مؤكدة في النظام الآلي. تستمر المتابعة المباشرة لأي تطور جديد."];
-  }, [loading, weatherData, fires, rainReports, rainingNow, modelRainingNow, sameDayRainEvents, lastUpdated]);
+  }, [loading, weatherData, fires, rainReports, rainingNow, modelRainingNow, sameDayRainEvents, ecmwfBriefs, lastUpdated]);
 
   return (
     <div className="bg-yellow-400 py-2 overflow-hidden border-y border-yellow-500 shadow-sm relative z-40" dir="rtl">

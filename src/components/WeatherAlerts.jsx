@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useWeatherContext } from '../WeatherContext';
 import { requestNotificationPermission, sendLocalNotification } from '../pwa';
+import {
+  compareMauritaniaWilayaAdminOrder,
+  normalizeMauritaniaWilayaName,
+  OFFICIAL_MAURITANIA_WILAYA_ORDER,
+} from '../mauritaniaPlaceNames';
 
 /* ── تنسيق التواريخ والأوقات بالأحرف اللاتينية فقط ── */
 function fmtDate(dateStr) {
@@ -69,6 +74,57 @@ function getWindDirectionArrow(degrees) {
   if (degrees < 247.5) return '↙';
   if (degrees < 292.5) return '←';
   return '↖';
+}
+
+const WILAYA_THEMES = [
+  { bar: 'from-sky-500 to-blue-700', accent: 'text-sky-900', badge: 'bg-sky-50 text-sky-800 border-sky-200', metric: 'bg-sky-50 text-sky-900 border-sky-100' },
+  { bar: 'from-blue-500 to-indigo-700', accent: 'text-blue-900', badge: 'bg-blue-50 text-blue-800 border-blue-200', metric: 'bg-blue-50 text-blue-900 border-blue-100' },
+  { bar: 'from-cyan-500 to-sky-700', accent: 'text-cyan-900', badge: 'bg-cyan-50 text-cyan-800 border-cyan-200', metric: 'bg-cyan-50 text-cyan-900 border-cyan-100' },
+  { bar: 'from-slate-500 to-blue-700', accent: 'text-slate-900', badge: 'bg-slate-50 text-slate-800 border-slate-200', metric: 'bg-slate-50 text-slate-900 border-slate-100' },
+  { bar: 'from-sky-400 to-cyan-700', accent: 'text-sky-900', badge: 'bg-sky-50 text-sky-800 border-sky-200', metric: 'bg-sky-50 text-sky-900 border-sky-100' },
+  { bar: 'from-indigo-500 to-blue-700', accent: 'text-indigo-900', badge: 'bg-indigo-50 text-indigo-800 border-indigo-200', metric: 'bg-indigo-50 text-indigo-900 border-indigo-100' },
+  { bar: 'from-blue-400 to-slate-700', accent: 'text-blue-900', badge: 'bg-blue-50 text-blue-800 border-blue-200', metric: 'bg-blue-50 text-blue-900 border-blue-100' },
+  { bar: 'from-cyan-400 to-blue-700', accent: 'text-cyan-900', badge: 'bg-cyan-50 text-cyan-800 border-cyan-200', metric: 'bg-cyan-50 text-cyan-900 border-cyan-100' },
+  { bar: 'from-slate-400 to-sky-700', accent: 'text-slate-900', badge: 'bg-slate-50 text-slate-800 border-slate-200', metric: 'bg-slate-50 text-slate-900 border-slate-100' },
+  { bar: 'from-sky-500 to-indigo-700', accent: 'text-sky-900', badge: 'bg-sky-50 text-sky-800 border-sky-200', metric: 'bg-sky-50 text-sky-900 border-sky-100' },
+  { bar: 'from-blue-500 to-slate-700', accent: 'text-blue-900', badge: 'bg-blue-50 text-blue-800 border-blue-200', metric: 'bg-blue-50 text-blue-900 border-blue-100' },
+  { bar: 'from-cyan-500 to-indigo-700', accent: 'text-cyan-900', badge: 'bg-cyan-50 text-cyan-800 border-cyan-200', metric: 'bg-cyan-50 text-cyan-900 border-cyan-100' },
+  { bar: 'from-slate-500 to-indigo-700', accent: 'text-slate-900', badge: 'bg-slate-50 text-slate-800 border-slate-200', metric: 'bg-slate-50 text-slate-900 border-slate-100' },
+  { bar: 'from-sky-500 to-slate-700', accent: 'text-sky-900', badge: 'bg-sky-50 text-sky-800 border-sky-200', metric: 'bg-sky-50 text-sky-900 border-sky-100' },
+  { bar: 'from-blue-500 to-cyan-700', accent: 'text-blue-900', badge: 'bg-blue-50 text-blue-800 border-blue-200', metric: 'bg-blue-50 text-blue-900 border-blue-100' },
+];
+
+const WILAYA_THEME_MAP = Object.fromEntries(
+  OFFICIAL_MAURITANIA_WILAYA_ORDER.map((wilaya, index) => [wilaya, WILAYA_THEMES[index]])
+);
+
+function getWilayaTheme(wilaya) {
+  return WILAYA_THEME_MAP[normalizeMauritaniaWilayaName(wilaya)] || WILAYA_THEMES[0];
+}
+
+function getForecastHeadline(forecast) {
+  if (forecast.thunder.length > 0) return 'احتمال عواصف رعدية وأمطار';
+  if (forecast.heavy.length > 0) return 'فرصة أمطار غزيرة';
+  if (forecast.moderate.length > 0) return 'فرصة أمطار متوسطة';
+  if (forecast.weak.length > 0) return 'فرصة أمطار خفيفة';
+  if (forecast.wind.length > 0) return 'نشاط رياح ملحوظ';
+  return 'لا مؤشرات بارزة';
+}
+
+function getForecastMetrics(forecast) {
+  const metrics = [];
+  if (forecast.thunder.length > 0) metrics.push({ icon: '⚡', label: 'رعدية', value: forecast.thunder.length });
+  if (forecast.heavy.length > 0) metrics.push({ icon: '🌧️', label: 'غزيرة', value: forecast.heavy.length });
+  if (forecast.moderate.length > 0) metrics.push({ icon: '🌦️', label: 'متوسطة', value: forecast.moderate.length });
+  if (forecast.weak.length > 0) metrics.push({ icon: '🌂', label: 'ضعيفة', value: forecast.weak.length });
+  if (forecast.wind.length > 0) {
+    metrics.push({
+      icon: '🌬️',
+      label: 'أقصى رياح',
+      value: `${Math.max(...forecast.wind.map((item) => item.w))} كم/س`,
+    });
+  }
+  return metrics.slice(0, 5);
 }
 
 function getAverageWindDirection(entries, cities) {
@@ -180,34 +236,16 @@ function getPotentialRainPaths(cities, hoursAhead = 9) {
 
 function buildCurrentRainNarrative({ rainingNow, modelRainingNow, cities }) {
   const liveEntries = uniqueByCity(rainingNow);
-  const liveCitySet = new Set(liveEntries.map((entry) => entry.city));
-  const modelEntries = uniqueByCity((modelRainingNow || []).filter((entry) => !liveCitySet.has(entry.city)));
-  const entries = liveEntries.length > 0 ? liveEntries : modelEntries;
-  const potentialPaths = entries.length === 0 ? getPotentialRainPaths(cities).slice(0, 4) : [];
-  const narrativeEntries = entries.length > 0
-    ? entries
-    : potentialPaths.map((path) => ({
-        city: path.city,
-        wilaya: path.wilaya,
-        label: path.isStormy ? 'رعدية' : path.isRainy ? 'ممطرة' : 'مرشحة للمطر',
-      }));
+  if (liveEntries.length === 0) return null;
 
-  if (narrativeEntries.length === 0) return null;
-
-  const cityNames = narrativeEntries.map((entry) => entry.city);
-  const wilayas = [...new Set(narrativeEntries.map((entry) => entry.wilaya).filter(Boolean))];
+  const cityNames = liveEntries.map((entry) => entry.city);
+  const wilayas = [...new Set(liveEntries.map((entry) => entry.wilaya).filter(Boolean))];
   const totalCities = cities?.length || 0;
   const coverage = getRainCoverageLevel(cityNames.length, wilayas.length, totalCities);
-  const sourceLabel = liveEntries.length > 0
-    ? 'الرادار والأقمار الصناعية'
-    : modelEntries.length > 0
-      ? 'الأقمار الصناعية وقراءة النموذج الحالي'
-      : 'مؤشرات حركة السحب وقراءة النموذج';
-  const sourceChip = liveEntries.length > 0 ? 'رادار مباشر' : modelEntries.length > 0 ? 'قراءة داعمة' : 'حركة السحب';
-  const topLabel = narrativeEntries[0]?.label || 'أمطار';
-  const averageDirection = entries.length > 0
-    ? getAverageWindDirection(entries, cities)
-    : potentialPaths[0]?.windDir ?? null;
+  const sourceLabel = 'الرادار والأقمار الصناعية';
+  const sourceChip = 'رادار مباشر';
+  const topLabel = liveEntries[0]?.label || 'أمطار';
+  const averageDirection = getAverageWindDirection(liveEntries, cities);
   const directionArrow = getWindDirectionArrow(averageDirection);
   const primaryWilaya = wilayas[0] || '';
   const targetWilaya = getLikelyTargetWilaya(primaryWilaya, averageDirection);
@@ -346,7 +384,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         const mm   = rains[i] ?? 0;
         const w    = winds[i] ?? 0;
         const confirmed = satelliteSet.has(city.city);
-        const wilayaKey = city.wilaya || 'مناطق أخرى';
+        const wilayaKey = normalizeMauritaniaWilayaName(city.wilaya) || 'مناطق أخرى';
 
         if (!d.wilayas[wilayaKey]) {
           d.wilayas[wilayaKey] = {
@@ -393,18 +431,15 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
               forecast.weak.length > 0 ||
               forecast.wind.length > 0
           )
-          .sort((a, b) => {
-            const scoreDiff = getWilayaForecastScore(b) - getWilayaForecastScore(a);
-            if (scoreDiff !== 0) return scoreDiff;
-            return (a.wilaya || '').localeCompare(b.wilaya || '');
-          }),
+          .sort((a, b) => compareMauritaniaWilayaAdminOrder(a.wilaya, b.wilaya)),
       }))
       .sort((a, b) => new Date(a.dateStr) - new Date(b.dateStr))
       .slice(0, 3);
   }, [cities, satelliteSet]);
 
-  const issuedAt = `${fmtDate(new Date())} — ${fmtTime(new Date())}`;
-  const todayLabel = `${dayName(new Date())} ${fmtDate(new Date())}`;
+  const todayDate = fmtDate(new Date());
+  const todayDayName = dayName(new Date());
+  const issuedAt = `${todayDate} — ${fmtTime(new Date())}`;
 
   const todayObservation = useMemo(() => {
     if (currentRainNarrative) {
@@ -555,31 +590,6 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       .catch(() => {});
   }, [todayObservationKey, todayObservation]);
 
-  // لون مختلف لكل يوم
-  const DAY_THEMES = [
-    {
-      card: 'bg-gradient-to-br from-sky-500 via-blue-700 to-indigo-900 border-sky-200/30',
-      header: 'bg-black/15 border-white/20',
-      accent: 'text-sky-100',
-      glow: 'shadow-sky-900/20',
-      chip: 'bg-sky-200/15 text-sky-100 border-sky-200/20',
-    },
-    {
-      card: 'bg-gradient-to-br from-emerald-500 via-green-700 to-lime-900 border-emerald-200/30',
-      header: 'bg-black/15 border-white/20',
-      accent: 'text-emerald-100',
-      glow: 'shadow-emerald-900/20',
-      chip: 'bg-emerald-200/15 text-emerald-100 border-emerald-200/20',
-    },
-    {
-      card: 'bg-gradient-to-br from-slate-400 via-slate-600 to-slate-900 border-slate-200/30',
-      header: 'bg-black/15 border-white/20',
-      accent: 'text-slate-100',
-      glow: 'shadow-slate-900/20',
-      chip: 'bg-slate-200/15 text-slate-100 border-slate-200/20',
-    },
-  ];
-
   const buildDaySections = (forecast) => {
     const sections = [];
 
@@ -590,10 +600,10 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         node: (
           <UnifiedSection
             icon="⚡"
-            bg="bg-red-500/18 border border-red-300/25"
-            dotColor="bg-red-300"
-            textColor="text-white"
-            label={<>يتوقع بإذن الله هطول أمطار <span className="text-red-300 font-black underline underline-offset-2">مصحوبة بعواصف رعدية قوية</span> — في المناطق التالية:</>}
+            bg="bg-red-50 border border-red-200"
+            dotColor="bg-red-500"
+            textColor="text-slate-900"
+            label={<>يتوقع بإذن الله هطول أمطار <span className="text-red-700 font-black underline underline-offset-2">مصحوبة بعواصف رعدية قوية</span> — في المناطق التالية:</>}
             items={forecast.thunder.map(t => ({ city: t.city, extra: t.rainDesc, confirmed: t.confirmed }))}
             note="يُنصح بالابتعاد عن الأودية والمناطق المكشوفة والحذر من الصواعق"
           />
@@ -608,10 +618,10 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         node: (
           <UnifiedSection
             icon="🌧️"
-            bg="bg-white/10 border border-white/15"
-            dotColor="bg-yellow-300"
-            textColor="text-white"
-            label={<>يتوقع بإذن الله هطول أمطار <span className="text-yellow-300 font-black underline underline-offset-2">غزيرة</span> — في المناطق التالية:</>}
+            bg="bg-amber-50 border border-amber-200"
+            dotColor="bg-amber-500"
+            textColor="text-slate-900"
+            label={<>يتوقع بإذن الله هطول أمطار <span className="text-amber-700 font-black underline underline-offset-2">غزيرة</span> — في المناطق التالية:</>}
             items={forecast.heavy}
           />
         ),
@@ -625,10 +635,10 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         node: (
           <UnifiedSection
             icon="🌦️"
-            bg="bg-white/10 border border-white/15"
-            dotColor="bg-sky-300"
-            textColor="text-white"
-            label={<>يتوقع بإذن الله هطول أمطار <span className="text-sky-300 font-black underline underline-offset-2">متوسطة</span> — في المناطق التالية:</>}
+            bg="bg-sky-50 border border-sky-200"
+            dotColor="bg-sky-500"
+            textColor="text-slate-900"
+            label={<>يتوقع بإذن الله هطول أمطار <span className="text-sky-700 font-black underline underline-offset-2">متوسطة</span> — في المناطق التالية:</>}
             items={forecast.moderate}
           />
         ),
@@ -642,10 +652,10 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         node: (
           <UnifiedSection
             icon="🌂"
-            bg="bg-white/10 border border-white/15"
-            dotColor="bg-white/60"
-            textColor="text-white"
-            label={<>يتوقع بإذن الله هطول أمطار <span className="text-white/80 font-black underline underline-offset-2">ضعيفة</span> — في المناطق التالية:</>}
+            bg="bg-slate-50 border border-slate-200"
+            dotColor="bg-slate-400"
+            textColor="text-slate-900"
+            label={<>يتوقع بإذن الله هطول أمطار <span className="text-slate-700 font-black underline underline-offset-2">ضعيفة</span> — في المناطق التالية:</>}
             items={forecast.weak}
           />
         ),
@@ -659,10 +669,10 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         node: (
           <UnifiedSection
             icon="🌬️"
-            bg="bg-orange-400/18 border border-orange-300/25"
-            dotColor="bg-orange-300"
-            textColor="text-white"
-            label={<>يتوقع بإذن الله <span className="text-orange-300 font-black underline underline-offset-2">رياح قوية</span> — في المناطق التالية:</>}
+            bg="bg-cyan-50 border border-cyan-200"
+            dotColor="bg-cyan-500"
+            textColor="text-slate-900"
+            label={<>يتوقع بإذن الله <span className="text-cyan-700 font-black underline underline-offset-2">رياح قوية</span> — في المناطق التالية:</>}
             items={forecast.wind.map(w => ({ city: w.city, extra: `${w.w} km/h` }))}
           />
         ),
@@ -673,9 +683,9 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       sections.push({
         key: 'stable',
         node: (
-          <div className="rounded-2xl p-4 shadow-lg backdrop-blur-sm bg-white/10 border border-white/15">
-            <p className="text-base font-black text-white mb-2">ℹ️ لا مؤشرات بارزة في التوقعات لهذا التاريخ</p>
-            <p className="text-sm text-white/85 leading-relaxed">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+            <p className="mb-2 text-base font-black text-slate-900">ℹ️ لا مؤشرات بارزة في التوقعات لهذا التاريخ</p>
+            <p className="text-sm leading-relaxed text-slate-700">
               لا تُظهر بيانات التوقعات المتاحة لهذا التاريخ تنبيهات بارزة حالياً، مع بقاء احتمال تشكل حالات محلية أو تطورات سريعة حسب حركة السحب والرصد المباشر.
             </p>
           </div>
@@ -687,33 +697,54 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
   };
 
   const renderDayCard = (day, idx, forecast, sections) => {
-    const theme = DAY_THEMES[idx] || DAY_THEMES[2];
+    const displayWilaya = normalizeMauritaniaWilayaName(forecast.wilaya) || forecast.wilaya;
+    const theme = getWilayaTheme(displayWilaya);
+    const headline = getForecastHeadline(forecast);
+    const metrics = getForecastMetrics(forecast);
     return (
       <article
-        key={`${day.dateStr}-${forecast.wilaya}`}
-        className={`${theme.card} ${theme.glow} relative h-fit text-white rounded-[2rem] shadow-2xl overflow-hidden border-2 ring-1 ring-white/10 backdrop-blur-sm`}
+        key={`${day.dateStr}-${displayWilaya}`}
+        className="relative h-fit overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white text-slate-900 shadow-lg"
       >
-        <div className={`${theme.header} px-5 py-4 flex items-center justify-between gap-3 border-b`}>
-          <div className="flex items-center gap-3">
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-xl shadow-sm">📅</span>
-            <div>
-              <span className={`block font-black text-xl ${theme.accent}`}>{forecast.wilaya}</span>
-              <span className="block text-[11px] text-white/70 mt-1">
-                {`${day.dayAr || `اليوم ${idx + 1}`} • توقعات هذه الولاية`}
+        <div className={`h-1.5 w-full bg-gradient-to-l ${theme.bar}`} />
+        <div className="border-b border-slate-200 px-5 py-4">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-xl shadow-sm ring-1 ring-sky-100">📅</span>
+              <div>
+                <span className={`block text-xl font-black ${theme.accent}`}>{displayWilaya}</span>
+                <span className="mt-1 block text-[11px] text-slate-500">
+                  {`${day.dayAr || `اليوم ${idx + 1}`} • توقعات هذه الولاية`}
+                </span>
+              </div>
+            </div>
+            <div className="text-left">
+              <span className={`inline-flex rounded-xl border px-3 py-1.5 text-xs font-black shadow-sm ${theme.badge}`}>
+                {day.dateLabel || fmtDate(day.dateStr)}
+              </span>
+              <span className="mt-1 block text-[10px] text-slate-500">
+                {`بطاقة اليوم ${idx + 1}`}
               </span>
             </div>
           </div>
-          <div className="text-left">
-            <span className={`inline-flex rounded-2xl border px-3 py-1.5 text-xs font-black shadow-sm ${theme.chip}`}>
-              {day.dateLabel || fmtDate(day.dateStr)}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-black ${theme.badge}`}>
+              {headline}
             </span>
-            <span className="block text-[10px] text-white/65 mt-1">
-              {`بطاقة اليوم ${idx + 1} • ${forecast.wilaya}`}
-            </span>
+            {metrics.map((item) => (
+              <span
+                key={`${displayWilaya}-${item.label}`}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${theme.metric}`}
+              >
+                <span>{item.icon}</span>
+                <span>{item.label}</span>
+                <span className="font-black">{item.value}</span>
+              </span>
+            ))}
           </div>
         </div>
 
-        <div className="px-5 py-4 space-y-3">
+        <div className="space-y-3 bg-gradient-to-b from-white to-slate-50 px-5 py-4">
           {sections.map((section) => (
             <React.Fragment key={section.key}>{section.node}</React.Fragment>
           ))}
@@ -751,9 +782,14 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
                 </div>
               </div>
               <div className="text-left">
-                <span className={`inline-flex rounded-2xl border px-3 py-1.5 text-xs font-black shadow-sm ${todayTheme.pill}`}>
-                  {todayLabel}
-                </span>
+                <div className={`rounded-2xl border px-4 py-2 shadow-sm ${todayTheme.pill}`}>
+                  <span className="block text-lg font-black leading-none md:text-xl">
+                    {todayDate}
+                  </span>
+                  <span className="mt-1 block text-[11px] font-bold text-white/80">
+                    {todayDayName}
+                  </span>
+                </div>
               </div>
             </div>
             <div className="px-5 py-4 space-y-3">
@@ -797,23 +833,23 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
   );
 }
 
-function UnifiedSection({ icon, bg, dotColor, label, items, note, textColor = 'text-white' }) {
+function UnifiedSection({ icon, bg, dotColor, label, items, note, textColor = 'text-slate-900' }) {
   return (
-    <div className={`rounded-2xl p-4 shadow-lg backdrop-blur-sm ${bg}`}>
+    <div className={`rounded-2xl p-4 shadow-sm ${bg}`}>
       <p className={`text-base font-black ${textColor} mb-3 leading-relaxed`}>
         {icon} {label}
       </p>
       <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5">
         {items.map((item, i) => (
-          <li key={i} className="flex items-start gap-2.5 rounded-xl bg-black/5 px-2 py-1.5 text-sm">
+          <li key={i} className="flex items-start gap-2.5 rounded-xl border border-white/70 bg-white/80 px-2.5 py-2 text-sm text-slate-800">
             <span className={`w-2 h-2 rounded-full ${dotColor} shrink-0 mt-1.5 shadow-sm`} />
             <div className="leading-relaxed">
               <span className="font-black">{item.city}</span>
               {item.extra && (
-                <span className="text-yellow-200/80 text-xs mr-1">— {item.extra}</span>
+                <span className="mr-1 text-xs text-slate-500">— {item.extra}</span>
               )}
               {item.confirmed && (
-                <span className="inline-flex items-center gap-0.5 mr-1 px-1.5 py-0.5 bg-emerald-500/30 border border-emerald-400/40 rounded-full text-[10px] font-black text-emerald-200">
+                <span className="mr-1 inline-flex items-center gap-0.5 rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-black text-emerald-700">
                   🛰️ مؤكدة
                 </span>
               )}
@@ -822,7 +858,7 @@ function UnifiedSection({ icon, bg, dotColor, label, items, note, textColor = 't
         ))}
       </ul>
       {note && (
-        <p className="mt-3 text-xs text-white/60 italic border-t border-white/10 pt-2">{note}</p>
+        <p className="mt-3 border-t border-slate-200 pt-2 text-xs italic text-slate-600">{note}</p>
       )}
     </div>
   );
