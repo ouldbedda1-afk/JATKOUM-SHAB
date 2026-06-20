@@ -265,6 +265,33 @@ function rainLevel(mm) {
   return null;
 }
 
+function getForecastBucketPriority(bucket) {
+  switch (bucket) {
+    case 'thunder':
+      return 5;
+    case 'heavy':
+      return 4;
+    case 'moderate':
+      return 3;
+    case 'weak':
+      return 2;
+    case 'wind':
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function getWilayaForecastScore(forecast) {
+  return (
+    (forecast?.thunder?.length || 0) * 100 +
+    (forecast?.heavy?.length || 0) * 60 +
+    (forecast?.moderate?.length || 0) * 30 +
+    (forecast?.weak?.length || 0) * 10 +
+    (forecast?.wind?.length || 0) * 5
+  );
+}
+
 /* موسم الأمطار في موريتانيا: يونيو → أكتوبر
    العواصف الرعدية في هذه الفترة دائماً مصحوبة بأمطار (ITCZ) */
 function isRainySeason(dateStr) {
@@ -311,11 +338,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
             dateStr,
             dayAr:     dayName(dateStr),
             dateLabel: fmtDate(dateStr),
-            thunder:   [],
-            heavy:     [],
-            moderate:  [],
-            weak:      [],
-            wind:      [],
+            wilayas:   {},
           };
         }
         const d    = map[dateStr];
@@ -323,6 +346,20 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         const mm   = rains[i] ?? 0;
         const w    = winds[i] ?? 0;
         const confirmed = satelliteSet.has(city.city);
+        const wilayaKey = city.wilaya || 'مناطق أخرى';
+
+        if (!d.wilayas[wilayaKey]) {
+          d.wilayas[wilayaKey] = {
+            wilaya: wilayaKey,
+            thunder: [],
+            heavy: [],
+            moderate: [],
+            weak: [],
+            wind: [],
+          };
+        }
+
+        const wilayaForecast = d.wilayas[wilayaKey];
 
         if (code >= 95) {
           let rainDesc;
@@ -333,18 +370,35 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
                      : mm >= 1 ? 'مصحوبة بأمطار'
                      : 'جافة (صواعق ورياح)';
           }
-          d.thunder.push({ city: city.city, rainDesc, confirmed });
+          wilayaForecast.thunder.push({ city: city.city, rainDesc, confirmed });
         } else if (mm >= 1 || code >= 61) {
           const lvl = rainLevel(mm);
-          if (lvl === 'غزيرة جداً' || lvl === 'غزيرة') d.heavy.push({ city: city.city, confirmed });
-          else if (lvl === 'متوسطة')                    d.moderate.push({ city: city.city, confirmed });
-          else if (lvl === 'ضعيفة')                     d.weak.push({ city: city.city, confirmed });
+          if (lvl === 'غزيرة جداً' || lvl === 'غزيرة') wilayaForecast.heavy.push({ city: city.city, confirmed });
+          else if (lvl === 'متوسطة')                    wilayaForecast.moderate.push({ city: city.city, confirmed });
+          else if (lvl === 'ضعيفة')                     wilayaForecast.weak.push({ city: city.city, confirmed });
         }
-        if (w > 55) d.wind.push({ city: city.city, w: Math.round(w) });
+        if (w > 55) wilayaForecast.wind.push({ city: city.city, w: Math.round(w) });
       } // end for dates
     });
 
     return Object.values(map)
+      .map((day) => ({
+        ...day,
+        forecasts: Object.values(day.wilayas)
+          .filter(
+            (forecast) =>
+              forecast.thunder.length > 0 ||
+              forecast.heavy.length > 0 ||
+              forecast.moderate.length > 0 ||
+              forecast.weak.length > 0 ||
+              forecast.wind.length > 0
+          )
+          .sort((a, b) => {
+            const scoreDiff = getWilayaForecastScore(b) - getWilayaForecastScore(a);
+            if (scoreDiff !== 0) return scoreDiff;
+            return (a.wilaya || '').localeCompare(b.wilaya || '');
+          }),
+      }))
       .sort((a, b) => new Date(a.dateStr) - new Date(b.dateStr))
       .slice(0, 3);
   }, [cities, satelliteSet]);
@@ -526,12 +580,13 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
     },
   ];
 
-  const buildDaySections = (day) => {
+  const buildDaySections = (forecast) => {
     const sections = [];
 
-    if (day.thunder.length > 0) {
+    if (forecast.thunder.length > 0) {
       sections.push({
         key: 'thunder',
+        priority: getForecastBucketPriority('thunder'),
         node: (
           <UnifiedSection
             icon="⚡"
@@ -539,16 +594,17 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
             dotColor="bg-red-300"
             textColor="text-white"
             label={<>يتوقع بإذن الله هطول أمطار <span className="text-red-300 font-black underline underline-offset-2">مصحوبة بعواصف رعدية قوية</span> — في المناطق التالية:</>}
-            items={day.thunder.map(t => ({ city: t.city, extra: t.rainDesc, confirmed: t.confirmed }))}
+            items={forecast.thunder.map(t => ({ city: t.city, extra: t.rainDesc, confirmed: t.confirmed }))}
             note="يُنصح بالابتعاد عن الأودية والمناطق المكشوفة والحذر من الصواعق"
           />
         ),
       });
     }
 
-    if (day.heavy.length > 0) {
+    if (forecast.heavy.length > 0) {
       sections.push({
         key: 'heavy',
+        priority: getForecastBucketPriority('heavy'),
         node: (
           <UnifiedSection
             icon="🌧️"
@@ -556,15 +612,16 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
             dotColor="bg-yellow-300"
             textColor="text-white"
             label={<>يتوقع بإذن الله هطول أمطار <span className="text-yellow-300 font-black underline underline-offset-2">غزيرة</span> — في المناطق التالية:</>}
-            items={day.heavy}
+            items={forecast.heavy}
           />
         ),
       });
     }
 
-    if (day.moderate.length > 0) {
+    if (forecast.moderate.length > 0) {
       sections.push({
         key: 'moderate',
+        priority: getForecastBucketPriority('moderate'),
         node: (
           <UnifiedSection
             icon="🌦️"
@@ -572,15 +629,16 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
             dotColor="bg-sky-300"
             textColor="text-white"
             label={<>يتوقع بإذن الله هطول أمطار <span className="text-sky-300 font-black underline underline-offset-2">متوسطة</span> — في المناطق التالية:</>}
-            items={day.moderate}
+            items={forecast.moderate}
           />
         ),
       });
     }
 
-    if (day.weak.length > 0) {
+    if (forecast.weak.length > 0) {
       sections.push({
         key: 'weak',
+        priority: getForecastBucketPriority('weak'),
         node: (
           <UnifiedSection
             icon="🌂"
@@ -588,15 +646,16 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
             dotColor="bg-white/60"
             textColor="text-white"
             label={<>يتوقع بإذن الله هطول أمطار <span className="text-white/80 font-black underline underline-offset-2">ضعيفة</span> — في المناطق التالية:</>}
-            items={day.weak}
+            items={forecast.weak}
           />
         ),
       });
     }
 
-    if (day.wind.length > 0) {
+    if (forecast.wind.length > 0) {
       sections.push({
         key: 'wind',
+        priority: getForecastBucketPriority('wind'),
         node: (
           <UnifiedSection
             icon="🌬️"
@@ -604,7 +663,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
             dotColor="bg-orange-300"
             textColor="text-white"
             label={<>يتوقع بإذن الله <span className="text-orange-300 font-black underline underline-offset-2">رياح قوية</span> — في المناطق التالية:</>}
-            items={day.wind.map(w => ({ city: w.city, extra: `${w.w} km/h` }))}
+            items={forecast.wind.map(w => ({ city: w.city, extra: `${w.w} km/h` }))}
           />
         ),
       });
@@ -624,23 +683,23 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       });
     }
 
-    return sections;
+    return sections.sort((a, b) => b.priority - a.priority);
   };
 
-  const renderDayCard = (day, idx, sections, part = null) => {
+  const renderDayCard = (day, idx, forecast, sections) => {
     const theme = DAY_THEMES[idx] || DAY_THEMES[2];
     return (
       <article
-        key={`${day.dateStr}-${part ?? 'full'}`}
+        key={`${day.dateStr}-${forecast.wilaya}`}
         className={`${theme.card} ${theme.glow} relative h-fit text-white rounded-[2rem] shadow-2xl overflow-hidden border-2 ring-1 ring-white/10 backdrop-blur-sm`}
       >
         <div className={`${theme.header} px-5 py-4 flex items-center justify-between gap-3 border-b`}>
           <div className="flex items-center gap-3">
             <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-xl shadow-sm">📅</span>
             <div>
-              <span className={`block font-black text-xl ${theme.accent}`}>{day.dayAr || `اليوم ${idx + 1}`}</span>
+              <span className={`block font-black text-xl ${theme.accent}`}>{forecast.wilaya}</span>
               <span className="block text-[11px] text-white/70 mt-1">
-                {part ? `توقعات هذا التاريخ - الجزء ${part}` : 'توقعات هذا التاريخ'}
+                {`${day.dayAr || `اليوم ${idx + 1}`} • توقعات هذه الولاية`}
               </span>
             </div>
           </div>
@@ -649,7 +708,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
               {day.dateLabel || fmtDate(day.dateStr)}
             </span>
             <span className="block text-[10px] text-white/65 mt-1">
-              {part ? `بطاقة اليوم ${idx + 1} - ${part}` : `بطاقة اليوم ${idx + 1}`}
+              {`بطاقة اليوم ${idx + 1} • ${forecast.wilaya}`}
             </span>
           </div>
         </div>
@@ -720,15 +779,18 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
           </article>
 
         {days.flatMap((day, idx) => {
-          const sections = buildDaySections(day);
-          if (idx === 2 && sections.length > 1) {
-            const splitIndex = Math.ceil(sections.length / 2);
-            return [
-              renderDayCard(day, idx, sections.slice(0, splitIndex), 1),
-              renderDayCard(day, idx, sections.slice(splitIndex), 2),
-            ];
+          if ((day.forecasts || []).length === 0) {
+            return renderDayCard(
+              day,
+              idx,
+              { wilaya: 'عموم المتابعة', thunder: [], heavy: [], moderate: [], weak: [], wind: [] },
+              buildDaySections({ thunder: [], heavy: [], moderate: [], weak: [], wind: [] })
+            );
           }
-          return renderDayCard(day, idx, sections);
+
+          return day.forecasts.map((forecast) =>
+            renderDayCard(day, idx, forecast, buildDaySections(forecast))
+          );
         })}
       </div>
     </div>
