@@ -1,6 +1,7 @@
 /**
  * PWA Configuration
  * تكوين تطبيق الويب التقدمي
+ * build: vapid-2026-06-21
  */
 
 // تسجيل Service Worker
