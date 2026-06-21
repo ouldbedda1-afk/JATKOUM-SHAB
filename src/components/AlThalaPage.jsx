@@ -110,11 +110,18 @@ const AlThalaPage = () => {
               <div key={report.id} className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group">
                 {/* Image Container */}
                 <div className="relative aspect-square overflow-hidden bg-gray-100">
-                  <img 
-                    src={report.image_url || 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&q=80&w=800'} 
-                    alt={report.animal_type}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
+                  {report.image_url ? (
+                    <img
+                      src={report.image_url}
+                      alt={report.animal_type}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-amber-50 to-amber-100 text-amber-700">
+                      <SafeIcon icon={FiCamera} className="text-5xl mb-2 opacity-60" />
+                      <span className="text-xs font-bold text-amber-800/70">بدون صورة</span>
+                    </div>
+                  )}
                   <div className={`absolute top-4 right-4 px-4 py-1 rounded-full text-xs font-black shadow-lg ${report.report_type === 'lost' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
                     {report.report_type === 'lost' ? 'مفقود' : 'موجود'}
                   </div>
