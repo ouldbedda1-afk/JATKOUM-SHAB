@@ -986,7 +986,7 @@ export async function getAllCitiesWeather() {
           hourly: 'temperature_2m,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,weather_code',
           daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max',
           timezone: 'Africa/Nouakchott',
-          forecast_days: 7,
+          forecast_days: 3, // النشرة تستخدم 3 أيام؛ التوقعات الأسبوعية تُجلب لكل مدينة على حدة
         });
 
         const sourceUrl = `${OPEN_METEO_API}?${params}`;
