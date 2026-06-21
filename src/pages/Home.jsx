@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import Navbar from '../components/Navbar';
 import NewsTicker from '../components/NewsTicker';
 import WeatherHero from '../components/WeatherHero';
@@ -42,35 +42,41 @@ function LazyOnVisible({ children, minHeight = 256 }) {
 
 export default function Home() {
   const [selectedCity, setSelectedCity] = useState("نواكشوط");
+  const [showLocBanner, setShowLocBanner] = useState(false);
+  const [locLoading, setLocLoading] = useState(false);
+
+  const requestLocation = useCallback(() => {
+    if (!navigator.geolocation) return;
+    setLocLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        setShowLocBanner(false);
+        setLocLoading(false);
+        try {
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=ar`);
+          if (!response.ok) throw new Error('Geocoding service unavailable');
+          const data = await response.json();
+          const cityName = data.address?.city || data.address?.town || data.address?.village || data.address?.state;
+          if (cityName) {
+            setSelectedCity({ name: cityName, lat: latitude, lon: longitude, isLocal: true });
+          }
+        } catch (error) {
+          console.error('Error fetching city name:', error);
+        }
+      },
+      (error) => {
+        console.warn('Geolocation error:', error);
+        setLocLoading(false);
+        setShowLocBanner(true); // نسي/رفض الموقع → نعرض شريط دعوة لإعادة المحاولة
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }, []);
 
   useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const { latitude, longitude } = position.coords;
-          try {
-            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=ar`);
-            if (!response.ok) throw new Error('Geocoding service unavailable');
-            const data = await response.json();
-            const cityName = data.address?.city || data.address?.town || data.address?.village || data.address?.state;
-            if (cityName) {
-              setSelectedCity({
-                name: cityName,
-                lat: latitude,
-                lon: longitude,
-                isLocal: true
-              });
-            }
-          } catch (error) {
-            console.error('Error fetching city name:', error);
-          }
-        },
-        (error) => {
-          console.warn('Geolocation error:', error);
-        }
-      );
-    }
-  }, []);
+    requestLocation();
+  }, [requestLocation]);
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -100,6 +106,33 @@ export default function Home() {
     <div className="min-h-screen bg-gray-50 pb-20 overflow-x-hidden" dir="rtl">
       <Navbar onCitySelect={setSelectedCity} />
       <NewsTicker />
+
+      {/* شريط دعوة لتحديد الموقع عند نسيانه/رفضه */}
+      {showLocBanner && (
+        <div className="bg-blue-600 text-white">
+          <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
+            <span className="text-xs md:text-sm font-bold flex items-center gap-2">
+              📍 فعّل موقعك لعرض طقس منطقتك مباشرةً
+            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={requestLocation}
+                disabled={locLoading}
+                className="bg-white text-blue-700 text-xs font-black px-4 py-1.5 rounded-full hover:bg-blue-50 transition-all disabled:opacity-60"
+              >
+                {locLoading ? 'جارٍ...' : 'تحديد موقعي'}
+              </button>
+              <button
+                onClick={() => setShowLocBanner(false)}
+                className="text-white/80 hover:text-white text-lg leading-none px-1"
+                aria-label="إغلاق"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-4 mt-4 md:mt-8">
         <StormAlertBanner />
