@@ -110,6 +110,7 @@ const RainReportForm = ({ onClose, onSuccess }) => {
   const [verifying, setVerifying] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState('');
+  const [locationDenied, setLocationDenied] = useState(false);
   const [fbUser, setFbUser] = useState(null);
   const [fbError, setFbError] = useState('');
   const [fbLoading, setFbLoading] = useState(false);
@@ -148,6 +149,7 @@ const RainReportForm = ({ onClose, onSuccess }) => {
 
     setLocating(true);
     setLocationError('');
+    setLocationDenied(false);
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const latitude = position.coords.latitude;
@@ -165,8 +167,16 @@ const RainReportForm = ({ onClose, onSuccess }) => {
         }));
         setLocating(false);
       },
-      () => {
-        setLocationError('يجب السماح بتحديد الموقع حتى يمكن إرسال تبشيرة المطر.');
+      (err) => {
+        // 1 = رفض الإذن، 2 = غير متاح، 3 = انتهت المهلة
+        if (err && err.code === 1) {
+          setLocationDenied(true);
+          setLocationError('تم رفض إذن الموقع سابقاً. فعّله من المتصفح ثم اضغط «حاول مرة أخرى».');
+        } else if (err && err.code === 3) {
+          setLocationError('انتهت مهلة تحديد الموقع. تأكد من تفعيل GPS واضغط «حاول مرة أخرى».');
+        } else {
+          setLocationError('تعذّر تحديد الموقع. تأكد من تفعيله واضغط «حاول مرة أخرى».');
+        }
         setLocating(false);
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
@@ -311,12 +321,26 @@ const RainReportForm = ({ onClose, onSuccess }) => {
               type="button"
               onClick={handleGetLocation}
               disabled={locating}
-              className="w-full bg-gray-900 text-white py-3 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-gray-800 transition-all disabled:opacity-50"
+              className={`w-full py-3 rounded-2xl font-black flex items-center justify-center gap-2 transition-all disabled:opacity-50 ${
+                locationError ? 'bg-blue-600 text-white hover:bg-blue-700 animate-pulse' : 'bg-gray-900 text-white hover:bg-gray-800'
+              }`}
             >
               <SafeIcon icon={FiMapPin} />
-              {locating ? 'جاري تحديد عين المكان...' : 'تحديد موقعي الآن'}
+              {locating ? 'جاري تحديد عين المكان...' : locationError ? '📍 حاول مرة أخرى' : 'تحديد موقعي الآن'}
             </button>
-            {locationError && <p className="mt-2 text-xs font-bold text-red-600">{locationError}</p>}
+
+            {locationError && (
+              <div className="mt-3 bg-amber-50 border border-amber-200 rounded-2xl p-3">
+                <p className="text-xs font-bold text-amber-900 mb-2">⚠️ {locationError}</p>
+                {locationDenied && (
+                  <div className="text-[11px] text-amber-800 leading-relaxed space-y-1">
+                    <p className="font-bold">لإعادة تفعيل الموقع:</p>
+                    <p>📱 <b>الهاتف:</b> اضغط على 🔒 (القفل) بجوار العنوان أعلى المتصفح ← «أذونات الموقع» ← <b>السماح</b>، ثم اضغط «حاول مرة أخرى».</p>
+                    <p>💻 <b>الكمبيوتر:</b> اضغط على 🔒 يسار العنوان ← الموقع ← <b>السماح</b>، ثم أعد المحاولة.</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {hasLocation && (
