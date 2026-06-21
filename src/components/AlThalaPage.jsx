@@ -117,9 +117,9 @@ const AlThalaPage = () => {
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />
                   ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-amber-50 to-amber-100 text-amber-700">
-                      <SafeIcon icon={FiCamera} className="text-5xl mb-2 opacity-60" />
-                      <span className="text-xs font-bold text-amber-800/70">بدون صورة</span>
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-amber-50 to-amber-100 p-6">
+                      <img src="/logo.png" alt="جاتكم اسحاب" className="w-24 h-24 object-contain opacity-80" />
+                      <span className="text-xs font-bold text-amber-800/70 mt-2">بدون صورة</span>
                     </div>
                   )}
                   <div className={`absolute top-4 right-4 px-4 py-1 rounded-full text-xs font-black shadow-lg ${report.report_type === 'lost' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
