@@ -11,6 +11,7 @@ import PrayerTimes from '../components/PrayerTimes';
 import CloudTracker from '../components/CloudTracker';
 import StormAlertBanner from '../components/StormAlertBanner';
 import RainMap from '../components/RainMap';
+import LivestockHomePreview from '../components/LivestockHomePreview';
 
 // أثقل مكوّن (echarts) — يُحمَّل عند الحاجة فقط لتسريع أول تحميل
 const WeatherCharts = lazy(() => import('../components/WeatherCharts'));
@@ -150,6 +151,7 @@ export default function Home() {
             <CloudTracker />
 
             <RainMap />
+            <LivestockHomePreview />
             <SatelliteViewer />
             <CityGrid />
           </div>
