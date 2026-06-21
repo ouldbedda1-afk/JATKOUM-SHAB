@@ -607,16 +607,57 @@ export async function searchCities(query) {
 export function getModelRainingNow(weatherData) {
   if (!weatherData || weatherData.length === 0) return [];
 
+  const now = Date.now();
+  // نافذة اليوم: من ساعتين مضت حتى ساعتين قادمتين (لالتقاط مطر دخل ومرّ أو يقترب)
+  const WINDOW_BACK_MS = 2 * 60 * 60 * 1000;
+  const WINDOW_FWD_MS = 2 * 60 * 60 * 1000;
+
+  // يفحص ساعات اليوم القريبة: يرجع أعلى هطول/كود ماطر ضمن النافذة
+  function scanRecentHours(c) {
+    const times = c.hourly?.time || [];
+    if (times.length === 0) return null;
+    let best = null;
+    for (let i = 0; i < times.length; i++) {
+      const t = new Date(times[i]).getTime();
+      if (Number.isNaN(t)) continue;
+      if (t < now - WINDOW_BACK_MS || t > now + WINDOW_FWD_MS) continue;
+      const hCode = c.hourly?.weather_code?.[i] ?? 0;
+      const hPrecip = c.hourly?.precipitation?.[i] ?? 0;
+      const hProb = c.hourly?.precipitation_probability?.[i] ?? 0;
+      const hRainCode = (hCode >= 51 && hCode <= 67) || (hCode >= 80 && hCode <= 82) || hCode >= 95;
+      // مطر مرجّح: هطول فعلي، أو كود ماطر، أو احتمال عالٍ جداً
+      if (hPrecip > 0.1 || hRainCode || hProb >= 75) {
+        const score = hPrecip * 10 + (hCode >= 95 ? 50 : 0) + (hRainCode ? 20 : 0) + hProb / 5;
+        if (!best || score > best.score) {
+          best = { score, code: hCode, precip: hPrecip, prob: hProb };
+        }
+      }
+    }
+    return best;
+  }
+
   const out = [];
   weatherData.forEach((c) => {
-    const code = c.current?.weather_code ?? 0;
-    const precip = c.current?.precipitation ?? 0;
+    let code = c.current?.weather_code ?? 0;
+    let precip = c.current?.precipitation ?? 0;
 
-    const isThunder = code >= 95;
-    const isRainCode = (code >= 51 && code <= 67) || (code >= 80 && code <= 82) || isThunder;
-    const isRaining = precip > 0.1 || isRainCode;
+    const isThunder0 = code >= 95;
+    const isRainCode0 = (code >= 51 && code <= 67) || (code >= 80 && code <= 82) || isThunder0;
+    let isRaining = precip > 0.1 || isRainCode0;
+
+    // إن كانت اللحظة جافة، نفحص ساعات اليوم القريبة (مطر دخل ومرّ أو يقترب)
+    if (!isRaining) {
+      const recent = scanRecentHours(c);
+      if (recent) {
+        isRaining = true;
+        // نعتمد بيانات الساعة الأقوى لإظهار الحالة
+        if (recent.precip > precip) precip = recent.precip;
+        if (recent.code > code) code = recent.code;
+      }
+    }
     if (!isRaining) return;
 
+    const isThunder = code >= 95;
     let mmh = precip > 0 ? precip : 0.5;
     let label;
     if (isThunder) label = 'رعدية';
@@ -831,7 +872,7 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
         latitude: coords.lat,
         longitude: coords.lon,
         current: 'temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,pressure_msl,precipitation',
-        hourly: 'temperature_2m,precipitation_probability,wind_speed_10m,wind_direction_10m,weather_code',
+        hourly: 'temperature_2m,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,weather_code',
         daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max',
         timezone: 'Africa/Nouakchott',
         temperature_unit: 'celsius',
@@ -931,7 +972,7 @@ export async function getAllCitiesWeather() {
         latitude: lats,
         longitude: lons,
         current: 'temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,pressure_msl,precipitation',
-        hourly: 'temperature_2m,precipitation_probability,wind_speed_10m,wind_direction_10m,weather_code',
+        hourly: 'temperature_2m,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,weather_code',
         daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max',
         timezone: 'Africa/Nouakchott',
         forecast_days: 7,
