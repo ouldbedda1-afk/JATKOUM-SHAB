@@ -2,6 +2,10 @@ import {
   normalizeMauritaniaMoughataaName,
   normalizeMauritaniaWilayaName,
 } from './mauritaniaPlaceNames';
+import { COMMUNE_NAMES_AR } from './mauritaniaCommuneNamesAr';
+
+// الاسم العربي للبلدية إن توفّر، وإلا الاسم اللاتيني الأصلي
+const arName = (commune) => COMMUNE_NAMES_AR[commune.city] || commune.name || commune.city;
 
 export const mauritaniaCommunesList = [
   {
@@ -2630,7 +2634,8 @@ export const mauritaniaCommunes = Object.fromEntries(
     {
       lat: commune.lat,
       lon: commune.lon,
-      name: commune.name,
+      name: arName(commune),
+      nameEn: commune.name,
       type: commune.type,
       wilaya: normalizeMauritaniaWilayaName(commune.wilaya),
       moughataa: normalizeMauritaniaMoughataaName(commune.moughataa),
@@ -2641,8 +2646,9 @@ export const mauritaniaCommunes = Object.fromEntries(
 );
 
 export const mauritaniaCommuneDistricts = mauritaniaCommunesList.map((commune) => ({
-  name: commune.city,
+  name: arName(commune),
   nameEn: commune.name,
+  cityKey: commune.city,
   lat: commune.lat,
   lon: commune.lon,
 }));

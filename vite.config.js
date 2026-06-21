@@ -21,6 +21,19 @@ export default defineConfig({
 
   build: {
     outDir: 'dist',
-    sourcemap: true
+    sourcemap: true,
+    chunkSizeWarningLimit: 900,
+    rollupOptions: {
+      output: {
+        // تقسيم المكتبات الثقيلة إلى حِزم منفصلة تُحمَّل عند الحاجة فقط
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-charts': ['echarts', 'echarts-for-react'],
+          'vendor-motion': ['framer-motion'],
+          'vendor-icons': ['react-icons'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+        },
+      },
+    },
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import Navbar from '../components/Navbar';
 import NewsTicker from '../components/NewsTicker';
 import WeatherHero from '../components/WeatherHero';
@@ -7,11 +7,38 @@ import SatelliteViewer from '../components/SatelliteViewer';
 import CityGrid from '../components/CityGrid';
 import RuralTools from '../components/RuralTools';
 import WeatherAlerts from '../components/WeatherAlerts';
-import WeatherCharts from '../components/WeatherCharts';
 import PrayerTimes from '../components/PrayerTimes';
 import CloudTracker from '../components/CloudTracker';
 import StormAlertBanner from '../components/StormAlertBanner';
 import RainMap from '../components/RainMap';
+
+// أثقل مكوّن (echarts) — يُحمَّل عند الحاجة فقط لتسريع أول تحميل
+const WeatherCharts = lazy(() => import('../components/WeatherCharts'));
+
+// غلاف يؤجّل تحميل المحتوى حتى يقترب من الشاشة (يوفّر تحميل echarts على الهاتف)
+function LazyOnVisible({ children, minHeight = 256 }) {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (visible || !ref.current) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisible(true);
+          obs.disconnect();
+        }
+      },
+      { rootMargin: '300px' }
+    );
+    obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, [visible]);
+  return (
+    <div ref={ref}>
+      {visible ? children : <div style={{ minHeight }} className="bg-white rounded-[2rem] animate-pulse border border-gray-100" />}
+    </div>
+  );
+}
 
 export default function Home() {
   const [selectedCity, setSelectedCity] = useState("نواكشوط");
@@ -82,7 +109,11 @@ export default function Home() {
             <WeatherHero city={selectedCity} />
             <WeeklyForecast city={selectedCity} />
             <WeatherAlerts />
-            <WeatherCharts city={selectedCity} />
+            <LazyOnVisible minHeight={288}>
+              <Suspense fallback={<div className="bg-white rounded-[2rem] h-64 animate-pulse border border-gray-100" />}>
+                <WeatherCharts city={selectedCity} />
+              </Suspense>
+            </LazyOnVisible>
             <CloudTracker />
 
             <RainMap />

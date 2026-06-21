@@ -1,6 +1,13 @@
 import React from 'react';
-import ReactECharts from 'echarts-for-react';
+import ReactEChartsCore from 'echarts-for-react/lib/core';
+import * as echarts from 'echarts/core';
+import { LineChart, BarChart } from 'echarts/charts';
+import { TooltipComponent, LegendComponent, GridComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
 import { useWeather } from '../useWeather';
+
+// استيراد وحدات echarts المطلوبة فقط (بدل المكتبة كاملة) لتقليص الحجم
+echarts.use([LineChart, BarChart, TooltipComponent, LegendComponent, GridComponent, CanvasRenderer]);
 
 const WeatherCharts = ({ city }) => {
   const cityName = typeof city === 'string' ? city : city.name;
@@ -107,7 +114,7 @@ const WeatherCharts = ({ city }) => {
     <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-gray-100">
       <h3 className="text-xl font-bold text-gray-800 mb-6">توقعات الـ 24 ساعة القادمة</h3>
       <div className="h-[300px]">
-        <ReactECharts option={option} style={{ height: '100%' }} />
+        <ReactEChartsCore echarts={echarts} option={option} style={{ height: '100%' }} />
       </div>
     </div>
   );
