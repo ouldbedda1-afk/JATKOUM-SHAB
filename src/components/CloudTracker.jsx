@@ -88,7 +88,7 @@ function getPathTheme(path) {
   };
 }
 
-const SOUTH_WILAYAS = new Set(['الحوض الغربي', 'الحوض الشرقي', 'العصابة', 'كيدماغا', 'كوركول']);
+const SOUTH_WILAYAS = new Set(['الحوض الغربي', 'الحوض الشرقي', 'لعصابه', 'كيدماغا', 'كوركول']);
 
 function formatShortList(items, limit = 4) {
   const uniqueItems = [...new Set((items || []).filter(Boolean))];

@@ -736,7 +736,7 @@ export const mauritaniaCommunesList = [
     "lat": 16.634,
     "lon": -12.435,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Barkéol",
     "id": "MR01167",
     "source": "open-admin-data"
@@ -747,7 +747,7 @@ export const mauritaniaCommunesList = [
     "lat": 16.864,
     "lon": -12.261,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Barkéol",
     "id": "MR01168",
     "source": "open-admin-data"
@@ -758,7 +758,7 @@ export const mauritaniaCommunesList = [
     "lat": 16.521,
     "lon": -12.158,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Barkéol",
     "id": "MR01169",
     "source": "open-admin-data"
@@ -769,7 +769,7 @@ export const mauritaniaCommunesList = [
     "lat": 16.235,
     "lon": -12.138,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Barkéol",
     "id": "MR01170",
     "source": "open-admin-data"
@@ -780,7 +780,7 @@ export const mauritaniaCommunesList = [
     "lat": 16.464,
     "lon": -12.376,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Barkéol",
     "id": "MR01171",
     "source": "open-admin-data"
@@ -791,7 +791,7 @@ export const mauritaniaCommunesList = [
     "lat": 16.562,
     "lon": -12.624,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Barkéol",
     "id": "MR01172",
     "source": "open-admin-data"
@@ -802,7 +802,7 @@ export const mauritaniaCommunesList = [
     "lat": 16.948,
     "lon": -12.691,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Barkéol",
     "id": "MR01173",
     "source": "open-admin-data"
@@ -813,7 +813,7 @@ export const mauritaniaCommunesList = [
     "lat": 17.031,
     "lon": -12.419,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Barkéol",
     "id": "MR01174",
     "source": "open-admin-data"
@@ -824,7 +824,7 @@ export const mauritaniaCommunesList = [
     "lat": 17.484,
     "lon": -11.367,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Boumdeid",
     "id": "MR01175",
     "source": "open-admin-data"
@@ -835,7 +835,7 @@ export const mauritaniaCommunesList = [
     "lat": 17.314,
     "lon": -11.488,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Boumdeid",
     "id": "MR01176",
     "source": "open-admin-data"
@@ -846,7 +846,7 @@ export const mauritaniaCommunesList = [
     "lat": 17.853,
     "lon": -11.273,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Boumdeid",
     "id": "MR01177",
     "source": "open-admin-data"
@@ -857,7 +857,7 @@ export const mauritaniaCommunesList = [
     "lat": 16.866,
     "lon": -11.843,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Guerou",
     "id": "MR01178",
     "source": "open-admin-data"
@@ -868,7 +868,7 @@ export const mauritaniaCommunesList = [
     "lat": 16.783,
     "lon": -12.022,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Guerou",
     "id": "MR01179",
     "source": "open-admin-data"
@@ -879,7 +879,7 @@ export const mauritaniaCommunesList = [
     "lat": 17.157,
     "lon": -12.18,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Guerou",
     "id": "MR01180",
     "source": "open-admin-data"
@@ -890,7 +890,7 @@ export const mauritaniaCommunesList = [
     "lat": 16.995,
     "lon": -11.965,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Guerou",
     "id": "MR01181",
     "source": "open-admin-data"
@@ -901,7 +901,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.881,
     "lon": -11.532,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Kankoussa",
     "id": "MR01182",
     "source": "open-admin-data"
@@ -912,7 +912,7 @@ export const mauritaniaCommunesList = [
     "lat": 16.106,
     "lon": -11.46,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Kankoussa",
     "id": "MR01183",
     "source": "open-admin-data"
@@ -923,7 +923,7 @@ export const mauritaniaCommunesList = [
     "lat": 16.04,
     "lon": -11.068,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Kankoussa",
     "id": "MR01184",
     "source": "open-admin-data"
@@ -934,7 +934,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.47,
     "lon": -10.844,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Kankoussa",
     "id": "MR01185",
     "source": "open-admin-data"
@@ -945,7 +945,7 @@ export const mauritaniaCommunesList = [
     "lat": 15.574,
     "lon": -11.217,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Kankoussa",
     "id": "MR01186",
     "source": "open-admin-data"
@@ -956,7 +956,7 @@ export const mauritaniaCommunesList = [
     "lat": 16.626,
     "lon": -11.412,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Kiffa",
     "id": "MR01187",
     "source": "open-admin-data"
@@ -967,7 +967,7 @@ export const mauritaniaCommunesList = [
     "lat": 17.11,
     "lon": -11.469,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Kiffa",
     "id": "MR01188",
     "source": "open-admin-data"
@@ -978,7 +978,7 @@ export const mauritaniaCommunesList = [
     "lat": 16.724,
     "lon": -10.95,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Kiffa",
     "id": "MR01189",
     "source": "open-admin-data"
@@ -989,7 +989,7 @@ export const mauritaniaCommunesList = [
     "lat": 16.701,
     "lon": -11.111,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Kiffa",
     "id": "MR01190",
     "source": "open-admin-data"
@@ -1000,7 +1000,7 @@ export const mauritaniaCommunesList = [
     "lat": 16.423,
     "lon": -11.495,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Kiffa",
     "id": "MR01191",
     "source": "open-admin-data"
@@ -1011,7 +1011,7 @@ export const mauritaniaCommunesList = [
     "lat": 16.36,
     "lon": -11.797,
     "type": "بلدية",
-    "wilaya": "العصابة",
+    "wilaya": "لعصابه",
     "moughataa": "Kiffa",
     "id": "MR01192",
     "source": "open-admin-data"

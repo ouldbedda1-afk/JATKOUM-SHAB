@@ -130,8 +130,9 @@ export async function addLivestockReport(report) {
   try {
     const { data, error } = await supabase
       .from('livestock_reports')
-      .insert([report]);
-    
+      // كل بلاغ جديد يبدأ معلّقاً بانتظار موافقة الإدارة
+      .insert([{ ...report, status: 'pending' }]);
+
     if (error) throw error;
     return data;
   } catch (error) {
@@ -140,16 +141,20 @@ export async function addLivestockReport(report) {
   }
 }
 
-// جلب جميع البلاغات
+// جلب البلاغات المعتمدة فقط (المنشورة للعموم)
 export async function getLivestockReports(type = null) {
   if (!isSupabaseConfigured) return [];
   try {
-    let query = supabase.from('livestock_reports').select('*').order('created_at', { ascending: false });
-    
+    let query = supabase
+      .from('livestock_reports')
+      .select('*')
+      .eq('status', 'approved')
+      .order('created_at', { ascending: false });
+
     if (type) {
       query = query.eq('report_type', type);
     }
-    
+
     const { data, error } = await query;
     if (error) throw error;
     return data;
@@ -205,13 +210,13 @@ export async function uploadLivestockAudio(file) {
  * Rain Reporting Services (تبشيرة مطر)
  */
 
-// إضافة بلاغ مطر جديد
+// إضافة بلاغ مطر جديد — يبدأ معلّقاً بانتظار موافقة الإدارة
 export async function addRainReport(report) {
   try {
     const { data, error } = await supabase
       .from('rain_reports')
-      .insert([report]);
-    
+      .insert([{ ...report, status: 'pending' }]);
+
     if (error) throw error;
     return data;
   } catch (error) {
@@ -220,20 +225,19 @@ export async function addRainReport(report) {
   }
 }
 
-// جلب بلاغات المطر (آخر 24 ساعة مثلاً)
+// جلب بلاغات المطر المعتمدة (آخر 24 ساعة)
 export async function getRecentRainReports() {
   if (!isSupabaseConfigured) return [];
   try {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    
-    let query = supabase
+
+    const { data, error } = await supabase
       .from('rain_reports')
       .select('*')
+      .eq('status', 'approved')
+      .gt('created_at', twentyFourHoursAgo)
       .order('created_at', { ascending: false });
-    
-    query = query.gt('created_at', twentyFourHoursAgo);
-    const { data, error } = await query;
-    
+
     if (error) throw error;
     return data;
   } catch (error) {
@@ -468,4 +472,83 @@ export async function deletePushSubscription(endpoint) {
     console.error('خطأ في حذف اشتراك الإشعارات:', error);
     return null;
   }
+}
+
+// ═══════════════════════════════════════════════════
+// نظام المراجعة: الأخبار + الإدارة
+// ═══════════════════════════════════════════════════
+
+/** إرسال خبر من مستخدم — يُحفظ معلّقاً بانتظار موافقة الإدارة */
+export async function submitNews(news) {
+  if (!isSupabaseConfigured) {
+    return { ok: false, error: 'قاعدة البيانات غير مهيأة' };
+  }
+  try {
+    const { error } = await supabase
+      .from('news_submissions')
+      .insert([{
+        title: news.title,
+        body: news.body,
+        category: news.category || 'عام',
+        city: news.city || null,
+        author_name: news.author_name || null,
+        contact: news.contact || null,
+        image_url: news.image_url || null,
+        status: 'pending',
+      }]);
+    if (error) throw error;
+    return { ok: true };
+  } catch (error) {
+    console.error('خطأ في إرسال الخبر:', error);
+    return { ok: false, error: error.message };
+  }
+}
+
+/** جلب الأخبار المعتمدة (المنشورة) */
+export async function getApprovedNews(limit = 20) {
+  if (!isSupabaseConfigured) return [];
+  try {
+    const { data, error } = await supabase
+      .from('news_submissions')
+      .select('*')
+      .eq('status', 'approved')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('خطأ في جلب الأخبار المعتمدة:', error);
+    return [];
+  }
+}
+
+/**
+ * استدعاء دالة المراجعة الخادمية (للإدارة فقط).
+ * action: 'list' | 'approve' | 'reject' ، kind: 'news' | 'livestock'
+ */
+async function callModerate(adminToken, payload) {
+  const url = `${supabaseUrl}/functions/v1/moderate`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-token': adminToken,
+      Authorization: `Bearer ${supabaseAnonKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `خطأ ${res.status}`);
+  return data;
+}
+
+/** الإدارة: جلب العناصر المعلّقة */
+export async function adminListPending(adminToken, kind) {
+  const data = await callModerate(adminToken, { action: 'list', kind });
+  return data.items || [];
+}
+
+/** الإدارة: موافقة أو رفض عنصر */
+export async function adminModerate(adminToken, kind, id, approve) {
+  return callModerate(adminToken, { action: approve ? 'approve' : 'reject', kind, id });
 }

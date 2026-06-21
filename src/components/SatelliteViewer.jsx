@@ -5,7 +5,7 @@ import { useWeatherContext } from '../WeatherContext';
 import { sendLocalNotification, requestNotificationPermission } from '../pwa';
 import { broadcastPush } from '../supabase';
 
-const { FiLayers, FiMaximize, FiRefreshCw, FiExternalLink, FiShield, FiCheck, FiCloudRain, FiShare2 } = FiIcons;
+const { FiLayers, FiMaximize, FiRefreshCw, FiExternalLink, FiShield, FiCheck, FiCloudRain, FiShare2, FiMapPin } = FiIcons;
 
 // بناء نص الخبر العاجل القابل للنشر
 function buildBreakingText({ thunderCities, rainCities, modelThunder, modelRain }) {
@@ -351,24 +351,47 @@ const SatelliteViewer = () => {
             <SafeIcon icon={FiShield} className="text-blue-600" />
             تبشيرات المطر الميدانية (آخر 24 ساعة)
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {rainReports.map((report) => (
-              <div key={report.id} className="bg-gray-50 p-3 rounded-2xl border border-gray-100 flex items-start gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${report.is_verified ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
-                  <SafeIcon icon={report.is_verified ? FiCheck : FiCloudRain} />
-                </div>
-                <div>
-                  <div className="flex items-center gap-1">
-                    <span className="font-bold text-xs text-gray-900">{report.city}</span>
+              <div key={report.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                {report.image_url ? (
+                  <div className="relative aspect-video bg-gray-100">
+                    <img src={report.image_url} alt={`صورة مطر في ${report.city}`} className="w-full h-full object-cover" loading="lazy" />
+                    <span className="absolute top-2 right-2 bg-black/55 backdrop-blur text-white text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                      <SafeIcon icon={FiMapPin} className="text-[9px]" /> {report.city}
+                    </span>
                     {report.is_verified && (
-                      <span className="text-[8px] bg-green-100 text-green-700 px-1 rounded-sm font-bold flex items-center gap-0.5">
-                        <SafeIcon icon={FiShield} className="text-[7px]" />
-                        مؤكد
+                      <span className="absolute top-2 left-2 bg-green-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                        <SafeIcon icon={FiShield} className="text-[8px]" /> موثّق
                       </span>
                     )}
                   </div>
-                  <p className="text-[10px] text-gray-500">مطر {report.rain_intensity}</p>
-                  <p className="text-[9px] text-gray-400 mt-1">{new Date(report.created_at).toLocaleTimeString('ar-SA')}</p>
+                ) : (
+                  <div className="aspect-video bg-gradient-to-br from-sky-50 to-blue-100 flex items-center justify-center">
+                    <SafeIcon icon={FiCloudRain} className="text-4xl text-sky-400" />
+                  </div>
+                )}
+                <div className="p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-black text-gray-900 inline-flex items-center gap-1">
+                      <SafeIcon icon={FiCloudRain} className="text-sky-500 text-xs" /> مطر {report.rain_intensity}
+                    </span>
+                    <span className="text-[9px] text-gray-400">{new Date(report.created_at).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                  {(report.facebook_name || report.facebook_url) && (
+                    <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-1.5">
+                      {report.facebook_picture ? (
+                        <img src={report.facebook_picture} alt={report.facebook_name} className="w-5 h-5 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
+                      ) : (
+                        <span className="w-5 h-5 bg-[#1877F2] text-white rounded-full flex items-center justify-center text-[9px] font-black shrink-0">
+                          {report.facebook_name?.[0] || 'f'}
+                        </span>
+                      )}
+                      <span className="text-[10px] font-bold text-gray-600 truncate">
+                        {report.facebook_name || 'ناشر موثّق'}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

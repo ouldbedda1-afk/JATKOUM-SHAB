@@ -4,6 +4,75 @@ const ECMWF_SOURCES = [
   'https://www.ecmwf.int/en/about/media-centre/news',
 ];
 
+/**
+ * ترجمة نص إلى العربية عبر خدمات مجانية بلا مفتاح.
+ * 1) Google gtx (مجاني)  2) MyMemory (مجاني)  3) النص الأصلي عند الفشل.
+ */
+async function translateText(text, target = 'ar') {
+  const clean = (text || '').trim();
+  if (!clean) return '';
+
+  // 1) Google Translate (نقطة gtx العامة)
+  try {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&q=${encodeURIComponent(
+      clean
+    )}`;
+    const res = await fetch(url, { headers: { 'user-agent': 'Mozilla/5.0' } });
+    if (res.ok) {
+      const data = await res.json();
+      const out = (data?.[0] || [])
+        .map((seg) => (Array.isArray(seg) ? seg[0] : ''))
+        .filter(Boolean)
+        .join('');
+      if (out) return out.trim();
+    }
+  } catch (error) {
+    /* تجاهل والانتقال للاحتياط */
+  }
+
+  // 2) MyMemory (مجاني، حد ~1000 كلمة/يوم)
+  try {
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(
+      clean.slice(0, 480)
+    )}&langpair=en|${target}`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      const out = data?.responseData?.translatedText;
+      if (out) return String(out).trim();
+    }
+  } catch (error) {
+    /* تجاهل */
+  }
+
+  return clean; // فشل الترجمة → النص الأصلي
+}
+
+/**
+ * ترجمة عناوين عناصر ECMWF إلى العربية وبناء ملخّص جاهز للعرض.
+ */
+async function translateBriefs(items) {
+  if (items.length === 0) return items;
+
+  const results = await Promise.all(
+    items.map(async (it) => {
+      const arabicTitle = await translateText(it.title);
+      const region = it.regionLabel || 'منطقتنا';
+      const dateLabel = it.publishedAt
+        ? ` (${new Date(it.publishedAt).toLocaleDateString('en-GB')})`
+        : '';
+      return {
+        ...it,
+        titleAr: arabicTitle,
+        brief: `🌍 ECMWF · ${region}: ${arabicTitle}${dateLabel}`,
+        translated: true,
+      };
+    })
+  );
+
+  return results;
+}
+
 const REGION_MATCHERS = [
   { label: 'موريتانيا', patterns: ['mauritania', 'mauritanie'] },
   { label: 'السنغال', patterns: ['senegal', 'senegalese'] },
@@ -184,7 +253,7 @@ export default async function handler(request, response) {
       return parseHtmlCandidates(body, url);
     });
 
-    const items = uniqByKey(allItems)
+    const rankedItems = uniqByKey(allItems)
       .sort((a, b) => {
         const aTime = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
         const bTime = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
@@ -192,7 +261,11 @@ export default async function handler(request, response) {
       })
       .slice(0, 6);
 
-    response.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=3600');
+    // ترجمة وتلخيص بالعربية عبر Claude (مع تدهور رشيق)
+    const items = await translateBriefs(rankedItems);
+
+    // نخزّن النتيجة على حافة الشبكة 30 دقيقة لتقليل استدعاءات النموذج
+    response.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=3600');
     return response.status(200).json({
       source: 'ecmwf',
       count: items.length,

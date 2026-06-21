@@ -24,7 +24,7 @@ const bawahRegions = [
     mapClass: 'top-[42%] right-[18%] w-24 h-20',
   },
   {
-    name: 'لعصابة',
+    name: 'لعصابه',
     cities: ['كيفة', 'كرو', 'كنكوصة'],
     mapClass: 'top-[54%] right-[43%] w-20 h-16',
   },

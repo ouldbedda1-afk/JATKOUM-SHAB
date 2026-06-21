@@ -157,11 +157,11 @@ function getLikelyTargetWilaya(primaryWilaya, direction) {
   const southward = direction >= 157.5 && direction < 247.5;
 
   if (primaryWilaya === 'الحوض الغربي') {
-    if (eastward || southeastward) return 'العصابة';
+    if (eastward || southeastward) return 'لعصابه';
     if (southward) return 'كيدماغا';
   }
   if (primaryWilaya === 'الحوض الشرقي' && southward) return 'كيدماغا';
-  if (primaryWilaya === 'العصابة' && southward) return 'كوركول';
+  if (primaryWilaya === 'لعصابه' && southward) return 'كوركول';
   if (primaryWilaya === 'كوركول' && eastward) return 'كيدماغا';
 
   return '';

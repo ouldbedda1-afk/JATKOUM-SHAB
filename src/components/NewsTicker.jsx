@@ -1,5 +1,4 @@
 import React, { useMemo } from 'react';
-import { motion } from 'framer-motion';
 import { useWeatherContext } from '../WeatherContext';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
@@ -232,7 +231,7 @@ const NewsTicker = () => {
       "تنبيه: تابع تحديثات 'بشائر الخير' يومياً لضمان سلامة القطعان والمراعي."
     ];
 
-    // ترتيب: عاجل → توقعات المركز الأوروبي → حرائق → سحب → عام → ثابت
+    // ترتيب: عاجل → توقعات المركز الأوروبي → أخبار المستخدمين → حرائق → سحب → عام → ثابت
     const finalNews = [
       ...(sameDayHeadline ? [sameDayHeadline] : []),
       ...externalAlerts,
@@ -249,6 +248,9 @@ const NewsTicker = () => {
       : ["لا توجد حالياً تنبيهات جوية مؤكدة في النظام الآلي. تستمر المتابعة المباشرة لأي تطور جديد."];
   }, [loading, weatherData, fires, rainReports, rainingNow, modelRainingNow, sameDayRainEvents, ecmwfBriefs, lastUpdated]);
 
+  // سرعة ثابتة: ~4.5 ثانية لكل خبر (حد أدنى 18ث) — يضمن مرور كل الأخبار بوضوح
+  const tickerDuration = Math.max(18, newsItems.length * 4.5);
+
   return (
     <div className="bg-yellow-400 py-2 overflow-hidden border-y border-yellow-500 shadow-sm relative z-40" dir="rtl">
       <div className="flex items-center">
@@ -264,20 +266,20 @@ const NewsTicker = () => {
           </button>
         </div>
 
-        <div className="flex-1 overflow-hidden relative">
-          <motion.div
-            initial={{ x: "-100%" }}
-            animate={{ x: "100%" }}
-            transition={{ duration: 35, repeat: Infinity, ease: "linear" }}
-            className="flex gap-12 whitespace-nowrap"
+        <div className="flex-1 overflow-hidden relative" dir="ltr">
+          <div
+            className="ticker-track flex flex-nowrap"
+            style={{ width: 'max-content', animationDuration: `${tickerDuration}s` }}
           >
-            {newsItems.map((item, index) => (
-              <span key={index} className="text-sm md:text-base font-black text-gray-900 flex items-center gap-2">
-                <span className="w-2 h-2 bg-red-600 rounded-full"></span>
+            {/* المسار ltr لقياس عرض موثوق على الهاتف؛ نص كل خبر rtl.
+                نكرّر القائمة مرتين + تباعد متماثل لكل عنصر → عرض مضاعف تماماً والـ50% = نسخة كاملة */}
+            {[...newsItems, ...newsItems].map((item, index) => (
+              <span key={index} dir="rtl" className="text-sm md:text-base font-black text-gray-900 inline-flex items-center gap-2 shrink-0 px-5">
+                <span className="w-2 h-2 bg-red-600 rounded-full shrink-0"></span>
                 {item}
               </span>
             ))}
-          </motion.div>
+          </div>
         </div>
       </div>
     </div>

@@ -7,7 +7,7 @@ const { FiCamera, FiCheck, FiMapPin, FiNavigation, FiX } = FiIcons;
 
 const regionCenters = [
   { name: 'الحوض الشرقي', lat: 16.35, lon: -7.2 },
-  { name: 'لعصابة', lat: 16.45, lon: -11.25 },
+  { name: 'لعصابه', lat: 16.45, lon: -11.25 },
   { name: 'اترارزة', lat: 17.1, lon: -15.05 },
   { name: 'كوركول', lat: 16.2, lon: -13.1 },
 ];

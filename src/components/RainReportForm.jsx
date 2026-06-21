@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { addRainReport, uploadLivestockImage } from '../supabase';
 import { getWeatherData } from '../weatherApi';
+import { loginWithFacebook } from '../facebook';
 import { mauritaniaCommuneDistricts } from '../mauritaniaCommunes';
 import { areMauritaniaPlaceNamesEquivalent } from '../mauritaniaPlaceNames';
 import * as FiIcons from 'react-icons/fi';
@@ -15,10 +16,7 @@ const {
   FiShield,
   FiNavigation,
   FiUser,
-  FiExternalLink,
 } = FiIcons;
-
-const MIN_FACEBOOK_FOLLOWERS = 100;
 
 const baseDistricts = [
   { name: 'نواكشوط', lat: 18.0735, lon: -15.9582 },
@@ -105,15 +103,6 @@ function getNearestDistrict(latitude, longitude) {
     .sort((a, b) => a.distanceKm - b.distanceKm)[0];
 }
 
-function isFacebookUrl(value) {
-  try {
-    const url = new URL(value);
-    return url.hostname.includes('facebook.com') || url.hostname.includes('fb.com');
-  } catch {
-    return false;
-  }
-}
-
 const RainReportForm = ({ onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [image, setImage] = useState(null);
@@ -121,6 +110,10 @@ const RainReportForm = ({ onClose, onSuccess }) => {
   const [verifying, setVerifying] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState('');
+  const [fbUser, setFbUser] = useState(null);
+  const [fbError, setFbError] = useState('');
+  const [fbLoading, setFbLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const [formData, setFormData] = useState({
     city: '',
@@ -134,6 +127,7 @@ const RainReportForm = ({ onClose, onSuccess }) => {
     location_accuracy_m: null,
     facebook_name: '',
     facebook_url: '',
+    facebook_picture: '',
     facebook_account_age: 'old',
     facebook_followers: '',
   });
@@ -200,25 +194,29 @@ const RainReportForm = ({ onClose, onSuccess }) => {
     }
   };
 
+  const handleFacebookLogin = async () => {
+    setFbError('');
+    setFbLoading(true);
+    try {
+      const user = await loginWithFacebook();
+      setFbUser(user);
+      setFormData((current) => ({
+        ...current,
+        facebook_name: user.name,
+        facebook_url: user.link,
+        facebook_picture: user.picture || '',
+        facebook_account_age: 'old',
+      }));
+    } catch (err) {
+      setFbError(err.message || 'تعذّر تسجيل الدخول بواسطة فيسبوك.');
+    } finally {
+      setFbLoading(false);
+    }
+  };
+
   const validateFacebookAccount = () => {
-    const followers = Number(formData.facebook_followers);
-
-    if (!formData.facebook_name.trim()) {
-      return 'يجب كتابة الاسم الظاهر في حساب فيسبوك.';
-    }
-
-    if (!isFacebookUrl(formData.facebook_url)) {
-      return 'يجب إدخال رابط حساب فيسبوك صحيح.';
-    }
-
-    if (formData.facebook_account_age !== 'old') {
-      return 'الحسابات الجديدة لا تُنشر لها تبشيرات المطر.';
-    }
-
-    if (!Number.isFinite(followers) || followers < MIN_FACEBOOK_FOLLOWERS) {
-      return `لا يُنشر البلاغ إذا كان الحساب أقل من ${MIN_FACEBOOK_FOLLOWERS} متابع.`;
-    }
-
+    // التوثيق يتم حصراً عبر تسجيل الدخول بفيسبوك (الاسم + الصورة الحقيقيان)
+    if (!fbUser) return 'يجب تسجيل الدخول بواسطة فيسبوك لتوثيق التبشيرة.';
     return '';
   };
 
@@ -252,15 +250,15 @@ const RainReportForm = ({ onClose, onSuccess }) => {
 
       await addRainReport({
         ...formData,
-        facebook_followers: Number(formData.facebook_followers),
+        facebook_followers: formData.facebook_followers ? Number(formData.facebook_followers) : null,
+        facebook_id: fbUser?.id || null,
         image_url,
         is_verified: true,
         created_at: new Date().toISOString(),
       });
 
-      alert('تم تأكيد المطر والموقع وحساب فيسبوك. نُشرت التبشيرة بنجاح.');
       if (onSuccess) onSuccess();
-      if (onClose) onClose();
+      setSubmitted(true);
     } catch (error) {
       alert('حدث خطأ أثناء الإرسال.');
     } finally {
@@ -279,8 +277,8 @@ const RainReportForm = ({ onClose, onSuccess }) => {
               <SafeIcon icon={FiCloudRain} className="text-2xl" />
             </div>
             <div>
-              <h2 className="text-xl font-black">تبشيرة مطر</h2>
-              <p className="text-xs opacity-80">النشر بعد تحقق الموقع والمطر وحساب فيسبوك</p>
+              <h2 className="text-xl font-black">تبشيرة مطر بالصورة</h2>
+              <p className="text-xs opacity-80">صوّر المطر/الغيوم وارفعها باسمك على الموقع</p>
             </div>
           </div>
           <button onClick={onClose} className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-all">
@@ -288,6 +286,21 @@ const RainReportForm = ({ onClose, onSuccess }) => {
           </button>
         </div>
 
+        {submitted ? (
+          <div className="p-8 text-center overflow-y-auto">
+            <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <SafeIcon icon={FiCheck} className="text-3xl" />
+            </div>
+            <h3 className="text-lg font-black text-gray-800 mb-2">تم رفع تبشيرتك ✅</h3>
+            <p className="text-sm text-gray-500 leading-relaxed mb-6">
+              نُشرت صورتك وتبشيرتك على الموقع{fbUser ? <> باسم <span className="font-black text-gray-700">{fbUser.name}</span></> : ''} بعد تأكيد الموقع.
+              شكراً لمساهمتك في رصد الأمطار في موريتانيا.
+            </p>
+            <button onClick={onClose} className="w-full bg-gray-900 text-white py-3 rounded-2xl font-bold hover:bg-gray-800 transition-all">
+              إغلاق
+            </button>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto">
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
@@ -340,51 +353,52 @@ const RainReportForm = ({ onClose, onSuccess }) => {
           <div className="space-y-3">
             <label className="block text-sm font-bold text-gray-700 flex items-center gap-2">
               <SafeIcon icon={FiUser} className="text-blue-600" />
-              حساب فيسبوك للناشر
+              توثيق الناشر عبر فيسبوك
             </label>
-            <input
-              required
-              value={formData.facebook_name}
-              onChange={(e) => setFormData({ ...formData, facebook_name: e.target.value })}
-              placeholder="الاسم الظاهر على فيسبوك"
-              className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none font-bold"
-            />
-            <div className="relative">
-              <SafeIcon icon={FiExternalLink} className="absolute right-3 top-3.5 text-gray-400" />
-              <input
-                required
-                type="url"
-                value={formData.facebook_url}
-                onChange={(e) => setFormData({ ...formData, facebook_url: e.target.value })}
-                placeholder="رابط حساب فيسبوك"
-                className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 pr-10 focus:ring-2 focus:ring-blue-500 outline-none font-bold ltr:text-left"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <select
-                value={formData.facebook_account_age}
-                onChange={(e) => setFormData({ ...formData, facebook_account_age: e.target.value })}
-                className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none font-bold"
+
+            {fbUser ? (
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  {fbUser.picture ? (
+                    <img src={fbUser.picture} alt={fbUser.name} className="w-9 h-9 rounded-full object-cover border border-white shadow-sm" referrerPolicy="no-referrer" />
+                  ) : (
+                    <span className="w-9 h-9 bg-[#1877F2] text-white rounded-full flex items-center justify-center font-black">
+                      {fbUser.name?.[0] || 'f'}
+                    </span>
+                  )}
+                  <div>
+                    <p className="text-sm font-black text-gray-800">{fbUser.name}</p>
+                    <p className="text-[10px] text-emerald-700 font-bold flex items-center gap-1">
+                      <SafeIcon icon={FiCheck} className="text-[10px]" /> موثّق عبر فيسبوك
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFbUser(null)}
+                  className="text-[11px] text-gray-400 hover:text-red-600 font-bold"
+                >
+                  تغيير
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleFacebookLogin}
+                disabled={fbLoading}
+                className="w-full bg-[#1877F2] text-white py-3 rounded-xl font-black flex items-center justify-center gap-2 hover:bg-[#166fe5] transition-all disabled:opacity-50"
               >
-                <option value="old">حساب قديم</option>
-                <option value="new">حساب جديد</option>
-              </select>
-              <input
-                required
-                type="number"
-                min="0"
-                value={formData.facebook_followers}
-                onChange={(e) => setFormData({ ...formData, facebook_followers: e.target.value })}
-                placeholder="عدد المتابعين"
-                className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none font-bold"
-              />
-            </div>
+                <SafeIcon icon={FiUser} />
+                {fbLoading ? 'جارٍ تسجيل الدخول...' : 'تسجيل الدخول بواسطة فيسبوك'}
+              </button>
+            )}
+            {fbError && <p className="text-xs font-bold text-red-600">{fbError}</p>}
           </div>
 
           <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 flex gap-3">
             <SafeIcon icon={FiShield} className="text-blue-600 text-xl shrink-0" />
             <p className="text-[11px] text-blue-800 leading-relaxed">
-              لا يختار المستخدم المقاطعة. يحدد الموقع عين المكان، ثم تُحسب أقرب مقاطعة والمسافة تلقائياً. لا يتم النشر إلا بعد تحقق المطر ومنع الحسابات الجديدة أو قليلة المتابعين.
+              لا يختار المستخدم المقاطعة. يحدد الموقع عين المكان، ثم تُحسب أقرب مقاطعة والمسافة تلقائياً. تُنشر التبشيرة باسمك الموثّق عبر فيسبوك بعد مراجعة الإدارة.
             </p>
           </div>
 
@@ -427,6 +441,7 @@ const RainReportForm = ({ onClose, onSuccess }) => {
             )}
           </button>
         </form>
+        )}
       </div>
     </div>
   );

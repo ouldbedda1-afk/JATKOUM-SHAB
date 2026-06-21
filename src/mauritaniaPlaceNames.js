@@ -71,7 +71,11 @@ const WILAYA_NAME_ALIASES = {
   gorgol: 'كوركول',
   trarza: 'الترارزة',
   brakna: 'البراكنة',
-  assaba: 'العصابة',
+  assaba: 'لعصابه',
+  // توحيد الصيغ العربية المختلفة لاسم الولاية إلى "لعصابه"
+  'العصابة': 'لعصابه',
+  'العصابه': 'لعصابه',
+  'لعصابة': 'لعصابه',
   tagant: 'تكانت',
   adrar: 'آدرار',
   inchiri: 'إنشيري',
@@ -163,7 +167,7 @@ export const OFFICIAL_MAURITANIA_ADMIN_COUNTS = {
 export const OFFICIAL_MAURITANIA_WILAYA_ORDER = [
   'الحوض الشرقي',
   'الحوض الغربي',
-  'العصابة',
+  'لعصابه',
   'كوركول',
   'البراكنة',
   'الترارزة',

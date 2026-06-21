@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { getAllCitiesWeather, getActiveFires, getMarineWeather, clearWeatherCache, getModelRainingNow } from './weatherApi';
-import { getRecentRainReports, getRecentBawahReports, getUpcomingRainForecasts, getActiveAlerts } from './supabase';
+import { getRecentRainReports, getRecentBawahReports, getUpcomingRainForecasts, getActiveAlerts, getApprovedNews } from './supabase';
 import { getSatelliteVegetationStatus } from './satelliteVegetation';
 import { getRainingNowFromSatellite, getSameDayHeavyRainEventsFromSatellite } from './satelliteRain';
 import { getEcmwfBriefs } from './ecmwfBriefs';
@@ -21,6 +21,7 @@ export const WeatherProvider = ({ children }) => {
   const [bawahReports,     setBawahReports]     = useState([]);
   const [rainForecasts,    setRainForecasts]    = useState([]);
   const [manualAlerts,     setManualAlerts]     = useState([]);
+  const [approvedNews,     setApprovedNews]     = useState([]);
   const [ecmwfBriefs,      setEcmwfBriefs]      = useState([]);
   const [vegetationData,   setVegetationData]   = useState(null);
   const [rainingNow,       setRainingNow]       = useState([]);
@@ -55,7 +56,7 @@ export const WeatherProvider = ({ children }) => {
       console.log('🔄 جلب البيانات المركزية...');
 
       // ✅ جلب كل البيانات دفعةً واحدة — weatherApi.js يتكفل بالـ cache ومنع التكرار
-      const [weather, activeFires, marine, reports, fieldBawahReports, vegetation, forecasts, alerts, ecmwf] = await Promise.all([
+      const [weather, activeFires, marine, reports, fieldBawahReports, vegetation, forecasts, alerts, ecmwf, news] = await Promise.all([
         getAllCitiesWeather().catch(e => { console.error('weather:', e); return []; }),
         getActiveFires().catch(e  => { console.error('fires:',   e); return []; }),
         getMarineWeather().catch(e => { console.error('marine:',  e); return []; }),
@@ -65,6 +66,7 @@ export const WeatherProvider = ({ children }) => {
         getUpcomingRainForecasts().catch(e => { console.error('forecasts:', e); return []; }),
         getActiveAlerts().catch(e => { console.error('alerts:', e); return []; }),
         getEcmwfBriefs().catch(e => { console.error('ecmwf:', e); return []; }),
+        getApprovedNews().catch(e => { console.error('news:', e); return []; }),
       ]);
 
       setWeatherData(weather   || []);
@@ -76,6 +78,7 @@ export const WeatherProvider = ({ children }) => {
       setRainForecasts(forecasts || []);
       setManualAlerts(alerts || []);
       setEcmwfBriefs(ecmwf || []);
+      setApprovedNews(news || []);
 
       // 🛰️ رصد الأمطار عبر الأقمار الصناعية (RainViewer) — بعد جلب بيانات المدن
       if (weather && weather.length > 0) {
@@ -157,6 +160,7 @@ export const WeatherProvider = ({ children }) => {
     bawahReports,
     rainForecasts,
     manualAlerts,
+    approvedNews,
     ecmwfBriefs,
     vegetationData,
     rainingNow,
@@ -172,7 +176,7 @@ export const WeatherProvider = ({ children }) => {
     }
   }), [
     weatherData, fires, marineData,
-    rainReports, bawahReports, rainForecasts, manualAlerts, ecmwfBriefs, vegetationData,
+    rainReports, bawahReports, rainForecasts, manualAlerts, approvedNews, ecmwfBriefs, vegetationData,
     rainingNow, modelRainingNow, sameDayRainEvents, loading, lastUpdated, error,
   ]);
 

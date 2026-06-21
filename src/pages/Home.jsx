@@ -11,6 +11,7 @@ import WeatherCharts from '../components/WeatherCharts';
 import PrayerTimes from '../components/PrayerTimes';
 import CloudTracker from '../components/CloudTracker';
 import StormAlertBanner from '../components/StormAlertBanner';
+import RainMap from '../components/RainMap';
 
 export default function Home() {
   const [selectedCity, setSelectedCity] = useState("نواكشوط");
@@ -83,6 +84,8 @@ export default function Home() {
             <WeatherAlerts />
             <WeatherCharts city={selectedCity} />
             <CloudTracker />
+
+            <RainMap />
             <SatelliteViewer />
             <CityGrid />
           </div>
