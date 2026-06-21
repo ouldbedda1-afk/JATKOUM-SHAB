@@ -10,7 +10,6 @@ import WeatherAlerts from '../components/WeatherAlerts';
 import PrayerTimes from '../components/PrayerTimes';
 import CloudTracker from '../components/CloudTracker';
 import StormAlertBanner from '../components/StormAlertBanner';
-import RainMap from '../components/RainMap';
 import LivestockHomePreview from '../components/LivestockHomePreview';
 
 // أثقل مكوّن (echarts) — يُحمَّل عند الحاجة فقط لتسريع أول تحميل
@@ -150,7 +149,6 @@ export default function Home() {
             </LazyOnVisible>
             <CloudTracker />
 
-            <RainMap />
             <LivestockHomePreview />
             <SatelliteViewer />
             <CityGrid />
