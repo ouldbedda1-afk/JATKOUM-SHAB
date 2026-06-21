@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { addRainReport, uploadLivestockImage } from '../supabase';
 import { getWeatherData } from '../weatherApi';
-import { loginWithGoogle } from '../google';
+import { loginWithFacebook } from '../facebook';
 import { mauritaniaCommuneDistricts } from '../mauritaniaCommunes';
 import { areMauritaniaPlaceNamesEquivalent } from '../mauritaniaPlaceNames';
 import * as FiIcons from 'react-icons/fi';
@@ -208,7 +208,7 @@ const RainReportForm = ({ onClose, onSuccess }) => {
     setFbError('');
     setFbLoading(true);
     try {
-      const user = await loginWithGoogle();
+      const user = await loginWithFacebook();
       setFbUser(user);
       setFormData((current) => ({
         ...current,
@@ -218,15 +218,15 @@ const RainReportForm = ({ onClose, onSuccess }) => {
         facebook_account_age: 'old',
       }));
     } catch (err) {
-      setFbError(err.message || 'تعذّر تسجيل الدخول بواسطة جوجل.');
+      setFbError(err.message || 'تعذّر تسجيل الدخول بواسطة فيسبوك.');
     } finally {
       setFbLoading(false);
     }
   };
 
   const validateFacebookAccount = () => {
-    // التوثيق يتم حصراً عبر تسجيل الدخول بجوجل (الاسم + الصورة الحقيقيان)
-    if (!fbUser) return 'يجب تسجيل الدخول بواسطة جوجل لتوثيق التبشيرة.';
+    // التوثيق يتم حصراً عبر تسجيل الدخول بفيسبوك (الاسم + الصورة الحقيقيان)
+    if (!fbUser) return 'يجب تسجيل الدخول بواسطة فيسبوك لتوثيق التبشيرة.';
     return '';
   };
 
@@ -377,7 +377,7 @@ const RainReportForm = ({ onClose, onSuccess }) => {
           <div className="space-y-3">
             <label className="block text-sm font-bold text-gray-700 flex items-center gap-2">
               <SafeIcon icon={FiUser} className="text-blue-600" />
-              توثيق الناشر عبر جوجل
+              توثيق الناشر عبر فيسبوك
             </label>
 
             {fbUser ? (
@@ -386,14 +386,14 @@ const RainReportForm = ({ onClose, onSuccess }) => {
                   {fbUser.picture ? (
                     <img src={fbUser.picture} alt={fbUser.name} className="w-9 h-9 rounded-full object-cover border border-white shadow-sm" referrerPolicy="no-referrer" />
                   ) : (
-                    <span className="w-9 h-9 bg-[#4285F4] text-white rounded-full flex items-center justify-center font-black">
-                      {fbUser.name?.[0] || 'G'}
+                    <span className="w-9 h-9 bg-[#1877F2] text-white rounded-full flex items-center justify-center font-black">
+                      {fbUser.name?.[0] || 'f'}
                     </span>
                   )}
                   <div>
                     <p className="text-sm font-black text-gray-800">{fbUser.name}</p>
                     <p className="text-[10px] text-emerald-700 font-bold flex items-center gap-1">
-                      <SafeIcon icon={FiCheck} className="text-[10px]" /> موثّق عبر جوجل
+                      <SafeIcon icon={FiCheck} className="text-[10px]" /> موثّق عبر فيسبوك
                     </p>
                   </div>
                 </div>
@@ -410,10 +410,10 @@ const RainReportForm = ({ onClose, onSuccess }) => {
                 type="button"
                 onClick={handleFacebookLogin}
                 disabled={fbLoading}
-                className="w-full bg-white text-gray-700 border-2 border-gray-200 py-3 rounded-xl font-black flex items-center justify-center gap-2 hover:bg-gray-50 transition-all disabled:opacity-50"
+                className="w-full bg-[#1877F2] text-white py-3 rounded-xl font-black flex items-center justify-center gap-2 hover:bg-[#166fe5] transition-all disabled:opacity-50"
               >
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" className="w-5 h-5" />
-                {fbLoading ? 'جارٍ تسجيل الدخول...' : 'تسجيل الدخول بواسطة جوجل'}
+                <SafeIcon icon={FiUser} />
+                {fbLoading ? 'جارٍ تسجيل الدخول...' : 'تسجيل الدخول بواسطة فيسبوك'}
               </button>
             )}
             {fbError && <p className="text-xs font-bold text-red-600">{fbError}</p>}
@@ -422,7 +422,7 @@ const RainReportForm = ({ onClose, onSuccess }) => {
           <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 flex gap-3">
             <SafeIcon icon={FiShield} className="text-blue-600 text-xl shrink-0" />
             <p className="text-[11px] text-blue-800 leading-relaxed">
-              لا يختار المستخدم المقاطعة. يحدد الموقع عين المكان، ثم تُحسب أقرب مقاطعة والمسافة تلقائياً. تُنشر التبشيرة باسمك الموثّق عبر جوجل بعد مراجعة الإدارة.
+              لا يختار المستخدم المقاطعة. يحدد الموقع عين المكان، ثم تُحسب أقرب مقاطعة والمسافة تلقائياً. تُنشر التبشيرة باسمك الموثّق عبر فيسبوك بعد مراجعة الإدارة.
             </p>
           </div>
 
