@@ -175,11 +175,11 @@ const LivestockReportForm = ({ onClose, onSuccess }) => {
               <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
                 <SafeIcon icon={FiPhone} className="text-amber-600" />
                 رقم التواصل
-                {isContactAndPlaceOptional && <span className="text-[11px] font-medium text-gray-400">(اختياري)</span>}
+                <span className="text-[11px] font-bold text-red-500">(إلزامي)</span>
               </label>
-              <input 
+              <input
                 type="tel"
-                required={!isContactAndPlaceOptional}
+                required
                 placeholder="00000000"
                 value={formData.contact_phone}
                 onChange={(e) => setFormData({...formData, contact_phone: e.target.value})}
