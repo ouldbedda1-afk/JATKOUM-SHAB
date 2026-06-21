@@ -54,8 +54,8 @@ export function sendLocalNotification(title, options = {}) {
   }
 
   const defaultOptions = {
-    icon: '/JATKOUM-SHAB/logo.png',
-    badge: '/JATKOUM-SHAB/logo.png',
+    icon: '/logo.png',
+    badge: '/logo.png',
     dir: 'rtl',
     lang: 'ar',
     ...options
