@@ -503,6 +503,16 @@ filteredMauritaniaCommunesList
     rotatingCommuneCoverageBatches[index % EXTRA_COVERAGE_BATCH_COUNT].push(commune.city);
   });
 
+// رصد دائم لكل بلديات موريتانيا في كل تحديث (لا دورة) — يُجلب على دفعات آمنة
+const ALL_TRACKED_CITIES = [
+  ...new Set([
+    ...coreMauritanianCities,
+    ...filteredMauritaniaCommunesList.map((commune) => commune.city),
+  ]),
+].filter((city) => mauritanianCities[city]);
+
+const COVERAGE_CHUNK_SIZE = 100; // حد أقصى لكل طلب Open-Meteo (لتفادي طلب ضخم يفشل)
+
 function getNextCoverageBatchIndex() {
   if (rotatingCommuneCoverageBatches.length === 0) return 0;
 
@@ -941,10 +951,8 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
 }
 
 export async function getAllCitiesWeather() {
-  const activeBatchIndex = getNextCoverageBatchIndex();
-  const extraBatchCities = rotatingCommuneCoverageBatches[activeBatchIndex] || [];
-  const trackedCities = [...new Set([...coreMauritanianCities, ...extraBatchCities])];
-  const cacheKey = `${ALL_CITIES_CACHE_KEY}_b${activeBatchIndex}`;
+  const trackedCities = ALL_TRACKED_CITIES;
+  const cacheKey = `${ALL_CITIES_CACHE_KEY}_all`;
   const mergedCache = getCached(ALL_CITIES_MERGED_CACHE_KEY, true) || lsGet(ALL_CITIES_MERGED_CACHE_KEY, true) || [];
 
   // Cache أولاً (يشمل localStorage لمنع إعادة الجلب بعد تحديث الصفحة)
@@ -964,33 +972,37 @@ export async function getAllCitiesWeather() {
 
   const promise = (async () => {
     try {
-      // نجلب المدن الأساسية دائماً، مع دفعة إضافية متناوبة من البلديات لتوسيع الرصد تدريجياً
-      const lats = trackedCities.map(c => mauritanianCities[c].lat).join(',');
-      const lons = trackedCities.map(c => mauritanianCities[c].lon).join(',');
+      // رصد كل بلديات موريتانيا — نقسّم الطلب إلى دفعات (≤100) لتفادي طلب ضخم يفشل
+      const dataItems = [];
+      for (let start = 0; start < trackedCities.length; start += COVERAGE_CHUNK_SIZE) {
+        const chunk = trackedCities.slice(start, start + COVERAGE_CHUNK_SIZE);
+        const lats = chunk.map(c => mauritanianCities[c].lat).join(',');
+        const lons = chunk.map(c => mauritanianCities[c].lon).join(',');
 
-      const params = new URLSearchParams({
-        latitude: lats,
-        longitude: lons,
-        current: 'temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,pressure_msl,precipitation',
-        hourly: 'temperature_2m,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,weather_code',
-        daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max',
-        timezone: 'Africa/Nouakchott',
-        forecast_days: 7,
-      });
+        const params = new URLSearchParams({
+          latitude: lats,
+          longitude: lons,
+          current: 'temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,pressure_msl,precipitation',
+          hourly: 'temperature_2m,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,weather_code',
+          daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max',
+          timezone: 'Africa/Nouakchott',
+          forecast_days: 7,
+        });
 
-      const sourceUrl = `${OPEN_METEO_API}?${params}`;
-      const target = buildProxyTarget(sourceUrl);
-      const response = await enqueueFetch(target);
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText || ''}`);
-      }
+        const sourceUrl = `${OPEN_METEO_API}?${params}`;
+        const target = buildProxyTarget(sourceUrl);
+        const response = await enqueueFetch(target);
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status} ${response.statusText || ''}`);
+        }
 
-      const data = await response.json();
-      const dataItems = Array.isArray(data) ? data : [data];
-
-      // إذا كانت الاستجابة غير متوقعة، نجرب الاسترجاع بالمدينة الواحدة
-      if (dataItems.length !== trackedCities.length || dataItems.some(item => !item.current)) {
-        throw new Error('Invalid batch weather response');
+        const data = await response.json();
+        const items = Array.isArray(data) ? data : [data];
+        // Open-Meteo يرجّع كائناً واحداً لدفعة من موقع واحد
+        if (items.length !== chunk.length || items.some(item => !item.current)) {
+          throw new Error('Invalid batch weather response');
+        }
+        dataItems.push(...items);
       }
 
       const results = dataItems.map((item, index) => {
