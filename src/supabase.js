@@ -140,13 +140,15 @@ function notifyNewSubmission(table, record) {
 // إضافة بلاغ جديد (مفقود أو موجود)
 export async function addLivestockReport(report) {
   try {
+    // معرّف من جهة العميل ليُمرَّر لأزرار تيليجرام (نشر/رفض)
+    const id = (globalThis.crypto?.randomUUID?.()) || undefined;
+    const row = id ? { ...report, id, status: 'pending' } : { ...report, status: 'pending' };
     const { data, error } = await supabase
       .from('livestock_reports')
-      // كل بلاغ جديد يبدأ معلّقاً بانتظار موافقة الإدارة
-      .insert([{ ...report, status: 'pending' }]);
+      .insert([row]);
 
     if (error) throw error;
-    notifyNewSubmission('livestock_reports', report); // إشعار تيليجرام للأدمن
+    notifyNewSubmission('livestock_reports', row); // إشعار تيليجرام (مع المعرّف والصورة)
     return data;
   } catch (error) {
     console.error('خطأ في إضافة بلاغ الماشية:', error);
@@ -226,12 +228,14 @@ export async function uploadLivestockAudio(file) {
 // إضافة بلاغ مطر جديد — يبدأ معلّقاً بانتظار موافقة الإدارة
 export async function addRainReport(report) {
   try {
+    const id = globalThis.crypto?.randomUUID?.();
+    const row = id ? { ...report, id, status: 'pending' } : { ...report, status: 'pending' };
     const { data, error } = await supabase
       .from('rain_reports')
-      .insert([{ ...report, status: 'pending' }]);
+      .insert([row]);
 
     if (error) throw error;
-    notifyNewSubmission('rain_reports', report); // إشعار تيليجرام للأدمن
+    notifyNewSubmission('rain_reports', row); // إشعار تيليجرام للأدمن
     return data;
   } catch (error) {
     console.error('خطأ في إضافة بلاغ المطر:', error);
