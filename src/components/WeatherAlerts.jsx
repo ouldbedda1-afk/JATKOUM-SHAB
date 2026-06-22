@@ -5,6 +5,7 @@ import { buildConvectiveWatch } from '../convection';
 import { buildLightningReport } from '../lightningBlitzortung';
 import { toArabicCommune } from '../mauritaniaCommuneNamesAr';
 import SatelliteViewer from './SatelliteViewer';
+import BreakingNowBox from './BreakingNowBox';
 import { requestNotificationPermission, sendLocalNotification } from '../pwa';
 import {
   compareMauritaniaWilayaAdminOrder,
@@ -1042,6 +1043,9 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
               </div>
             </div>
           </article>
+
+        {/* صندوق المتابعة/الرصد العاجل — فوق التوقعات */}
+        <BreakingNowBox />
 
         {wilayaGroups.length > 0 ? (
           wilayaGroups.map(([wilaya, entries]) => renderWilayaCard(wilaya, entries))
