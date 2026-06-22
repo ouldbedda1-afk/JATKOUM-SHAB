@@ -4,6 +4,7 @@ import { getRecentRainReports, getRecentBawahReports, getUpcomingRainForecasts, 
 import { getSatelliteVegetationStatus } from './satelliteVegetation';
 import { getRainingNowFromSatellite, getSameDayHeavyRainEventsFromSatellite, getRainingNowFromIMERG } from './satelliteRain';
 import { MAURITANIA_RADAR_GRID } from './mauritaniaRadarGrid';
+import { startLightning, subscribeLightning } from './lightningBlitzortung';
 import { getEcmwfBriefs } from './ecmwfBriefs';
 
 const WeatherContext = createContext(null);
@@ -27,6 +28,7 @@ export const WeatherProvider = ({ children }) => {
   const [vegetationData,   setVegetationData]   = useState(null);
   const [rainingNow,       setRainingNow]       = useState([]);
   const [sameDayRainEvents, setSameDayRainEvents] = useState([]);
+  const [lightningStrikes, setLightningStrikes] = useState([]);
   const [loading,          setLoading]          = useState(true);
   const [lastUpdated,      setLastUpdated]      = useState(null);
   const [error,            setError]            = useState(null);
@@ -122,6 +124,13 @@ export const WeatherProvider = ({ children }) => {
     }
   };
 
+  // ⚡ بدء كشف الصواعق الحقيقي (Blitzortung) والاشتراك في التحديثات
+  useEffect(() => {
+    startLightning();
+    const unsub = subscribeLightning((s) => setLightningStrikes(s));
+    return () => unsub();
+  }, []);
+
   useEffect(() => {
     // ✅ جلب أول مرة فقط عند التحميل
     refreshAllData();
@@ -177,6 +186,7 @@ export const WeatherProvider = ({ children }) => {
     rainingNow,
     modelRainingNow,
     sameDayRainEvents,
+    lightningStrikes,
     loading,
     lastUpdated,
     error,
@@ -188,7 +198,7 @@ export const WeatherProvider = ({ children }) => {
   }), [
     weatherData, fires, marineData,
     rainReports, bawahReports, rainForecasts, manualAlerts, approvedNews, ecmwfBriefs, vegetationData,
-    rainingNow, modelRainingNow, sameDayRainEvents, loading, lastUpdated, error,
+    rainingNow, modelRainingNow, sameDayRainEvents, lightningStrikes, loading, lastUpdated, error,
   ]);
 
   return (

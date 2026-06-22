@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useWeatherContext } from '../WeatherContext';
 import { buildRainMovementAlerts } from '../rainCellTracker';
 import { buildConvectiveWatch } from '../convection';
+import { buildLightningReport } from '../lightningBlitzortung';
 import { toArabicCommune } from '../mauritaniaCommuneNamesAr';
 import { requestNotificationPermission, sendLocalNotification } from '../pwa';
 import {
@@ -343,7 +344,7 @@ function isRainySeason(dateStr) {
 /* ══════════════════════════════════════════
    مكوّن النشرة الجوية الرسمية (3 أيام موحدة)
 ══════════════════════════════════════════ */
-function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNow }) {
+function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNow, lightningStrikes }) {
   const [isTodayObservationFlashing, setIsTodayObservationFlashing] = useState(false);
   const [confirmedForecasts, setConfirmedForecasts] = useState([]);
   const flashTimeoutRef = useRef(null);
@@ -368,6 +369,12 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
   const convectiveWatch = useMemo(
     () => buildConvectiveWatch({ weatherData: cities, maxItems: 5 }),
     [cities]
+  );
+
+  // ⚡ برق حقيقي مرصود (Blitzortung) — أعلى أولوية
+  const lightningReport = useMemo(
+    () => buildLightningReport(lightningStrikes, cities, 5),
+    [lightningStrikes, cities]
   );
 
   // متتبّع التأكيد: ما يتوقّعه النموذج ثم يؤكّده الرادار لاحقاً → "✅ تأكّد بالرادار"
@@ -501,7 +508,22 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
   const issuedAt = `${todayDate} — ${fmtTime(new Date())}`;
 
   const todayObservation = useMemo(() => {
-    // أولوية أولى: خلايا مطر/برق متحركة مرصودة بالرادار (خبر دقيق على مستوى البلدية)
+    // أعلى أولوية: برق حقيقي مرصود فعلياً (Blitzortung)
+    if (lightningReport && lightningReport.areas.length > 0) {
+      const areasText = lightningReport.areas
+        .map((a) => `${toArabicCommune(a.city)} (${a.count})`)
+        .join('، ');
+      return {
+        tone: 'live',
+        coverage: lightningReport.areas.length >= 3 ? 'wide' : 'regional',
+        title: `⚡ برق مرصود فعلياً الآن (${lightningReport.total} ضربة)`,
+        summary: `كشفت شبكة الصواعق Blitzortung برقاً حقيقياً خلال آخر 30 دقيقة، الأكثر قرباً من: ${areasText}.`,
+        details: 'هذا رصد فعلي لضربات البرق (لا استنتاج) — يرجى الحذر من الصواعق والابتعاد عن الأماكن المكشوفة والأودية.',
+        chips: ['⚡ برق حقيقي', 'Blitzortung', `${lightningReport.total} ضربة/30د`],
+      };
+    }
+
+    // أولوية: خلايا مطر/برق متحركة مرصودة بالرادار (خبر دقيق على مستوى البلدية)
     if (rainMovements && rainMovements.length > 0) {
       const thunderCount = rainMovements.filter((m) => m.icon === '⚡').length;
       return {
@@ -583,7 +605,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         'تستمر متابعة الرادار وأرشيف اليوم وقراءة النموذج وحركة السحب، وتُحدَّث هذه البطاقة تلقائياً عند ظهور أي مؤشرات محلية أو مسار ممطر نحو أي ولاية.',
       chips: ['اليوم', 'متابعة مستمرة', 'تحديث آلي'],
     };
-  }, [rainMovements, convectiveWatch, currentRainNarrative, sameDayRainEvents, rainingNow, modelRainingNow]);
+  }, [lightningReport, rainMovements, convectiveWatch, currentRainNarrative, sameDayRainEvents, rainingNow, modelRainingNow]);
 
   const todayTheme = useMemo(() => {
     if (todayObservation.tone === 'live') {
@@ -1003,6 +1025,7 @@ const WeatherAlerts = () => {
     rainingNow,
     modelRainingNow,
     sameDayRainEvents,
+    lightningStrikes,
     loading,
     lastUpdated,
   } = useWeatherContext();
@@ -1190,6 +1213,7 @@ const WeatherAlerts = () => {
         rainingNow={rainingNow}
         sameDayRainEvents={sameDayRainEvents}
         modelRainingNow={modelRainingNow}
+        lightningStrikes={lightningStrikes}
       />
 
     </div>
