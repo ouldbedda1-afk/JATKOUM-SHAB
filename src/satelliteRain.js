@@ -119,19 +119,17 @@ async function getTileMaxRain(tileUrl, px, py, radius = 3, colorFn = colorToRain
  * IMERG يلوّن فقط حيث يوجد هطول (شفاف = لا مطر)، من الأزرق (خفيف) للأحمر/الوردي (غزير جداً).
  */
 function colorToImergIntensity(r, g, b, a) {
-  if (a < 40) return { mmh: 0, label: null };
+  // نشترط تعتيماً عالياً لتفادي حواف/أثر باهت فوق الصحراء (ضجيج IMERG)
+  if (a < 140) return { mmh: 0, label: null };
   // وردي/بنفسجي قوي = غزير جداً
   if (r > 180 && b > 150 && g < 130) return { mmh: 40, label: 'غزير جداً' };
   // أحمر = غزير
   if (r > 190 && g < 110 && b < 110) return { mmh: 20, label: 'غزير' };
   // برتقالي/أصفر = متوسط
   if (r > 180 && g > 140 && b < 120) return { mmh: 9, label: 'متوسط' };
-  // أخضر = خفيف
-  if (g > 130 && g >= r && b < 150) return { mmh: 3, label: 'خفيف' };
-  // أزرق/سماوي = خفيف جداً
-  if (b > 130) return { mmh: 1, label: 'خفيف' };
-  // أي بكسل ملوّن آخر = هطول خفيف
-  if (a >= 60 && (r + g + b) > 80) return { mmh: 0.8, label: 'خفيف' };
+  // أخضر = مطر معتبر خفيف
+  if (g > 150 && g >= r && b < 140) return { mmh: 4, label: 'خفيف' };
+  // الأزرق (هطول ضعيف جداً/أثر) نتجاهله لتفادي الإيجابيات الكاذبة فوق الصحراء
   return { mmh: 0, label: null };
 }
 
@@ -165,7 +163,8 @@ export async function getRainingNowFromIMERG(cities) {
   );
 
   return results
-    .filter((r) => r.status === 'fulfilled' && r.value.rain.mmh >= 1)
+    // عتبة معتبرة (أخضر فأعلى ≥4) لتفادي الإيجابيات الكاذبة فوق الصحراء
+    .filter((r) => r.status === 'fulfilled' && r.value.rain.mmh >= 4)
     .map((r) => ({
       city: r.value.city.city,
       wilaya: r.value.city.wilaya || '',
