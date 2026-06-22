@@ -135,8 +135,10 @@ const NewsTicker = () => {
       const dailyMaxT   = cityData.daily?.temperature_2m_max    || [];
       const dailyRain   = cityData.daily?.precipitation_sum     || [];
 
+      const todayStr = new Date().toISOString().slice(0, 10);
       dailyCodes.forEach((dCode, i) => {
         if (!dailyDates[i]) return;
+        if (dailyDates[i] < todayStr) return; // تجاهل أخبار الأيام الماضية
         const dateLabel = fmtDate(dailyDates[i]);
 
         if (dCode >= 95) {
