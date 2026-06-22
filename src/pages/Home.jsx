@@ -4,7 +4,6 @@ import NewsTicker from '../components/NewsTicker';
 import WeatherHero from '../components/WeatherHero';
 import WeeklyForecast from '../components/WeeklyForecast';
 import CityGrid from '../components/CityGrid';
-import RuralTools from '../components/RuralTools';
 import WeatherAlerts from '../components/WeatherAlerts';
 import PrayerTimes from '../components/PrayerTimes';
 import CloudTracker from '../components/CloudTracker';
@@ -143,7 +142,6 @@ export default function Home() {
           {/* Main Content */}
           <div className="lg:col-span-8 space-y-6 md:space-y-8">
             <WeatherHero city={selectedCity} />
-            <WeeklyForecast city={selectedCity} />
             <WeatherAlerts />
             <LazyOnVisible minHeight={288}>
               <Suspense fallback={<div className="bg-white rounded-[2rem] h-64 animate-pulse border border-gray-100" />}>
@@ -159,7 +157,7 @@ export default function Home() {
           {/* Sidebar / Extra Info */}
           <div className="lg:col-span-4 space-y-6 md:space-y-8 lg:sticky lg:top-4 lg:self-start">
             <PrayerTimes city={selectedCity} />
-            <RuralTools />
+            <WeeklyForecast city={selectedCity} />
 
             <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-gray-100">
               <h3 className="text-lg font-bold text-gray-800 mb-4">تابعنا على فيسبوك</h3>
