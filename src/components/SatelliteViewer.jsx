@@ -4,13 +4,19 @@ import SafeIcon from '../common/SafeIcon';
 import { useWeatherContext } from '../WeatherContext';
 import { sendLocalNotification, requestNotificationPermission } from '../pwa';
 import { broadcastPush } from '../supabase';
+import { toArabicCommune } from '../mauritaniaCommuneNamesAr';
+
+// رابط sat24 لموريتانيا مع طبقة البرق
+const SAT24_LIGHTNING_URL = 'https://www.sat24.com/fr-fr/country/mr#lightning=on';
 
 const { FiLayers, FiMaximize, FiRefreshCw, FiExternalLink, FiShield, FiCheck, FiCloudRain, FiShare2, FiMapPin } = FiIcons;
 
 // بناء نص الخبر العاجل القابل للنشر
-function buildBreakingText({ thunderCities, rainCities, modelThunder, modelRain }) {
+function buildBreakingText({ thunderCities, rainCities, modelThunder, modelRain, hasRadar }) {
   const stamp = new Date().toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
-  let text = `🔴 *عاجل الآن — جاتكم اسحاب*\n📅 ${stamp}\n\n`;
+  let text = hasRadar
+    ? `🔴 *عاجل الآن — جاتكم اسحاب*\n📅 ${stamp}\n\n`
+    : `🔭 *متابعة الطقس — جاتكم اسحاب*\n📅 ${stamp}\n\n`;
   if (thunderCities.length > 0) {
     text += `⚡ *عواصف رعدية وبرق مرصودة بالأقمار* في: ${thunderCities.join('، ')}.\nيُرجى الحذر والابتعاد عن الأودية والمناطق المكشوفة.\n\n`;
   }
@@ -18,10 +24,10 @@ function buildBreakingText({ thunderCities, rainCities, modelThunder, modelRain 
     text += `🌧️ *غيوم ماطرة مرصودة بالأقمار* في: ${rainCities.join('، ')}.\nجعلها الله أمطار خير وبركة.\n\n`;
   }
   if ((modelThunder?.length || 0) > 0) {
-    text += `⚡ *عواصف رعدية متوقعة (حسب النموذج)* في: ${modelThunder.join('، ')}.\n\n`;
+    text += `🔭 *عواصف رعدية محتملة (توقّع نموذجي غير مؤكد)* في: ${modelThunder.join('، ')}.\n\n`;
   }
   if ((modelRain?.length || 0) > 0) {
-    text += `🌧️ *أمطار متوقعة (حسب النموذج)* في: ${modelRain.join('، ')}.\n\n`;
+    text += `🔭 *أمطار محتملة (توقّع نموذجي غير مؤكد)* في: ${modelRain.join('، ')}.\n\n`;
   }
   text += `تابع الرصد المباشر: ${window.location.origin}`;
   return text;
@@ -70,11 +76,15 @@ const SatelliteViewer = () => {
       .filter((m) => !m.isThunder && !radarSet.has(m.city) && !modelThunder.includes(m.city))
       .map((m) => m.city);
 
+    // تعريب أسماء البلديات للعرض
+    const ar = (list) => list.map(toArabicCommune);
+
     return {
-      thunderCities,
-      rainCities,
-      modelThunder,
-      modelRain,
+      thunderCities: ar(thunderCities),
+      rainCities: ar(rainCities),
+      modelThunder: ar(modelThunder),
+      modelRain: ar(modelRain),
+      hasRadar: thunderCities.length > 0 || rainCities.length > 0,
       active:
         thunderCities.length > 0 || rainCities.length > 0 ||
         modelThunder.length > 0 || modelRain.length > 0,
@@ -86,9 +96,10 @@ const SatelliteViewer = () => {
   // 🔔 إشعار فوري عند رصد برق/أمطار جديدة (مع منع تكرار نفس الإشعار)
   const lastNotifiedRef = useRef('');
   useEffect(() => {
-    if (!breaking.active) return;
-    const allThunder = [...breaking.thunderCities, ...breaking.modelThunder];
-    const allRain = [...breaking.rainCities, ...breaking.modelRain];
+    // إشعار/بثّ للمؤكّد بالرادار فقط — لا نرسل إشعارات لتوقعات النموذج (تفادي الإنذار الكاذب)
+    if (!breaking.hasRadar) return;
+    const allThunder = breaking.thunderCities;
+    const allRain = breaking.rainCities;
     const signature =
       `T:${[...allThunder].sort().join(',')}|R:${[...allRain].sort().join(',')}`;
     if (signature === lastNotifiedRef.current) return;
@@ -180,25 +191,38 @@ const SatelliteViewer = () => {
           </div>
         </div>
 
-        <a
-          href={openInWindy}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl border border-blue-100 transition-colors whitespace-nowrap"
-        >
-          <SafeIcon icon={FiExternalLink} className="text-xs" />
-          فتح بملء الإمكانات
-        </a>
+        <div className="flex items-center gap-2 flex-wrap">
+          <a
+            href={SAT24_LIGHTNING_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-3 py-2 rounded-xl border border-amber-200 transition-colors whitespace-nowrap"
+            title="صور الأقمار الصناعية مع طبقة البرق (sat24)"
+          >
+            ⚡ خريطة البرق (sat24)
+          </a>
+          <a
+            href={openInWindy}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl border border-blue-100 transition-colors whitespace-nowrap"
+          >
+            <SafeIcon icon={FiExternalLink} className="text-xs" />
+            فتح بملء الإمكانات
+          </a>
+        </div>
       </div>
 
       {/* 🔴 خبر عاجل: برق أو غيوم ماطرة مرصودة الآن */}
       {breaking.active && (
-        <div className="mb-4 rounded-2xl border-2 border-red-200 bg-gradient-to-l from-red-50 via-rose-50 to-white overflow-hidden shadow-sm">
-          <div className="bg-red-600 px-4 py-2 flex items-center gap-2">
+        <div className={`mb-4 rounded-2xl border-2 overflow-hidden shadow-sm ${breaking.hasRadar ? 'border-red-200 bg-gradient-to-l from-red-50 via-rose-50 to-white' : 'border-amber-200 bg-gradient-to-l from-amber-50 via-orange-50 to-white'}`}>
+          <div className={`px-4 py-2 flex items-center gap-2 ${breaking.hasRadar ? 'bg-red-600' : 'bg-amber-500'}`}>
             <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-            <span className="text-white font-black text-sm tracking-wide">عاجل الآن · رصد مباشر</span>
+            <span className="text-white font-black text-sm tracking-wide">
+              {breaking.hasRadar ? 'عاجل الآن · رصد مباشر' : 'متابعة · توقّعات النموذج (غير مؤكدة)'}
+            </span>
             <span className="mr-auto text-white/90 text-[10px] font-mono">
-              {breaking.thunderCities.length + breaking.rainCities.length > 0 ? '🛰️ رادار + نموذج' : '📊 حسب النموذج'}
+              {breaking.hasRadar ? '🛰️ رادار' : '🔭 نموذج'}
             </span>
           </div>
           <div className="p-4">
@@ -218,13 +242,13 @@ const SatelliteViewer = () => {
             {/* مصدر داعم: نموذج Open-Meteo */}
             {breaking.modelThunder.length > 0 && (
               <p className="text-sm font-bold text-amber-900 mb-1.5 leading-7">
-                ⚡ عواصف رعدية متوقعة <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">📊 نموذج</span> في:{' '}
+                🔭 عواصف رعدية محتملة <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">توقّع نموذجي غير مؤكد</span> في:{' '}
                 <span className="font-black">{breaking.modelThunder.join('، ')}</span>
               </p>
             )}
             {breaking.modelRain.length > 0 && (
               <p className="text-sm font-bold text-teal-900 mb-1.5 leading-7">
-                🌧️ أمطار متوقعة <span className="text-[10px] bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full">📊 نموذج</span> في:{' '}
+                🔭 أمطار محتملة <span className="text-[10px] bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full">توقّع نموذجي غير مؤكد</span> في:{' '}
                 <span className="font-black">{breaking.modelRain.join('، ')}</span>
               </p>
             )}
