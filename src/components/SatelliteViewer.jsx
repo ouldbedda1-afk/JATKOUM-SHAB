@@ -6,9 +6,6 @@ import { sendLocalNotification, requestNotificationPermission } from '../pwa';
 import { broadcastPush } from '../supabase';
 import { toArabicCommune } from '../mauritaniaCommuneNamesAr';
 
-// رابط sat24 لموريتانيا مع طبقة البرق
-const SAT24_LIGHTNING_URL = 'https://www.sat24.com/fr-fr/country/mr#lightning=on';
-
 const { FiLayers, FiMaximize, FiRefreshCw, FiExternalLink, FiShield, FiCheck, FiCloudRain, FiShare2, FiMapPin } = FiIcons;
 
 // بناء نص الخبر العاجل القابل للنشر
@@ -191,26 +188,15 @@ const SatelliteViewer = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <a
-            href={SAT24_LIGHTNING_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-3 py-2 rounded-xl border border-amber-200 transition-colors whitespace-nowrap"
-            title="صور الأقمار الصناعية مع طبقة البرق (sat24)"
-          >
-            ⚡ خريطة البرق (sat24)
-          </a>
-          <a
-            href={openInWindy}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl border border-blue-100 transition-colors whitespace-nowrap"
-          >
-            <SafeIcon icon={FiExternalLink} className="text-xs" />
-            فتح بملء الإمكانات
-          </a>
-        </div>
+        <a
+          href={openInWindy}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl border border-blue-100 transition-colors whitespace-nowrap"
+        >
+          <SafeIcon icon={FiExternalLink} className="text-xs" />
+          فتح بملء الإمكانات
+        </a>
       </div>
 
       {/* 🔴 خبر عاجل: برق أو غيوم ماطرة مرصودة الآن */}
