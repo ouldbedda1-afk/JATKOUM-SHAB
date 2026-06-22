@@ -11,6 +11,7 @@ import PrayerTimes from '../components/PrayerTimes';
 import CloudTracker from '../components/CloudTracker';
 import StormAlertBanner from '../components/StormAlertBanner';
 import LivestockHomePreview from '../components/LivestockHomePreview';
+import HomeHeroBanner from '../components/HomeHeroBanner';
 
 // أثقل مكوّن (echarts) — يُحمَّل عند الحاجة فقط لتسريع أول تحميل
 const WeatherCharts = lazy(() => import('../components/WeatherCharts'));
@@ -106,11 +107,12 @@ export default function Home() {
     <div className="min-h-screen bg-gray-50 pb-20 overflow-x-hidden" dir="rtl">
       <Navbar onCitySelect={setSelectedCity} />
       <NewsTicker />
+      <HomeHeroBanner />
 
       {/* شريط دعوة لتحديد الموقع عند نسيانه/رفضه */}
       {showLocBanner && (
         <div className="bg-blue-600 text-white">
-          <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
+          <div className="max-w-[1400px] mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
             <span className="text-xs md:text-sm font-bold flex items-center gap-2">
               📍 فعّل موقعك لعرض طقس منطقتك مباشرةً
             </span>
@@ -134,7 +136,7 @@ export default function Home() {
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-4 mt-4 md:mt-8">
+      <main className="max-w-[1400px] mx-auto px-4 mt-4 md:mt-8">
         <StormAlertBanner />
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 mt-6">
           {/* Main Content */}
@@ -155,7 +157,7 @@ export default function Home() {
           </div>
 
           {/* Sidebar / Extra Info */}
-          <div className="lg:col-span-4 space-y-6 md:space-y-8">
+          <div className="lg:col-span-4 space-y-6 md:space-y-8 lg:sticky lg:top-4 lg:self-start">
             <PrayerTimes city={selectedCity} />
             <RuralTools />
 
@@ -178,7 +180,7 @@ export default function Home() {
       </main>
 
       <footer className="mt-20 border-t border-gray-200 bg-white py-10">
-        <div className="max-w-7xl mx-auto px-4 text-center">
+        <div className="max-w-[1400px] mx-auto px-4 text-center">
           <p className="text-gray-500 font-bold">© 2026 جاتكم اسحاب - كافة الحقوق محفوظة</p>
           <div className="flex justify-center gap-4 mt-2">
             <a href="https://www.facebook.com/Beddetiii/" className="text-blue-600 hover:underline text-xs">صفحة فيسبوك</a>
