@@ -635,8 +635,8 @@ export function getModelRainingNow(weatherData) {
       const hPrecip = c.hourly?.precipitation?.[i] ?? 0;
       const hProb = c.hourly?.precipitation_probability?.[i] ?? 0;
       const hRainCode = (hCode >= 51 && hCode <= 67) || (hCode >= 80 && hCode <= 82) || hCode >= 95;
-      // مطر مرجّح: هطول فعلي، أو كود ماطر، أو احتمال عالٍ جداً
-      if (hPrecip > 0.1 || hRainCode || hProb >= 75) {
+      // مطر فعلي فقط: هطول حقيقي أو كود ماطر (لا نعتمد الاحتمال وحده لتفادي إنذار كاذب)
+      if (hPrecip > 0.1 || hRainCode) {
         const score = hPrecip * 10 + (hCode >= 95 ? 50 : 0) + (hRainCode ? 20 : 0) + hProb / 5;
         if (!best || score > best.score) {
           best = { score, code: hCode, precip: hPrecip, prob: hProb };

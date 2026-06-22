@@ -620,6 +620,11 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       setIsTodayObservationFlashing(false);
     }, 15000);
 
+    // إشعار فوري للمؤكّد بالرادار فقط (live/archive). التنبؤات (model: نموذج/طاقة كامنة)
+    // تُعرض في البطاقة دون إرسال إشعار، تفادياً للتنبيهات غير الدقيقة.
+    const isRadarConfirmed = todayObservation.tone === 'live' || todayObservation.tone === 'archive';
+    if (!isRadarConfirmed) return;
+
     requestNotificationPermission()
       .then((granted) => {
         if (!granted) return;
