@@ -179,8 +179,8 @@ export async function getRainingNowFromSatellite(cities) {
     toCheck.map(async city => {
       const lat = city.latitude ?? city.lat;
       const lon = city.longitude ?? city.lon;
-      // دقة عالية (zoom 6 ≈ 2.4كم/بكسل، نصف قطر ~12كم) لتحديد البلدية الصحيحة بدقة
-      const rain = await checkRainAtLocation(lat, lon, frame.path, frame.host, 6, 2);
+      // دقة عالية مع تغطية كافية (zoom 6 ≈ 2.4كم/بكسل، نصف قطر ~17كم)
+      const rain = await checkRainAtLocation(lat, lon, frame.path, frame.host, 6, 3);
       return { city, rain };
     })
   );

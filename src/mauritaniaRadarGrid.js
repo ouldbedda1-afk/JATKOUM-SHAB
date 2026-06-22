@@ -77,7 +77,7 @@ function nearestCommuneKm(lat, lon) {
   for (const p of COMMUNE_POINTS) {
     const d = distKm(lat, lon, p.lat, p.lon);
     if (d < min) min = d;
-    if (min < 20) break;
+    if (min < 12) break;
   }
   return min;
 }
@@ -98,11 +98,11 @@ function labelFor(lat, lon) {
 // بناء الشبكة مرة واحدة
 function buildGrid() {
   const points = [];
-  const LAT_MIN = 15, LAT_MAX = 27, LON_MIN = -16.3, LON_MAX = -5, STEP = 0.6;
+  const LAT_MIN = 15, LAT_MAX = 27, LON_MIN = -16.3, LON_MAX = -5, STEP = 0.45;
   for (let lat = LAT_MIN; lat <= LAT_MAX; lat += STEP) {
     for (let lon = LON_MIN; lon <= LON_MAX; lon += STEP) {
-      // نملأ ما بين البلديات: نستبعد فقط النقاط القريبة جداً (<25كم) من بلدية مرصودة
-      if (nearestCommuneKm(lat, lon) < 25) continue;
+      // نملأ ما بين البلديات وحولها: نستبعد فقط الملتصق جداً (<15كم) ببلدية مرصودة
+      if (nearestCommuneKm(lat, lon) < 15) continue;
       const label = labelFor(lat, lon);
       if (!label) continue;
       points.push({ city: label, wilaya: '', lat, lon, isGridArea: true });
