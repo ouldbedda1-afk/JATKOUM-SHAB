@@ -29,6 +29,20 @@ function dayName(dateStr) {
   return DAYS_AR[new Date(dateStr).getDay()];
 }
 
+const MONTHS_AR = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+function arabicFullDate(dateStr) {
+  const d = new Date(dateStr);
+  return `${DAYS_AR[d.getDay()]} ${d.getDate()} ${MONTHS_AR[d.getMonth()]} ${d.getFullYear()}`;
+}
+// صياغة قائمة مدن بالعربية: واحدة كما هي، اثنتان بـ"و"، أكثر بفواصل
+function joinCitiesAr(list) {
+  const a = [...new Set((list || []).filter(Boolean))];
+  if (a.length === 0) return '';
+  if (a.length === 1) return a[0];
+  if (a.length === 2) return `${a[0]} و${a[1]}`;
+  return a.join('، ');
+}
+
 function formatShortList(items, limit = 4) {
   const uniqueItems = [...new Set((items || []).filter(Boolean))];
   if (uniqueItems.length === 0) return '';
@@ -866,72 +880,57 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
     );
   };
 
-  // تجميع كل ولايات اليوم في توقّع واحد (مع تعريب أسماء البلديات)
-  const aggregateDayForecast = (day) => {
-    const agg = { thunder: [], heavy: [], moderate: [], weak: [], wind: [] };
-    (day.forecasts || []).forEach((f) => {
-      agg.thunder.push(...f.thunder);
-      agg.heavy.push(...f.heavy);
-      agg.moderate.push(...f.moderate);
-      agg.weak.push(...f.weak);
-      agg.wind.push(...f.wind);
-    });
-    const ar = (arr) => arr.map((it) => ({ ...it, city: toArabicCommune(it.city) }));
-    return {
-      thunder: ar(agg.thunder), heavy: ar(agg.heavy), moderate: ar(agg.moderate),
-      weak: ar(agg.weak), wind: ar(agg.wind),
-    };
-  };
+  // بطاقة سردية لكل ولاية في اليوم
+  const renderWilayaNarrativeCard = (day, idx, forecast) => {
+    const displayWilaya = normalizeMauritaniaWilayaName(forecast.wilaya) || forecast.wilaya;
+    const theme = getWilayaTheme(displayWilaya);
+    const ar = (arr) => [...new Set((arr || []).map((x) => toArabicCommune(x.city)))];
+    const thunder = ar(forecast.thunder);
+    const heavy = ar(forecast.heavy);
+    const moderate = ar(forecast.moderate);
+    const weak = ar(forecast.weak);
+    const wind = [...new Set((forecast.wind || []).map((w) => toArabicCommune(w.city)))];
 
-  // بطاقة واحدة لليوم كله (عموم موريتانيا) بدل بطاقة لكل ولاية
-  const renderDayCombined = (day, idx) => {
-    const agg = aggregateDayForecast(day);
-    const sections = buildDaySections(agg);
-    const metrics = getForecastMetrics(agg);
-    const headline = getForecastHeadline(agg);
+    const introBase = 'تشير آخر التوقعات الجوية إلى فرص لهطول أمطار متفاوتة الشدة على عدة مناطق من الولاية';
+    const intro = thunder.length > 0
+      ? `${introBase} مع توقع نشاط للعواصف الرعدية في بعض المناطق.`
+      : `${introBase}.`;
+
     return (
       <article
-        key={day.dateStr}
-        className="relative h-fit overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white text-slate-900 shadow-lg"
+        key={`${day.dateStr}-${displayWilaya}`}
+        className="relative overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white text-slate-900 shadow-lg"
       >
-        <div className="h-1.5 w-full bg-gradient-to-l from-sky-500 to-blue-700" />
-        <div className="border-b border-slate-200 px-5 py-4">
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-xl shadow-sm ring-1 ring-sky-100">📅</span>
-              <div>
-                <span className="block text-xl font-black text-blue-900">{day.dayAr || `اليوم ${idx + 1}`}</span>
-                <span className="mt-1 block text-[11px] text-slate-500">توقعات عموم موريتانيا</span>
-              </div>
-            </div>
-            <div className="text-left">
-              <span className="inline-flex rounded-xl border border-sky-200 bg-sky-50 text-sky-800 px-3 py-1.5 text-xs font-black shadow-sm">
-                {day.dateLabel || fmtDate(day.dateStr)}
-              </span>
-              <span className="mt-1 block text-[10px] text-slate-500">{`بطاقة اليوم ${idx + 1}`}</span>
-            </div>
+        <div className={`h-1.5 w-full bg-gradient-to-l ${theme.bar}`} />
+        <div className="px-5 py-4" dir="rtl">
+          <div className="flex items-start justify-between gap-3">
+            <h3 className={`text-lg font-black ${theme.accent}`}>التوقعات الجوية لولاية {displayWilaya}</h3>
+            <span className="text-[10px] text-slate-400 shrink-0 mt-1">بطاقة اليوم {idx + 1}</span>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 text-sky-800 px-3 py-1 text-xs font-black">
-              {headline}
-            </span>
-            {metrics.map((item) => (
-              <span
-                key={item.label}
-                className="inline-flex items-center gap-1.5 rounded-full border border-sky-100 bg-sky-50 text-sky-900 px-3 py-1 text-xs font-bold"
-              >
-                <span>{item.icon}</span>
-                <span>{item.label}</span>
-                <span className="font-black">{item.value}</span>
-              </span>
-            ))}
-          </div>
-        </div>
+          <p className="text-sm font-bold text-slate-500 mt-0.5 mb-3">{arabicFullDate(day.dateStr)}</p>
 
-        <div className="space-y-3 bg-gradient-to-b from-white to-slate-50 px-5 py-4">
-          {sections.map((section) => (
-            <React.Fragment key={section.key}>{section.node}</React.Fragment>
-          ))}
+          <p className="text-[15px] leading-8 text-slate-800 mb-3">{intro}</p>
+
+          <div className="space-y-2 text-[15px] leading-8">
+            {thunder.length > 0 && (
+              <p>🌩️ <span className="font-black text-red-700">عواصف رعدية مصحوبة بأمطار، بعضها غزير:</span> {joinCitiesAr(thunder)}.</p>
+            )}
+            {heavy.length > 0 && (
+              <p>🌧️ <span className="font-black text-amber-700">أمطار غزيرة متوقعة</span> في {heavy.length > 1 ? 'كل من ' : ''}{joinCitiesAr(heavy)}.</p>
+            )}
+            {moderate.length > 0 && (
+              <p>🌦️ <span className="font-black text-sky-700">أمطار متوسطة متوقعة</span> في {joinCitiesAr(moderate)}.</p>
+            )}
+            {weak.length > 0 && (
+              <p>🌂 <span className="font-black text-slate-700">أمطار ضعيفة متوقعة</span> في {joinCitiesAr(weak)}.</p>
+            )}
+            {wind.length > 0 && (
+              <p>🌬️ <span className="font-black text-cyan-700">رياح قوية</span> في {joinCitiesAr(wind)}.</p>
+            )}
+          </div>
+
+          <p className="mt-4 text-center text-[15px] font-black text-emerald-800">بإذن الله 🤲</p>
+          <p className="text-center text-sm font-bold text-emerald-700">اللهم اسقنا الغيث ولا تجعلنا من القانطين</p>
         </div>
       </article>
     );
@@ -1038,7 +1037,16 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         {/* خريطة الرصد المباشر مدمجة تحت بطاقة رصد اليوم */}
         <SatelliteViewer />
 
-        {days.map((day, idx) => renderDayCombined(day, idx))}
+        {days.flatMap((day, idx) =>
+          (day.forecasts || []).length > 0
+            ? day.forecasts.map((forecast) => renderWilayaNarrativeCard(day, idx, forecast))
+            : [(
+                <article key={day.dateStr} className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-lg" dir="rtl">
+                  <p className="text-base font-black text-slate-800">{arabicFullDate(day.dateStr)}</p>
+                  <p className="text-sm text-slate-600 mt-1">لا توقعات أمطار بارزة لعموم الولايات في هذا اليوم، بإذن الله.</p>
+                </article>
+              )]
+        )}
       </div>
     </div>
   );
