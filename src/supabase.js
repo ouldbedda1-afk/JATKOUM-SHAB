@@ -125,6 +125,18 @@ export async function addSearchHistory(userId, query) {
  * Livestock Lost & Found Services (الظالة)
  */
 
+// إشعار الأدمن عبر تيليجرام ببلاغ جديد (fire-and-forget، لا يعطّل المستخدم)
+function notifyNewSubmission(table, record) {
+  if (!isSupabaseConfigured) return;
+  try {
+    fetch(`${supabaseUrl}/functions/v1/notify-telegram`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ type: 'INSERT', table, record }),
+    }).catch(() => {});
+  } catch { /* تجاهل */ }
+}
+
 // إضافة بلاغ جديد (مفقود أو موجود)
 export async function addLivestockReport(report) {
   try {
@@ -134,6 +146,7 @@ export async function addLivestockReport(report) {
       .insert([{ ...report, status: 'pending' }]);
 
     if (error) throw error;
+    notifyNewSubmission('livestock_reports', report); // إشعار تيليجرام للأدمن
     return data;
   } catch (error) {
     console.error('خطأ في إضافة بلاغ الماشية:', error);
@@ -218,6 +231,7 @@ export async function addRainReport(report) {
       .insert([{ ...report, status: 'pending' }]);
 
     if (error) throw error;
+    notifyNewSubmission('rain_reports', report); // إشعار تيليجرام للأدمن
     return data;
   } catch (error) {
     console.error('خطأ في إضافة بلاغ المطر:', error);
