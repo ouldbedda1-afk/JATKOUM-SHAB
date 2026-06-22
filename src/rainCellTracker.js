@@ -88,19 +88,29 @@ export function buildRainMovementAlerts({ rainingNow, weatherData, maxAlerts = 4
     }))
     .filter((c) => Number.isFinite(c.lat) && Number.isFinite(c.lon));
 
-  // الخلايا المهمة — مع تحقّق متقاطع لتفادي بكسل رادار كاذب فوق منطقة صافية:
+  // نقاط المطر بإحداثيات (لفحص التماسك المكاني)
+  const rainPts = rainingNow.filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lon));
+  // خلية لها جار ممطر قريب (≤55كم) = جزء من منظومة حقيقية لا بكسل معزول
+  function hasRainNeighbor(r) {
+    if (!Number.isFinite(r.lat) || !Number.isFinite(r.lon)) return false;
+    return rainPts.some((o) => o.city !== r.city && distanceKm(r.lat, r.lon, o.lat, o.lon) <= 55);
+  }
+
+  // الخلايا المهمة — مع تحقّق لتفادي بكسل رادار كاذب معزول فوق منطقة صافية:
   //  • القوية (≥8): الرادار وحده كافٍ.
-  //  • الخفيفة/المتوسطة (2–8): تُنشَر فقط إذا أكّدها النموذج (هطول/كود ماطر) أو شدة عالية.
+  //  • الخفيفة ضمن منظومة (لها جار ممطر): حقيقية.
+  //  • الخفيفة المعزولة: تحتاج تأكيد النموذج (هطول/كود ماطر).
   const cells = rainingNow
     .filter((r) => {
       const mmh = r.mmh ?? 0;
       if (mmh >= 8) return true;
       if (mmh < 2) return false;
+      if (hasRainNeighbor(r)) return true;
       const src = byCity.get(r.city);
-      if (!src) return mmh >= 6; // نقاط شبكة/IMERG بلا نموذج: نشترط شدة أعلى
+      if (!src) return false; // معزولة بلا نموذج = على الأرجح ضجيج
       const code = src.current?.weather_code ?? 0;
       const precip = src.current?.precipitation ?? 0;
-      return precip > 0 || code >= 51; // النموذج يؤكّد وجود مطر/سحب ماطرة
+      return precip > 0 || code >= 51;
     })
     .slice(0, maxAlerts);
 

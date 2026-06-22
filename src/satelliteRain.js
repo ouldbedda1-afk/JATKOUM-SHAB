@@ -168,6 +168,8 @@ export async function getRainingNowFromIMERG(cities) {
     .map((r) => ({
       city: r.value.city.city,
       wilaya: r.value.city.wilaya || '',
+      lat: r.value.city.latitude ?? r.value.city.lat ?? null,
+      lon: r.value.city.longitude ?? r.value.city.lon ?? null,
       mmh: r.value.rain.mmh,
       label: r.value.rain.label,
       source: 'imerg',
@@ -252,6 +254,8 @@ export async function getRainingNowFromSatellite(cities) {
     .map(r => ({
       city:    r.value.city.city,
       wilaya:  r.value.city.wilaya || '',
+      lat:     r.value.city.latitude ?? r.value.city.lat ?? null,
+      lon:     r.value.city.longitude ?? r.value.city.lon ?? null,
       mmh:     r.value.rain.mmh,
       label:   r.value.rain.label,
       radarAge,

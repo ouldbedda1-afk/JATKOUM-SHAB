@@ -361,7 +361,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
 
   // خلايا المطر/البرق المتحركة على مستوى البلدية (رادار + اتجاه الريح)
   const rainMovements = useMemo(
-    () => buildRainMovementAlerts({ rainingNow, weatherData: cities, maxAlerts: 5 }),
+    () => buildRainMovementAlerts({ rainingNow, weatherData: cities, maxAlerts: 7 }),
     [rainingNow, cities]
   );
 
