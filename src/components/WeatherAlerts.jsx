@@ -931,10 +931,10 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
                   <p className="text-sm text-white/85 leading-relaxed">{todayObservation.details}</p>
                 )}
 
-                {/* قائمة خلايا المطر/البرق المتحركة على مستوى البلدية */}
-                {todayObservation.movements?.length > 0 && (
+                {/* قائمة خلايا المطر/البرق المتحركة — تُعرض دائماً حتى مع وجود خبر برق */}
+                {rainMovements?.length > 0 && (
                   <div className="mt-3 space-y-2.5">
-                    {todayObservation.movements.map((m) => (
+                    {rainMovements.map((m) => (
                       <div key={m.id} className="rounded-xl border border-white/15 bg-white/10 p-3">
                         <p className="text-sm font-black text-white mb-1 flex items-center gap-1.5">
                           <span>{m.icon}</span>{m.title}

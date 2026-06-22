@@ -189,6 +189,9 @@ export default function Home() {
             <span className="text-gray-300">|</span>
             <span className="text-xs text-gray-400">بيانات المركز الأوروبي للتنبؤات الجوية</span>
           </div>
+          <p className="text-[10px] text-gray-300 mt-2">
+            صوت الرعد: Bidgee / Wikimedia Commons (CC BY 3.0) · بيانات الصواعق: Blitzortung.org
+          </p>
         </div>
       </footer>
     </div>
