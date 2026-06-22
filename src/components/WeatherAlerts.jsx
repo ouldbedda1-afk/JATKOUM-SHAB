@@ -594,7 +594,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       return {
         tone: 'model',
         title: 'توقّع اليوم (قراءة نموذجية غير مؤكدة بالرادار)',
-        summary: `يشير النموذج إلى احتمال هطول في ${formatShortList(topModel.map((item) => toArabicCommune(item.city)), 4)} — قيد المتابعة بالرادار للتأكيد.`,
+        summary: `كان يشير النموذج إلى احتمال هطول في ${formatShortList(topModel.map((item) => toArabicCommune(item.city)), 4)} — قيد المتابعة بالرادار للتأكيد.`,
         chips: ['توقّع نموذجي', 'غير مؤكد بالرادار', `${modelRainingNow.length} مقاطعة`],
       };
     }
