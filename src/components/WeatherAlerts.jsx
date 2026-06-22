@@ -4,6 +4,7 @@ import { buildRainMovementAlerts } from '../rainCellTracker';
 import { buildConvectiveWatch } from '../convection';
 import { buildLightningReport } from '../lightningBlitzortung';
 import { toArabicCommune } from '../mauritaniaCommuneNamesAr';
+import SatelliteViewer from './SatelliteViewer';
 import { requestNotificationPermission, sendLocalNotification } from '../pwa';
 import {
   compareMauritaniaWilayaAdminOrder,
@@ -962,6 +963,9 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
               </div>
             </div>
           </article>
+
+        {/* خريطة الرصد المباشر مدمجة تحت بطاقة رصد اليوم */}
+        <SatelliteViewer />
 
         {days.flatMap((day, idx) => {
           if ((day.forecasts || []).length === 0) {

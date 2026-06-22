@@ -3,7 +3,6 @@ import Navbar from '../components/Navbar';
 import NewsTicker from '../components/NewsTicker';
 import WeatherHero from '../components/WeatherHero';
 import WeeklyForecast from '../components/WeeklyForecast';
-import SatelliteViewer from '../components/SatelliteViewer';
 import CityGrid from '../components/CityGrid';
 import RuralTools from '../components/RuralTools';
 import WeatherAlerts from '../components/WeatherAlerts';
@@ -154,7 +153,6 @@ export default function Home() {
             <CloudTracker />
 
             <LivestockHomePreview />
-            <SatelliteViewer />
             <CityGrid />
           </div>
 
