@@ -143,13 +143,12 @@ function colorToRainIntensity(r, g, b, a) {
 /**
  * فحص هل تمطر فوق إحداثيات معينة الآن عبر الرادار
  */
-async function checkRainAtLocation(lat, lon, radarPath, host) {
-  const zoom = 4;
+async function checkRainAtLocation(lat, lon, radarPath, host, zoom = 4, radius = 3) {
   const { x, y, px, py } = latLonToTile(lat, lon, zoom);
   const tileUrl = `https://${host}${radarPath}/256/${zoom}/${x}/${y}/4/1_1.png`;
 
   try {
-    return await getTileMaxRain(tileUrl, px, py, 3);
+    return await getTileMaxRain(tileUrl, px, py, radius);
   } catch {
     return { mmh: 0, label: null };
   }
@@ -180,7 +179,8 @@ export async function getRainingNowFromSatellite(cities) {
     toCheck.map(async city => {
       const lat = city.latitude ?? city.lat;
       const lon = city.longitude ?? city.lon;
-      const rain = await checkRainAtLocation(lat, lon, frame.path, frame.host);
+      // دقة عالية (zoom 6 ≈ 2.4كم/بكسل، نصف قطر ~12كم) لتحديد البلدية الصحيحة بدقة
+      const rain = await checkRainAtLocation(lat, lon, frame.path, frame.host, 6, 2);
       return { city, rain };
     })
   );
