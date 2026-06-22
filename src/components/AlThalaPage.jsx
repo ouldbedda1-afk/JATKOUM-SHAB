@@ -1,11 +1,40 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Navbar from './Navbar';
 import { getLivestockReports } from '../supabase';
 import LivestockReportForm from './LivestockReportForm';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
+import {
+  OFFICIAL_MAURITANIA_WILAYA_ORDER,
+  normalizeMauritaniaWilayaName,
+  getCanonicalMauritaniaPlaceKey,
+} from '../mauritaniaPlaceNames';
+import { mauritaniaCommunesList } from '../mauritaniaCommunes';
+import { COMMUNE_NAMES_AR } from '../mauritaniaCommuneNamesAr';
 
 const { FiPlus, FiSearch, FiCamera, FiMapPin, FiPhone, FiCalendar, FiRefreshCw } = FiIcons;
+
+// خريطة: مكان (بلدية/مدينة) → ولايته — لتحديد ولاية البلاغ من حقل region
+const PLACE_TO_WILAYA = (() => {
+  const m = new Map();
+  (mauritaniaCommunesList || []).forEach((c) => {
+    const w = normalizeMauritaniaWilayaName(c.wilaya);
+    if (!w) return;
+    [c.city, c.name, COMMUNE_NAMES_AR[c.city]].filter(Boolean).forEach((n) => {
+      const k = getCanonicalMauritaniaPlaceKey(n);
+      if (k && !m.has(k)) m.set(k, w);
+    });
+  });
+  return m;
+})();
+
+// يحدّد ولاية البلاغ من نص المنطقة (اسم ولاية مباشرة أو بلدية تابعة لها)
+function resolveReportWilaya(region) {
+  if (!region) return '';
+  const asWilaya = normalizeMauritaniaWilayaName(region);
+  if (OFFICIAL_MAURITANIA_WILAYA_ORDER.includes(asWilaya)) return asWilaya;
+  return PLACE_TO_WILAYA.get(getCanonicalMauritaniaPlaceKey(region)) || '';
+}
 
 const AlThalaPage = () => {
   const [reports, setReports] = useState([]);
@@ -13,6 +42,7 @@ const AlThalaPage = () => {
   const [filter, setFilter] = useState('all'); // all, lost, found
   const [showForm, setShowForm] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [userWilaya, setUserWilaya] = useState(''); // ولاية المستخدم (لإظهار بلاغاتها أولاً)
 
   useEffect(() => {
     async function fetchReports() {
@@ -28,6 +58,36 @@ const AlThalaPage = () => {
     }
     fetchReports();
   }, [filter, refreshKey]);
+
+  // كشف ولاية المستخدم تلقائياً من موقعه (مرة واحدة)
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${coords.latitude}&lon=${coords.longitude}&format=json&accept-language=ar`);
+          if (!res.ok) return;
+          const data = await res.json();
+          const state = data.address?.state || data.address?.region || '';
+          const w = normalizeMauritaniaWilayaName(state);
+          if (OFFICIAL_MAURITANIA_WILAYA_ORDER.includes(w)) setUserWilaya(w);
+        } catch { /* تجاهل */ }
+      },
+      () => {},
+      { enableHighAccuracy: false, timeout: 12000, maximumAge: 600000 }
+    );
+  }, []);
+
+  // ترتيب: بلاغات ولاية المستخدم أولاً، ثم الباقي (مع الحفاظ على ترتيب التاريخ داخل كل مجموعة)
+  const sortedReports = useMemo(() => {
+    if (!userWilaya) return reports;
+    const inWilaya = [];
+    const others = [];
+    reports.forEach((r) => {
+      (resolveReportWilaya(r.region) === userWilaya ? inWilaya : others).push(r);
+    });
+    return [...inWilaya, ...others];
+  }, [reports, userWilaya]);
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20" dir="rtl">
@@ -81,12 +141,29 @@ const AlThalaPage = () => {
           >
             مفقود
           </button>
-          <button 
+          <button
             onClick={() => setFilter('found')}
             className={`flex-1 py-2 px-4 rounded-xl text-sm font-bold transition-all ${filter === 'found' ? 'bg-green-100 text-green-900 shadow-sm' : 'text-gray-500'}`}
           >
             موجود
           </button>
+        </div>
+
+        {/* اختيار الولاية — تُعرض بلاغاتها أولاً */}
+        <div className="flex items-center justify-center gap-2 mb-8 -mt-4 flex-wrap">
+          <span className="text-sm font-bold text-gray-500 flex items-center gap-1">
+            <SafeIcon icon={FiMapPin} className="text-amber-600" /> ولايتك أولاً:
+          </span>
+          <select
+            value={userWilaya}
+            onChange={(e) => setUserWilaya(e.target.value)}
+            className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-200"
+          >
+            <option value="">كل الولايات (بلا ترتيب)</option>
+            {OFFICIAL_MAURITANIA_WILAYA_ORDER.map((w) => (
+              <option key={w} value={w}>{w}</option>
+            ))}
+          </select>
         </div>
 
         {/* Content */}
@@ -106,7 +183,7 @@ const AlThalaPage = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {reports.map((report) => (
+            {sortedReports.map((report) => (
               <div key={report.id} className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group">
                 {/* Image Container */}
                 <div className="relative aspect-square overflow-hidden bg-gray-100">
