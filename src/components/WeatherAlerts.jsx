@@ -866,6 +866,77 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
     );
   };
 
+  // تجميع كل ولايات اليوم في توقّع واحد (مع تعريب أسماء البلديات)
+  const aggregateDayForecast = (day) => {
+    const agg = { thunder: [], heavy: [], moderate: [], weak: [], wind: [] };
+    (day.forecasts || []).forEach((f) => {
+      agg.thunder.push(...f.thunder);
+      agg.heavy.push(...f.heavy);
+      agg.moderate.push(...f.moderate);
+      agg.weak.push(...f.weak);
+      agg.wind.push(...f.wind);
+    });
+    const ar = (arr) => arr.map((it) => ({ ...it, city: toArabicCommune(it.city) }));
+    return {
+      thunder: ar(agg.thunder), heavy: ar(agg.heavy), moderate: ar(agg.moderate),
+      weak: ar(agg.weak), wind: ar(agg.wind),
+    };
+  };
+
+  // بطاقة واحدة لليوم كله (عموم موريتانيا) بدل بطاقة لكل ولاية
+  const renderDayCombined = (day, idx) => {
+    const agg = aggregateDayForecast(day);
+    const sections = buildDaySections(agg);
+    const metrics = getForecastMetrics(agg);
+    const headline = getForecastHeadline(agg);
+    return (
+      <article
+        key={day.dateStr}
+        className="relative h-fit overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white text-slate-900 shadow-lg"
+      >
+        <div className="h-1.5 w-full bg-gradient-to-l from-sky-500 to-blue-700" />
+        <div className="border-b border-slate-200 px-5 py-4">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-xl shadow-sm ring-1 ring-sky-100">📅</span>
+              <div>
+                <span className="block text-xl font-black text-blue-900">{day.dayAr || `اليوم ${idx + 1}`}</span>
+                <span className="mt-1 block text-[11px] text-slate-500">توقعات عموم موريتانيا</span>
+              </div>
+            </div>
+            <div className="text-left">
+              <span className="inline-flex rounded-xl border border-sky-200 bg-sky-50 text-sky-800 px-3 py-1.5 text-xs font-black shadow-sm">
+                {day.dateLabel || fmtDate(day.dateStr)}
+              </span>
+              <span className="mt-1 block text-[10px] text-slate-500">{`بطاقة اليوم ${idx + 1}`}</span>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 text-sky-800 px-3 py-1 text-xs font-black">
+              {headline}
+            </span>
+            {metrics.map((item) => (
+              <span
+                key={item.label}
+                className="inline-flex items-center gap-1.5 rounded-full border border-sky-100 bg-sky-50 text-sky-900 px-3 py-1 text-xs font-bold"
+              >
+                <span>{item.icon}</span>
+                <span>{item.label}</span>
+                <span className="font-black">{item.value}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-3 bg-gradient-to-b from-white to-slate-50 px-5 py-4">
+          {sections.map((section) => (
+            <React.Fragment key={section.key}>{section.node}</React.Fragment>
+          ))}
+        </div>
+      </article>
+    );
+  };
+
   return (
     <div className="space-y-6" dir="rtl">
       {/* رأس النشرة */}
@@ -967,20 +1038,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         {/* خريطة الرصد المباشر مدمجة تحت بطاقة رصد اليوم */}
         <SatelliteViewer />
 
-        {days.flatMap((day, idx) => {
-          if ((day.forecasts || []).length === 0) {
-            return renderDayCard(
-              day,
-              idx,
-              { wilaya: 'عموم المتابعة', thunder: [], heavy: [], moderate: [], weak: [], wind: [] },
-              buildDaySections({ thunder: [], heavy: [], moderate: [], weak: [], wind: [] })
-            );
-          }
-
-          return day.forecasts.map((forecast) =>
-            renderDayCard(day, idx, forecast, buildDaySections(forecast))
-          );
-        })}
+        {days.map((day, idx) => renderDayCombined(day, idx))}
       </div>
     </div>
   );
