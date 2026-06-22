@@ -177,28 +177,6 @@ const SatelliteViewer = () => {
 
   return (
     <div className="bg-white rounded-[2rem] p-6 shadow-xl border border-gray-100 overflow-hidden">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-5 gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 bg-gradient-to-br from-blue-600 to-cyan-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-blue-100">
-            <SafeIcon icon={FiLayers} className="text-xl" />
-          </div>
-          <div>
-            <h2 className="text-xl font-extrabold text-gray-800">خريطة الرصد المباشر 🇲🇷</h2>
-            <p className="text-sm text-gray-500">رصد حي للأمطار والسحب والرياح فوق موريتانيا</p>
-          </div>
-        </div>
-
-        <a
-          href={openInWindy}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl border border-blue-100 transition-colors whitespace-nowrap"
-        >
-          <SafeIcon icon={FiExternalLink} className="text-xs" />
-          فتح بملء الإمكانات
-        </a>
-      </div>
-
       {/* 🔴 خبر عاجل: برق أو غيوم ماطرة مرصودة الآن */}
       {breaking.active && (
         <div className={`mb-4 rounded-2xl border-2 overflow-hidden shadow-sm ${breaking.hasRadar ? 'border-red-200 bg-gradient-to-l from-red-50 via-rose-50 to-white' : 'border-amber-200 bg-gradient-to-l from-amber-50 via-orange-50 to-white'}`}>
