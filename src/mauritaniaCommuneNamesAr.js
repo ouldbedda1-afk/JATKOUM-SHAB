@@ -238,3 +238,9 @@ export const COMMUNE_NAMES_AR = {
   "Arafat": "عرفات",
   "Riyad": "الرياض"
 };
+
+// يرجع الاسم العربي للبلدية إن وُجد، وإلا الاسم كما هو (لتفادي ظهور أسماء لاتينية)
+export function toArabicCommune(name) {
+  if (!name) return name;
+  return COMMUNE_NAMES_AR[name] || name;
+}

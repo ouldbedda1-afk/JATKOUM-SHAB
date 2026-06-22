@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useWeatherContext } from '../WeatherContext';
 import { buildRainMovementAlerts } from '../rainCellTracker';
 import { buildConvectiveWatch } from '../convection';
+import { toArabicCommune } from '../mauritaniaCommuneNamesAr';
 import { requestNotificationPermission, sendLocalNotification } from '../pwa';
 import {
   compareMauritaniaWilayaAdminOrder,
@@ -240,7 +241,7 @@ function buildCurrentRainNarrative({ rainingNow, modelRainingNow, cities }) {
   const liveEntries = uniqueByCity(rainingNow);
   if (liveEntries.length === 0) return null;
 
-  const cityNames = liveEntries.map((entry) => entry.city);
+  const cityNames = liveEntries.map((entry) => toArabicCommune(entry.city));
   const wilayas = [...new Set(liveEntries.map((entry) => entry.wilaya).filter(Boolean))];
   const totalCities = cities?.length || 0;
   const coverage = getRainCoverageLevel(cityNames.length, wilayas.length, totalCities);
@@ -488,7 +489,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       return {
         tone: 'archive',
         title: 'حدث اليوم عبر أرشيف الأقمار الصناعية',
-        summary: `سجل أرشيف اليوم أمطاراً غزيرة في ${formatShortList(topEvents.map((event) => event.city), 4)}.`,
+        summary: `سجل أرشيف اليوم أمطاراً غزيرة في ${formatShortList(topEvents.map((event) => toArabicCommune(event.city)), 4)}.`,
         details: topEvent?.firstSeen && topEvent?.lastSeen
           ? `أبرز نافذة رصد اليوم كانت بين ${fmtTime(topEvent.firstSeen)} و${fmtTime(topEvent.lastSeen)}، ما يؤكد أن اليوم شهد حالة مطرية فعلية وليست مجرد توقع.`
           : 'هذا خبر يومي مبني على أرشيف الإطارات المتاحة لليوم نفسه.',
@@ -501,7 +502,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       return {
         tone: 'live',
         title: 'رصد اليوم: أمطار جارية الآن',
-        summary: `يرصد النظام حالياً أمطاراً على ${formatShortList(topRains.map((item) => item.city), 4)}.`,
+        summary: `يرصد النظام حالياً أمطاراً على ${formatShortList(topRains.map((item) => toArabicCommune(item.city)), 4)}.`,
         details: 'تُعرض هذه البطاقة قبل التوقعات لأن الحالة المرصودة اليوم أهم من الاكتفاء ببطاقات الأيام القادمة.',
         chips: ['رصد مباشر', `${rainingNow.length} مقاطعة`, topRains[0]?.label || 'مطر'],
       };
@@ -511,22 +512,22 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       const topModel = modelRainingNow.slice(0, 4);
       return {
         tone: 'model',
-        title: 'رصد اليوم من النموذج',
-        summary: `تشير البيانات الحالية إلى هطول قائم أو قريب في ${formatShortList(topModel.map((item) => item.city), 4)}.`,
-        details: 'هذه قراءة داعمة من النموذج الحالي، وتُستخدم لإبراز حالة اليوم حتى عندما يكون الرادار اللحظي أقل وضوحاً محلياً.',
-        chips: ['اليوم', 'قراءة نموذج', `${modelRainingNow.length} مقاطعة`],
+        title: 'توقّع اليوم (قراءة نموذجية غير مؤكدة بالرادار)',
+        summary: `يشير النموذج إلى احتمال هطول في ${formatShortList(topModel.map((item) => toArabicCommune(item.city)), 4)} — قيد المتابعة بالرادار للتأكيد.`,
+        details: 'هذه قراءة داعمة من النموذج الرياضي وليست رصداً مؤكداً بالرادار. تُعرض لإبراز احتمال حالة اليوم، وتُؤكَّد فقط عند رصدها بالأقمار.',
+        chips: ['توقّع نموذجي', 'غير مؤكد بالرادار', `${modelRainingNow.length} مقاطعة`],
       };
     }
 
     // تنبؤي: لا مطر نشط لكن طاقة كامنة عالية مهيأة للعواصف
     if (convectiveWatch && convectiveWatch.items.length > 0) {
       const top = convectiveWatch.items[0];
-      const areas = convectiveWatch.items.map((it) => it.city).join('، ');
+      const areas = convectiveWatch.items.map((it) => toArabicCommune(it.city)).join('، ');
       return {
         tone: 'model',
         title: 'رصد اليوم: أجواء مهيأة للعواصف (طاقة كامنة عالية)',
         summary: `دراسة الطاقة الكامنة في الهواء (CAPE) تُظهر عدم استقرار جوي في ${convectiveWatch.count} بلدية، أبرزها ${areas}.`,
-        details: `أعلى طاقة في ${top.city} (CAPE ${Math.round(top.cape)}، مؤشر رفع ${top.li != null ? top.li.toFixed(1) : '—'}). هذه الأجواء مرشحة لتكوّن عواصف رعدية وأمطار محلية إذا انخفض كبح الحمل الحراري — تستمر المتابعة عبر الرادار.`,
+        details: `أعلى طاقة في ${toArabicCommune(top.city)} (CAPE ${Math.round(top.cape)}، مؤشر رفع ${top.li != null ? top.li.toFixed(1) : '—'}). هذه الأجواء مرشحة لتكوّن عواصف رعدية وأمطار محلية إذا انخفض كبح الحمل الحراري — تستمر المتابعة عبر الرادار.`,
         chips: ['طاقة كامنة', `${convectiveWatch.count} بلدية مهيأة`, `CAPE ${Math.round(top.cape)}`],
       };
     }

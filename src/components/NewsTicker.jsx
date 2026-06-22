@@ -1,7 +1,11 @@
 import React, { useMemo } from 'react';
 import { useWeatherContext } from '../WeatherContext';
+import { toArabicCommune } from '../mauritaniaCommuneNamesAr';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
+
+// تعريب قائمة أسماء مفصولة للعرض
+const arList = (names) => (names || []).map(toArabicCommune).join('، ');
 
 // تنسيق التاريخ والوقت بالأحرف اللاتينية فقط (en-GB)
 function fmtDate(dateStr) {
@@ -183,10 +187,10 @@ const NewsTicker = () => {
         .map(c => c.city);
 
       if (thunderConfirmed.length > 0) {
-        urgentAlerts.unshift(`🔴 عاجل الآن ⚡ | عواصف رعدية وبرق مرصودة بالأقمار في: ${thunderConfirmed.join('، ')}${ageLabel} — يرجى الحذر!`);
+        urgentAlerts.unshift(`🔴 عاجل الآن ⚡ | عواصف رعدية وبرق مرصودة بالأقمار في: ${arList(thunderConfirmed)}${ageLabel} — يرجى الحذر!`);
       }
       if (rainOnly.length > 0) {
-        urgentAlerts.unshift(`🔴 عاجل الآن 🌧️ | غيوم ماطرة رصدتها الأقمار في: ${rainOnly.join('، ')}${ageLabel}. جعلها الله خيراً.`);
+        urgentAlerts.unshift(`🔴 عاجل الآن 🌧️ | غيوم ماطرة رصدتها الأقمار في: ${arList(rainOnly)}${ageLabel}. جعلها الله خيراً.`);
       }
     }
 
@@ -197,10 +201,10 @@ const NewsTicker = () => {
       const modelRain = modelRainingNow.filter(m => !m.isThunder && !radarSet.has(m.city)).map(m => m.city);
 
       if (modelThunder.length > 0) {
-        urgentAlerts.push(`عاجل ⚡ (حسب النموذج) | عواصف رعدية متوقعة الآن في: ${modelThunder.slice(0, 5).join('، ')} — يرجى الحذر.`);
+        forecastAlerts.push(`🔭 توقّع نموذجي (غير مؤكد بالرادار) | احتمال عواصف رعدية في: ${arList(modelThunder.slice(0, 5))}.`);
       }
       if (modelRain.length > 0) {
-        forecastAlerts.unshift(`🌧️ (حسب النموذج) | أمطار متوقعة الآن في: ${modelRain.slice(0, 6).join('، ')}.`);
+        forecastAlerts.push(`🔭 توقّع نموذجي (غير مؤكد بالرادار) | احتمال أمطار في: ${arList(modelRain.slice(0, 6))}.`);
       }
     }
 

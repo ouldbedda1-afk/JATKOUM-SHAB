@@ -15,6 +15,7 @@
  */
 
 import { getCurrentConvection } from './convection';
+import { toArabicCommune } from './mauritaniaCommuneNamesAr';
 
 const EARTH_RADIUS_KM = 6371;
 const DEG2RAD = Math.PI / 180;
@@ -123,23 +124,25 @@ export function buildRainMovementAlerts({ rainingNow, weatherData, maxAlerts = 4
     const intensityWord = strong ? 'قوية' : 'خفيفة';
     const labelWord = cell.label || (strong ? 'غزيرة' : 'خفيفة');
 
-    const title = `${hasThunder ? '⛈️ عاصفة رعدية' : '🌧️ خلية مطرية'} قرب ${cell.city}`;
+    const cellAr = toArabicCommune(cell.city);
+    const title = `${hasThunder ? '⛈️ عاصفة رعدية' : '🌧️ خلية مطرية'} قرب ${cellAr}`;
 
-    let message = `رصدت الأقمار الصناعية (الرادار) أمطاراً ${labelWord} (${intensityWord}) فوق ${cell.city}${cell.wilaya ? ` بولاية ${cell.wilaya}` : ''}.`;
+    let message = `رصدت الأقمار الصناعية (الرادار) أمطاراً ${labelWord} (${intensityWord}) فوق ${cellAr}${cell.wilaya ? ` بولاية ${cell.wilaya}` : ''}.`;
     if (hasThunder) message += `\n⚡ مصحوبة ببرق ورعد — يُرجى الحذر من الصواعق والأودية.`;
 
     if (target) {
+      const targetAr = toArabicCommune(target.city);
       const tw = byCity.get(target.city);
       const tcode = tw?.current?.weather_code ?? 0;
       const sky = describeTargetSky({ isRaining: rainingSet.has(target.city), code: tcode });
-      message += `\nتتحرك نحو ${compassAr(moveBearing)} وتتجه صوب ${target.city}${target.wilaya && target.wilaya !== cell.wilaya ? ` (${target.wilaya})` : ''} على بُعد ~${Math.round(target.d)} كم ${sky}.`;
+      message += `\nتتحرك نحو ${compassAr(moveBearing)} وتتجه صوب ${targetAr}${target.wilaya && target.wilaya !== cell.wilaya ? ` (${target.wilaya})` : ''} على بُعد ~${Math.round(target.d)} كم ${sky}.`;
       // دراسة الطاقة الكامنة وكبح الحمل الحراري للبلدية الهدف
       const tConv = getCurrentConvection(tw);
       if (tConv) {
         if (tConv.primed) {
-          message += `\n🔥 ${target.city} تختزن طاقة كامنة ${tConv.level === 'extreme' ? 'شديدة' : 'عالية'} (CAPE ${Math.round(tConv.cape)}) — مرشحة لتطوّر العاصفة عند وصولها.`;
+          message += `\n🔥 ${targetAr} تختزن طاقة كامنة ${tConv.level === 'extreme' ? 'شديدة' : 'عالية'} (CAPE ${Math.round(tConv.cape)}) — مرشحة لتطوّر العاصفة عند وصولها.`;
         } else if (tConv.level === 'suppressed') {
-          message += `\nℹ️ ${target.city} بها طاقة محبوسة بكبح حراري (CIN ${Math.round(tConv.cin)}) قد يحدّ من تطورها.`;
+          message += `\nℹ️ ${targetAr} بها طاقة محبوسة بكبح حراري (CIN ${Math.round(tConv.cin)}) قد يحدّ من تطورها.`;
         }
       }
     } else if (Number.isFinite(moveBearing)) {
@@ -155,7 +158,7 @@ export function buildRainMovementAlerts({ rainingNow, weatherData, maxAlerts = 4
       tags: [
         hasThunder ? '🛰️ برق ورعد' : '🛰️ رادار مباشر',
         `${cell.mmh} mm/h`,
-        target ? `صوب ${target.city}` : 'خلية محلية',
+        target ? `صوب ${toArabicCommune(target.city)}` : 'خلية محلية',
       ].filter(Boolean),
     });
   }
