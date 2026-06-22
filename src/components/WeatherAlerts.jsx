@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useWeatherContext } from '../WeatherContext';
 import { buildRainMovementAlerts } from '../rainCellTracker';
+import { buildConvectiveWatch } from '../convection';
 import { requestNotificationPermission, sendLocalNotification } from '../pwa';
 import {
   compareMauritaniaWilayaAdminOrder,
@@ -361,6 +362,12 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
     [rainingNow, cities]
   );
 
+  // مراقبة الحمل الحراري: أجواء مهيأة للعواصف (طاقة كامنة عالية) قبل ظهور المطر
+  const convectiveWatch = useMemo(
+    () => buildConvectiveWatch({ weatherData: cities, maxItems: 5 }),
+    [cities]
+  );
+
   // نجمع البيانات مقسّمة حسب اليوم (3 أيام قادمة)
   const days = useMemo(() => {
     const map = {}; // key = dateStr
@@ -511,6 +518,19 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       };
     }
 
+    // تنبؤي: لا مطر نشط لكن طاقة كامنة عالية مهيأة للعواصف
+    if (convectiveWatch && convectiveWatch.items.length > 0) {
+      const top = convectiveWatch.items[0];
+      const areas = convectiveWatch.items.map((it) => it.city).join('، ');
+      return {
+        tone: 'model',
+        title: 'رصد اليوم: أجواء مهيأة للعواصف (طاقة كامنة عالية)',
+        summary: `دراسة الطاقة الكامنة في الهواء (CAPE) تُظهر عدم استقرار جوي في ${convectiveWatch.count} بلدية، أبرزها ${areas}.`,
+        details: `أعلى طاقة في ${top.city} (CAPE ${Math.round(top.cape)}، مؤشر رفع ${top.li != null ? top.li.toFixed(1) : '—'}). هذه الأجواء مرشحة لتكوّن عواصف رعدية وأمطار محلية إذا انخفض كبح الحمل الحراري — تستمر المتابعة عبر الرادار.`,
+        chips: ['طاقة كامنة', `${convectiveWatch.count} بلدية مهيأة`, `CAPE ${Math.round(top.cape)}`],
+      };
+    }
+
     return {
       tone: 'calm',
       title: 'متابعة اليوم',
@@ -519,7 +539,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         'تستمر متابعة الرادار وأرشيف اليوم وقراءة النموذج وحركة السحب، وتُحدَّث هذه البطاقة تلقائياً عند ظهور أي مؤشرات محلية أو مسار ممطر نحو أي ولاية.',
       chips: ['اليوم', 'متابعة مستمرة', 'تحديث آلي'],
     };
-  }, [rainMovements, currentRainNarrative, sameDayRainEvents, rainingNow, modelRainingNow]);
+  }, [rainMovements, convectiveWatch, currentRainNarrative, sameDayRainEvents, rainingNow, modelRainingNow]);
 
   const todayTheme = useMemo(() => {
     if (todayObservation.tone === 'live') {

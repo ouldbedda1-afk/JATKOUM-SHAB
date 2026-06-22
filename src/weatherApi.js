@@ -882,7 +882,7 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
         latitude: coords.lat,
         longitude: coords.lon,
         current: 'temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,pressure_msl,precipitation',
-        hourly: 'temperature_2m,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,weather_code',
+        hourly: 'temperature_2m,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,weather_code,cape,convective_inhibition,lifted_index',
         daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max',
         timezone: 'Africa/Nouakchott',
         temperature_unit: 'celsius',
@@ -983,7 +983,7 @@ export async function getAllCitiesWeather() {
           latitude: lats,
           longitude: lons,
           current: 'temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,pressure_msl,precipitation',
-          hourly: 'temperature_2m,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,weather_code',
+          hourly: 'temperature_2m,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,weather_code,cape,convective_inhibition,lifted_index',
           daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max',
           timezone: 'Africa/Nouakchott',
           forecast_days: 3, // النشرة تستخدم 3 أيام؛ التوقعات الأسبوعية تُجلب لكل مدينة على حدة
