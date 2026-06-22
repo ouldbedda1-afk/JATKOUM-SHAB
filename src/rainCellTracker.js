@@ -91,9 +91,9 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
   //  قوية، أو متماسكة مكانياً (≥نقطتين)، أو استمرّت عبر الإطارات، أو يؤكّدها النموذج.
   const valid = tracks.filter((t) => {
     const mmh = t.mmh ?? 0;
-    if (mmh >= 8) return true;
-    if ((t.cities?.length || 1) >= 2) return true;
-    if ((t.path?.length || 1) >= 2) return true; // رُصدت في أكثر من إطار
+    if (mmh >= 8) return true;                       // قوية: الرادار وحده كافٍ
+    if ((t.cities?.length || 1) >= 2) return true;   // متماسكة مكانياً (منظومة حقيقية)
+    // خفيفة معزولة: نطلب تأكيد النموذج (الاستمرار وحده لا يكفي — قد يكون ضجيجاً ثابتاً)
     const rep = t.cities?.[0];
     const src = rep && byCity.get(rep.city);
     if (!src) return false;
@@ -154,8 +154,11 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
       const tw = byCity.get(target.city);
       const tcode = tw?.current?.weather_code ?? 0;
       const sky = describeTargetSky({ isRaining: rainingSet.has(target.city), code: tcode });
-      const speedTxt = t.speed ? ` بسرعة ~${t.speed} كم/س` : '';
-      message += `\nتتحرك نحو ${compassAr(moveBearing)}${speedTxt} وتتجه صوب ${targetAr}${target.wilaya && target.wilaya !== rep.wilaya ? ` (${target.wilaya})` : ''} على بُعد ~${Math.round(target.d)} كم ${sky}.`;
+      const tw2 = target.wilaya && target.wilaya !== rep.wilaya ? ` (${target.wilaya})` : '';
+      const moveVerb = t.speed
+        ? `تتحرك نحو ${compassAr(moveBearing)} بسرعة ~${t.speed} كم/س`
+        : `يُرجّح تحركها نحو ${compassAr(moveBearing)} (تقدير موسمي)`;
+      message += `\n${moveVerb} صوب ${targetAr}${tw2} على بُعد ~${Math.round(target.d)} كم ${sky}.`;
       const tConv = getCurrentConvection(tw);
       if (tConv) {
         if (tConv.primed) {
@@ -165,8 +168,9 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
         }
       }
     } else if (Number.isFinite(moveBearing)) {
-      const speedTxt = t.speed ? ` (~${t.speed} كم/س)` : '';
-      message += `\nاتجاه الحركة نحو ${compassAr(moveBearing)}${speedTxt}.`;
+      message += t.speed
+        ? `\nتتحرك نحو ${compassAr(moveBearing)} بسرعة ~${t.speed} كم/س.`
+        : `\nيُرجّح اتجاهها نحو ${compassAr(moveBearing)} (تقدير موسمي).`;
     }
 
     alerts.push({
