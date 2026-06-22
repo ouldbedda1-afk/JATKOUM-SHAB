@@ -30,6 +30,24 @@ const REFERENCE_TOWNS = [
   { name: 'سيلبابي', lat: 15.16, lon: -12.18 },
   { name: 'بوتلميت', lat: 17.55, lon: -14.69 },
   { name: 'تمبدغة', lat: 16.24, lon: -8.17 },
+  // معالم الجنوب والوسط (لتسمية أدق)
+  { name: 'ألاك', lat: 17.05, lon: -13.91 },
+  { name: 'مقطع لحجار', lat: 17.50, lon: -13.08 },
+  { name: 'بوݣي', lat: 16.58, lon: -14.26 },
+  { name: 'كنكوصة', lat: 15.93, lon: -11.53 },
+  { name: 'باركيول', lat: 16.67, lon: -12.36 },
+  { name: 'مقامة', lat: 15.51, lon: -12.85 },
+  { name: 'امبود', lat: 16.02, lon: -12.58 },
+  { name: 'كوبني', lat: 15.93, lon: -11.21 },
+  { name: 'الطينطان', lat: 16.39, lon: -10.16 },
+  { name: 'تمشكط', lat: 17.23, lon: -10.66 },
+  { name: 'باسكنو', lat: 15.86, lon: -5.95 },
+  { name: 'عدل بكرو', lat: 15.68, lon: -7.02 },
+  { name: 'جيكني', lat: 15.74, lon: -8.67 },
+  { name: 'امرج', lat: 16.11, lon: -7.21 },
+  { name: 'موجريه', lat: 17.85, lon: -12.27 },
+  { name: 'كرمسين', lat: 16.48, lon: -16.21 },
+  { name: 'المذرذرة', lat: 16.91, lon: -15.65 },
 ];
 
 const DEG2RAD = Math.PI / 180;
@@ -80,11 +98,11 @@ function labelFor(lat, lon) {
 // بناء الشبكة مرة واحدة
 function buildGrid() {
   const points = [];
-  const LAT_MIN = 15, LAT_MAX = 27, LON_MIN = -16.3, LON_MAX = -5, STEP = 1.0;
+  const LAT_MIN = 15, LAT_MAX = 27, LON_MIN = -16.3, LON_MAX = -5, STEP = 0.6;
   for (let lat = LAT_MIN; lat <= LAT_MAX; lat += STEP) {
     for (let lon = LON_MIN; lon <= LON_MAX; lon += STEP) {
-      // فراغ تغطية فقط: بعيد عن أي بلدية مرصودة بأكثر من 45كم
-      if (nearestCommuneKm(lat, lon) < 45) continue;
+      // نملأ ما بين البلديات: نستبعد فقط النقاط القريبة جداً (<25كم) من بلدية مرصودة
+      if (nearestCommuneKm(lat, lon) < 25) continue;
       const label = labelFor(lat, lon);
       if (!label) continue;
       points.push({ city: label, wilaya: '', lat, lon, isGridArea: true });
