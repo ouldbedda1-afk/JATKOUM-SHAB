@@ -345,7 +345,7 @@ function isRainySeason(dateStr) {
 /* ══════════════════════════════════════════
    مكوّن النشرة الجوية الرسمية (3 أيام موحدة)
 ══════════════════════════════════════════ */
-function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNow, lightningStrikes }) {
+function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNow, lightningStrikes, trackedCells }) {
   const [isTodayObservationFlashing, setIsTodayObservationFlashing] = useState(false);
   const [confirmedForecasts, setConfirmedForecasts] = useState([]);
   const flashTimeoutRef = useRef(null);
@@ -360,10 +360,10 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
     [rainingNow, modelRainingNow, cities]
   );
 
-  // خلايا المطر/البرق المتحركة على مستوى البلدية (رادار + اتجاه الريح)
+  // خلايا المطر/البرق المتتبَّعة زمنياً (مسار/سرعة/وجهة حقيقية حتى التلاشي)
   const rainMovements = useMemo(
-    () => buildRainMovementAlerts({ rainingNow, weatherData: cities, maxAlerts: 7 }),
-    [rainingNow, cities]
+    () => buildRainMovementAlerts({ tracks: trackedCells, weatherData: cities, maxAlerts: 7 }),
+    [trackedCells, cities]
   );
 
   // مراقبة الحمل الحراري: أجواء مهيأة للعواصف (طاقة كامنة عالية) قبل ظهور المطر
@@ -1029,6 +1029,7 @@ const WeatherAlerts = () => {
     rainingNow,
     modelRainingNow,
     sameDayRainEvents,
+    trackedCells,
     lightningStrikes,
     loading,
     lastUpdated,
@@ -1218,6 +1219,7 @@ const WeatherAlerts = () => {
         sameDayRainEvents={sameDayRainEvents}
         modelRainingNow={modelRainingNow}
         lightningStrikes={lightningStrikes}
+        trackedCells={trackedCells}
       />
 
     </div>

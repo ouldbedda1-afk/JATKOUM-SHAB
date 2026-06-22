@@ -5,6 +5,7 @@ import { getSatelliteVegetationStatus } from './satelliteVegetation';
 import { getRainingNowFromSatellite, getSameDayHeavyRainEventsFromSatellite, getRainingNowFromIMERG } from './satelliteRain';
 import { MAURITANIA_RADAR_GRID } from './mauritaniaRadarGrid';
 import { startLightning, subscribeLightning } from './lightningBlitzortung';
+import { updateTracks } from './cellTracking';
 import { getEcmwfBriefs } from './ecmwfBriefs';
 
 const WeatherContext = createContext(null);
@@ -28,6 +29,7 @@ export const WeatherProvider = ({ children }) => {
   const [vegetationData,   setVegetationData]   = useState(null);
   const [rainingNow,       setRainingNow]       = useState([]);
   const [sameDayRainEvents, setSameDayRainEvents] = useState([]);
+  const [trackedCells,     setTrackedCells]     = useState([]);
   const [lightningStrikes, setLightningStrikes] = useState([]);
   const [loading,          setLoading]          = useState(true);
   const [lastUpdated,      setLastUpdated]      = useState(null);
@@ -105,7 +107,13 @@ export const WeatherProvider = ({ children }) => {
           // اتحاد: نضيف ما رصده IMERG ولم يرصده الرادار (يملأ ثغرات الصحراء)
           const radarCities = new Set((raining || []).map(r => r.city));
           const imergExtra = (imerg || []).filter(r => !radarCities.has(r.city));
-          setRainingNow([...(raining || []), ...imergExtra]);
+          const merged = [...(raining || []), ...imergExtra];
+          setRainingNow(merged);
+          // 🛰️ تتبّع زمني: مطابقة الخلايا عبر الإطارات لحساب المسار والوجهة حتى التلاشي
+          try {
+            const { active } = updateTracks(merged);
+            setTrackedCells(active);
+          } catch (e) { console.warn('cell tracking:', e); }
           setSameDayRainEvents(sameDayEvents || []);
         });
       } else {
@@ -186,6 +194,7 @@ export const WeatherProvider = ({ children }) => {
     rainingNow,
     modelRainingNow,
     sameDayRainEvents,
+    trackedCells,
     lightningStrikes,
     loading,
     lastUpdated,
@@ -198,7 +207,7 @@ export const WeatherProvider = ({ children }) => {
   }), [
     weatherData, fires, marineData,
     rainReports, bawahReports, rainForecasts, manualAlerts, approvedNews, ecmwfBriefs, vegetationData,
-    rainingNow, modelRainingNow, sameDayRainEvents, lightningStrikes, loading, lastUpdated, error,
+    rainingNow, modelRainingNow, sameDayRainEvents, trackedCells, lightningStrikes, loading, lastUpdated, error,
   ]);
 
   return (

@@ -71,106 +71,89 @@ function describeTargetSky({ isRaining, code }) {
  * يولّد أخبار حركة خلايا المطر/البرق.
  * @returns Array<{ id, title, message, icon, color, tags }>
  */
-export function buildRainMovementAlerts({ rainingNow, weatherData, maxAlerts = 4 }) {
-  if (!rainingNow || rainingNow.length === 0) return [];
+export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) {
+  if (!tracks || tracks.length === 0) return [];
   if (!weatherData || weatherData.length === 0) return [];
 
   const byCity = new Map(weatherData.map((c) => [c.city, c]));
-  const rainingSet = new Set(rainingNow.map((r) => r.city));
+  const now = Date.now();
+  const rainy = isRainySeason();
 
-  // قائمة بلديات بإحداثيات (للبحث عن الهدف)
+  // كل البلديات التي تمطر الآن (لوصف سماء الهدف)
+  const rainingSet = new Set();
+  tracks.forEach((t) => (t.cities || []).forEach((m) => rainingSet.add(m.city)));
+
   const coordList = weatherData
-    .map((c) => ({
-      city: c.city,
-      wilaya: c.wilaya || '',
-      lat: c.latitude ?? c.lat,
-      lon: c.longitude ?? c.lon,
-    }))
+    .map((c) => ({ city: c.city, wilaya: c.wilaya || '', lat: c.latitude ?? c.lat, lon: c.longitude ?? c.lon }))
     .filter((c) => Number.isFinite(c.lat) && Number.isFinite(c.lon));
 
-  // نقاط المطر بإحداثيات (لفحص التماسك المكاني)
-  const rainPts = rainingNow.filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lon));
-  // خلية لها جار ممطر قريب (≤55كم) = جزء من منظومة حقيقية لا بكسل معزول
-  function hasRainNeighbor(r) {
-    if (!Number.isFinite(r.lat) || !Number.isFinite(r.lon)) return false;
-    return rainPts.some((o) => o.city !== r.city && distanceKm(r.lat, r.lon, o.lat, o.lon) <= 55);
-  }
+  // تصفية الخلايا الموثوقة (تفادي بكسل كاذب معزول عابر):
+  //  قوية، أو متماسكة مكانياً (≥نقطتين)، أو استمرّت عبر الإطارات، أو يؤكّدها النموذج.
+  const valid = tracks.filter((t) => {
+    const mmh = t.mmh ?? 0;
+    if (mmh >= 8) return true;
+    if ((t.cities?.length || 1) >= 2) return true;
+    if ((t.path?.length || 1) >= 2) return true; // رُصدت في أكثر من إطار
+    const rep = t.cities?.[0];
+    const src = rep && byCity.get(rep.city);
+    if (!src) return false;
+    const code = src.current?.weather_code ?? 0;
+    const precip = src.current?.precipitation ?? 0;
+    return precip > 0 || code >= 51;
+  });
 
-  // الخلايا المهمة — مع تحقّق لتفادي بكسل رادار كاذب معزول فوق منطقة صافية:
-  //  • القوية (≥8): الرادار وحده كافٍ.
-  //  • الخفيفة ضمن منظومة (لها جار ممطر): حقيقية.
-  //  • الخفيفة المعزولة: تحتاج تأكيد النموذج (هطول/كود ماطر).
-  const cells = rainingNow
-    .filter((r) => {
-      const mmh = r.mmh ?? 0;
-      if (mmh >= 8) return true;
-      if (mmh < 2) return false;
-      if (hasRainNeighbor(r)) return true;
-      const src = byCity.get(r.city);
-      if (!src) return false; // معزولة بلا نموذج = على الأرجح ضجيج
-      const code = src.current?.weather_code ?? 0;
-      const precip = src.current?.precipitation ?? 0;
-      return precip > 0 || code >= 51;
-    })
-    .slice(0, maxAlerts);
-
+  const sorted = valid.sort((a, b) => (b.mmh || 0) - (a.mmh || 0)).slice(0, maxAlerts);
   const alerts = [];
 
-  for (const cell of cells) {
-    const src = byCity.get(cell.city);
-    if (!src) continue;
-    const lat = src.latitude ?? src.lat;
-    const lon = src.longitude ?? src.lon;
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+  for (const t of sorted) {
+    const rep = t.cities?.[0] || {};
+    const cellAr = toArabicCommune(rep.city);
+    const lat = t.lat, lon = t.lon;
+    const mmh = t.mmh || 0;
 
-    const windFrom = src.current?.wind_direction_10m;
-    const windSpeed = Math.round(src.current?.wind_speed_10m ?? 0);
-    const code = src.current?.weather_code ?? 0;
-    const hasThunder = code >= 95 || cell.mmh >= 50;
+    const repSrc = byCity.get(rep.city);
+    const code = repSrc?.current?.weather_code ?? 0;
+    const hasThunder = code >= 95 || mmh >= 50;
+    const strong = mmh >= 20 || hasThunder;
+    const labelWord = mmh >= 20 ? 'غزيرة' : mmh >= 8 ? 'متوسطة' : 'خفيفة';
 
-    // اتجاه حركة الخلية:
-    // في موسم الأمطار (يونيو→أكتوبر) تتحرك الخلايا غرباً/جنوب غربياً مع الموجات الشرقية
-    // الإفريقية والتيار الشرقي العلوي — لا مع رياح السطح الموسمية (التي تهبّ نحو الشمال الشرقي).
-    const rainy = isRainySeason();
+    // الاتجاه: المسار الحقيقي المرصود إن توفّر، وإلا الحركة الغربية الموسمية
+    let moveBearing = Number.isFinite(t.heading) ? t.heading : (rainy ? 255 : null);
+
+    // البحث عن البلدية الهدف في مسار الحركة
     let target = null;
-    let moveBearing = null;
-    if (rainy) {
-      moveBearing = 255; // غرب/جنوب غربي (حركة موسمية)
-    } else if (Number.isFinite(windFrom)) {
-      moveBearing = (windFrom + 180) % 360;
-    }
     if (Number.isFinite(moveBearing)) {
       let best = null;
       for (const cand of coordList) {
-        if (cand.city === cell.city) continue;
+        if (cand.city === rep.city) continue;
         const d = distanceKm(lat, lon, cand.lat, cand.lon);
-        if (d < 8 || d > 90) continue; // ضمن نطاق معقول للحركة القريبة
-        const b = bearingDeg(lat, lon, cand.lat, cand.lon);
-        const ad = angleDiff(b, moveBearing);
-        if (ad > 55) continue; // يجب أن تكون في مسار الحركة تقريباً
-        const score = ad + d * 0.6; // الأقرب والأكثر محاذاة أفضل
+        if (d < 8 || d > 110) continue;
+        const ad = angleDiff(bearingDeg(lat, lon, cand.lat, cand.lon), moveBearing);
+        if (ad > 55) continue;
+        const score = ad + d * 0.6;
         if (!best || score < best.score) best = { ...cand, d, score };
       }
       target = best;
     }
 
-    const strong = cell.mmh >= 20 || hasThunder;
-    const intensityWord = strong ? 'قوية' : 'خفيفة';
-    const labelWord = cell.label || (strong ? 'غزيرة' : 'خفيفة');
+    // حالة المتابعة الزمنية
+    const ageMin = Math.round((now - t.firstSeen) / 60000);
+    let status;
+    if ((t.missing || 0) > 0) status = 'بدأت بالتلاشي';
+    else if (ageMin < 6) status = 'خلية جديدة';
+    else status = `متابَعة منذ ${ageMin} دقيقة`;
 
-    const cellAr = toArabicCommune(cell.city);
     const title = `${hasThunder ? '⛈️ عاصفة رعدية' : '🌧️ خلية مطرية'} قرب ${cellAr}`;
-
-    let message = `رصدت الأقمار الصناعية (الرادار) أمطاراً ${labelWord} (${intensityWord}) فوق ${cellAr}${cell.wilaya ? ` بولاية ${cell.wilaya}` : ''}.`;
-    if (hasThunder) message += `\n⚡ مصحوبة ببرق ورعد — يُرجى الحذر من الصواعق والأودية.`;
+    let message = `رصد متواصل: أمطار ${labelWord} فوق ${cellAr}${rep.wilaya ? ` (${rep.wilaya})` : ''} — ${status}.`;
+    if (hasThunder) message += `\n⚡ مصحوبة ببرق ورعد — احذر الصواعق والأودية.`;
 
     if (target) {
       const targetAr = toArabicCommune(target.city);
       const tw = byCity.get(target.city);
       const tcode = tw?.current?.weather_code ?? 0;
       const sky = describeTargetSky({ isRaining: rainingSet.has(target.city), code: tcode });
-      message += `\nتتحرك نحو ${compassAr(moveBearing)} وتتجه صوب ${targetAr}${target.wilaya && target.wilaya !== cell.wilaya ? ` (${target.wilaya})` : ''} على بُعد ~${Math.round(target.d)} كم ${sky}.`;
-      // دراسة الطاقة الكامنة وكبح الحمل الحراري للبلدية الهدف
+      const speedTxt = t.speed ? ` بسرعة ~${t.speed} كم/س` : '';
+      message += `\nتتحرك نحو ${compassAr(moveBearing)}${speedTxt} وتتجه صوب ${targetAr}${target.wilaya && target.wilaya !== rep.wilaya ? ` (${target.wilaya})` : ''} على بُعد ~${Math.round(target.d)} كم ${sky}.`;
       const tConv = getCurrentConvection(tw);
       if (tConv) {
         if (tConv.primed) {
@@ -180,20 +163,20 @@ export function buildRainMovementAlerts({ rainingNow, weatherData, maxAlerts = 4
         }
       }
     } else if (Number.isFinite(moveBearing)) {
-      message += rainy
-        ? `\nاتجاه الحركة المرجّح نحو ${compassAr(moveBearing)} (حركة غربية موسمية مع الموجات الشرقية).`
-        : `\nاتجاه الحركة المرجّح نحو ${compassAr(moveBearing)}${windSpeed ? ` (رياح ${windSpeed} كم/س)` : ''}.`;
+      const speedTxt = t.speed ? ` (~${t.speed} كم/س)` : '';
+      message += `\nاتجاه الحركة نحو ${compassAr(moveBearing)}${speedTxt}.`;
     }
 
     alerts.push({
-      id: `rain-move-${cell.city}`,
+      id: `track-${t.id}`,
       title,
       message,
       icon: hasThunder ? '⚡' : '🌧️',
       color: hasThunder ? 'bg-red-800' : strong ? 'bg-blue-800' : 'bg-sky-700',
       tags: [
-        hasThunder ? '🛰️ برق ورعد' : '🛰️ رادار مباشر',
-        `${cell.mmh} mm/h`,
+        hasThunder ? '🛰️ برق ورعد' : '🛰️ رصد متواصل',
+        `${mmh} mm/h`,
+        status,
         target ? `صوب ${toArabicCommune(target.city)}` : 'خلية محلية',
       ].filter(Boolean),
     });
