@@ -247,7 +247,8 @@ export async function getRainingNowFromSatellite(cities) {
   );
 
   const rainingCities = results
-    .filter(r => r.status === 'fulfilled' && r.value.rain.mmh >= 0.5)
+    // نتخطّى الرذاذ الباهت جداً (≥1.5) لتقليل الإيجابيات الكاذبة
+    .filter(r => r.status === 'fulfilled' && r.value.rain.mmh >= 1.5)
     .map(r => ({
       city:    r.value.city.city,
       wilaya:  r.value.city.wilaya || '',

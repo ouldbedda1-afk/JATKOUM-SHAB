@@ -88,9 +88,20 @@ export function buildRainMovementAlerts({ rainingNow, weatherData, maxAlerts = 4
     }))
     .filter((c) => Number.isFinite(c.lat) && Number.isFinite(c.lon));
 
-  // الخلايا المهمة فقط (تجاوز الرذاذ) — الأقوى أولاً
+  // الخلايا المهمة — مع تحقّق متقاطع لتفادي بكسل رادار كاذب فوق منطقة صافية:
+  //  • القوية (≥8): الرادار وحده كافٍ.
+  //  • الخفيفة/المتوسطة (2–8): تُنشَر فقط إذا أكّدها النموذج (هطول/كود ماطر) أو شدة عالية.
   const cells = rainingNow
-    .filter((r) => (r.mmh ?? 0) >= 2)
+    .filter((r) => {
+      const mmh = r.mmh ?? 0;
+      if (mmh >= 8) return true;
+      if (mmh < 2) return false;
+      const src = byCity.get(r.city);
+      if (!src) return mmh >= 6; // نقاط شبكة/IMERG بلا نموذج: نشترط شدة أعلى
+      const code = src.current?.weather_code ?? 0;
+      const precip = src.current?.precipitation ?? 0;
+      return precip > 0 || code >= 51; // النموذج يؤكّد وجود مطر/سحب ماطرة
+    })
     .slice(0, maxAlerts);
 
   const alerts = [];
