@@ -880,53 +880,49 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
     );
   };
 
-  // بطاقة سردية لكل ولاية في اليوم
-  const renderWilayaNarrativeCard = (day, idx, forecast) => {
-    const displayWilaya = normalizeMauritaniaWilayaName(forecast.wilaya) || forecast.wilaya;
-    const theme = getWilayaTheme(displayWilaya);
+  // فقرات الشدّة لتوقّع يوم واحد
+  const narrativeLines = (forecast) => {
     const ar = (arr) => [...new Set((arr || []).map((x) => toArabicCommune(x.city)))];
     const thunder = ar(forecast.thunder);
     const heavy = ar(forecast.heavy);
     const moderate = ar(forecast.moderate);
     const weak = ar(forecast.weak);
     const wind = [...new Set((forecast.wind || []).map((w) => toArabicCommune(w.city)))];
+    const lines = [];
+    if (thunder.length > 0) lines.push(<p key="t">🌩️ <span className="font-black text-red-700">عواصف رعدية مصحوبة بأمطار، بعضها غزير:</span> {joinCitiesAr(thunder)}.</p>);
+    if (heavy.length > 0) lines.push(<p key="h">🌧️ <span className="font-black text-amber-700">أمطار غزيرة متوقعة</span> في {heavy.length > 1 ? 'كل من ' : ''}{joinCitiesAr(heavy)}.</p>);
+    if (moderate.length > 0) lines.push(<p key="m">🌦️ <span className="font-black text-sky-700">أمطار متوسطة متوقعة</span> في {joinCitiesAr(moderate)}.</p>);
+    if (weak.length > 0) lines.push(<p key="w">🌂 <span className="font-black text-slate-700">أمطار ضعيفة متوقعة</span> في {joinCitiesAr(weak)}.</p>);
+    if (wind.length > 0) lines.push(<p key="wind">🌬️ <span className="font-black text-cyan-700">رياح قوية</span> في {joinCitiesAr(wind)}.</p>);
+    return lines;
+  };
 
-    const introBase = 'تشير آخر التوقعات الجوية إلى فرص لهطول أمطار متفاوتة الشدة على عدة مناطق من الولاية';
-    const intro = thunder.length > 0
+  // بطاقة واحدة لكل ولاية تجمع أيامها (حتى 3 أيام قادمة)
+  const renderWilayaCard = (wilaya, entries) => {
+    const theme = getWilayaTheme(wilaya);
+    const anyThunder = entries.some((e) => e.forecast.thunder.length > 0);
+    const introBase = 'تشير آخر التوقعات الجوية للأيام القادمة إلى فرص لهطول أمطار متفاوتة الشدة على عدة مناطق من الولاية';
+    const intro = anyThunder
       ? `${introBase} مع توقع نشاط للعواصف الرعدية في بعض المناطق.`
       : `${introBase}.`;
 
     return (
       <article
-        key={`${day.dateStr}-${displayWilaya}`}
+        key={wilaya}
         className="relative overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white text-slate-900 shadow-lg"
       >
         <div className={`h-1.5 w-full bg-gradient-to-l ${theme.bar}`} />
         <div className="px-5 py-4" dir="rtl">
-          <div className="flex items-start justify-between gap-3">
-            <h3 className={`text-lg font-black ${theme.accent}`}>التوقعات الجوية لولاية {displayWilaya}</h3>
-            <span className="text-[10px] text-slate-400 shrink-0 mt-1">بطاقة اليوم {idx + 1}</span>
-          </div>
-          <p className="text-sm font-bold text-slate-500 mt-0.5 mb-3">{arabicFullDate(day.dateStr)}</p>
+          <h3 className={`text-lg font-black ${theme.accent}`}>التوقعات الجوية لولاية {wilaya}</h3>
+          <p className="text-[15px] leading-8 text-slate-800 mt-1 mb-3">{intro}</p>
 
-          <p className="text-[15px] leading-8 text-slate-800 mb-3">{intro}</p>
-
-          <div className="space-y-2 text-[15px] leading-8">
-            {thunder.length > 0 && (
-              <p>🌩️ <span className="font-black text-red-700">عواصف رعدية مصحوبة بأمطار، بعضها غزير:</span> {joinCitiesAr(thunder)}.</p>
-            )}
-            {heavy.length > 0 && (
-              <p>🌧️ <span className="font-black text-amber-700">أمطار غزيرة متوقعة</span> في {heavy.length > 1 ? 'كل من ' : ''}{joinCitiesAr(heavy)}.</p>
-            )}
-            {moderate.length > 0 && (
-              <p>🌦️ <span className="font-black text-sky-700">أمطار متوسطة متوقعة</span> في {joinCitiesAr(moderate)}.</p>
-            )}
-            {weak.length > 0 && (
-              <p>🌂 <span className="font-black text-slate-700">أمطار ضعيفة متوقعة</span> في {joinCitiesAr(weak)}.</p>
-            )}
-            {wind.length > 0 && (
-              <p>🌬️ <span className="font-black text-cyan-700">رياح قوية</span> في {joinCitiesAr(wind)}.</p>
-            )}
+          <div className="space-y-4">
+            {entries.map((e) => (
+              <div key={e.day.dateStr} className="border-r-4 border-sky-200 pr-3">
+                <p className="text-sm font-black text-sky-800 mb-1">📅 {arabicFullDate(e.day.dateStr)}</p>
+                <div className="space-y-1.5 text-[15px] leading-8">{narrativeLines(e.forecast)}</div>
+              </div>
+            ))}
           </div>
 
           <p className="mt-4 text-center text-[15px] font-black text-emerald-800">بإذن الله 🤲</p>
@@ -935,6 +931,19 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       </article>
     );
   };
+
+  // تجميع التوقعات حسب الولاية (كل ولاية → أيامها)، مرتّبة إدارياً
+  const wilayaGroups = (() => {
+    const map = new Map();
+    days.forEach((day) => {
+      (day.forecasts || []).forEach((forecast) => {
+        const w = normalizeMauritaniaWilayaName(forecast.wilaya) || forecast.wilaya;
+        if (!map.has(w)) map.set(w, []);
+        map.get(w).push({ day, forecast });
+      });
+    });
+    return [...map.entries()].sort((a, b) => compareMauritaniaWilayaAdminOrder(a[0], b[0]));
+  })();
 
   return (
     <div className="space-y-6" dir="rtl">
@@ -1037,15 +1046,13 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         {/* خريطة الرصد المباشر مدمجة تحت بطاقة رصد اليوم */}
         <SatelliteViewer />
 
-        {days.flatMap((day, idx) =>
-          (day.forecasts || []).length > 0
-            ? day.forecasts.map((forecast) => renderWilayaNarrativeCard(day, idx, forecast))
-            : [(
-                <article key={day.dateStr} className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-lg" dir="rtl">
-                  <p className="text-base font-black text-slate-800">{arabicFullDate(day.dateStr)}</p>
-                  <p className="text-sm text-slate-600 mt-1">لا توقعات أمطار بارزة لعموم الولايات في هذا اليوم، بإذن الله.</p>
-                </article>
-              )]
+        {wilayaGroups.length > 0 ? (
+          wilayaGroups.map(([wilaya, entries]) => renderWilayaCard(wilaya, entries))
+        ) : (
+          <article className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-lg" dir="rtl">
+            <p className="text-base font-black text-slate-800">توقعات الأيام الثلاثة القادمة</p>
+            <p className="text-sm text-slate-600 mt-1">لا توقعات أمطار بارزة على الولايات خلال الأيام القادمة، بإذن الله.</p>
+          </article>
         )}
       </div>
     </div>
