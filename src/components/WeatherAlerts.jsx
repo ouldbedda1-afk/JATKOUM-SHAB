@@ -345,6 +345,7 @@ function isRainySeason(dateStr) {
 ══════════════════════════════════════════ */
 function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNow }) {
   const [isTodayObservationFlashing, setIsTodayObservationFlashing] = useState(false);
+  const [confirmedForecasts, setConfirmedForecasts] = useState([]);
   const flashTimeoutRef = useRef(null);
 
   // أسماء المقاطعات التي يرصدها الرادار الآن (للتأكيد)
@@ -368,6 +369,49 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
     () => buildConvectiveWatch({ weatherData: cities, maxItems: 5 }),
     [cities]
   );
+
+  // متتبّع التأكيد: ما يتوقّعه النموذج ثم يؤكّده الرادار لاحقاً → "✅ تأكّد بالرادار"
+  useEffect(() => {
+    const PENDING_KEY = 'model_forecast_pending';
+    const CONFIRMED_KEY = 'model_forecast_confirmed';
+    const PENDING_MAX = 12 * 60 * 60 * 1000; // نتتبّع توقّع النموذج حتى 12 ساعة
+    const CONFIRMED_MAX = 3 * 60 * 60 * 1000; // نعرض التأكيد حتى 3 ساعات
+    const now = Date.now();
+
+    const load = (k) => { try { return JSON.parse(localStorage.getItem(k) || '{}'); } catch { return {}; } };
+    const pending = load(PENDING_KEY);
+    const confirmed = load(CONFIRMED_KEY);
+
+    // تنظيف القديم
+    for (const c of Object.keys(pending)) if (now - pending[c] > PENDING_MAX) delete pending[c];
+    for (const c of Object.keys(confirmed)) if (now - confirmed[c] > CONFIRMED_MAX) delete confirmed[c];
+
+    const radarSet = new Set((rainingNow || []).map((r) => r.city));
+
+    // توقّع سابق أكّده الرادار الآن → ننقله إلى "مؤكّد"
+    for (const city of radarSet) {
+      if (pending[city]) {
+        confirmed[city] = now;
+        delete pending[city];
+      }
+    }
+
+    // نسجّل توقّعات النموذج الجديدة (غير المرصودة بالرادار بعد)
+    (modelRainingNow || []).forEach((m) => {
+      if (!radarSet.has(m.city) && !pending[m.city] && !confirmed[m.city]) {
+        pending[m.city] = now;
+      }
+    });
+
+    try {
+      localStorage.setItem(PENDING_KEY, JSON.stringify(pending));
+      localStorage.setItem(CONFIRMED_KEY, JSON.stringify(confirmed));
+    } catch { /* تجاهل */ }
+
+    // نعرض المؤكّدة التي ما زالت تمطر فعلاً
+    const stillRaining = Object.keys(confirmed).filter((c) => radarSet.has(c));
+    setConfirmedForecasts(stillRaining);
+  }, [rainingNow, modelRainingNow]);
 
   // نجمع البيانات مقسّمة حسب اليوم (3 أيام قادمة)
   const days = useMemo(() => {
@@ -844,6 +888,18 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
                 <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-black text-white shadow-sm animate-pulse">
                   <span className="h-2 w-2 rounded-full bg-white animate-ping" />
                   رصد جديد
+                </div>
+              )}
+
+              {/* ✅ تأكّد بالرادار: توقّع النموذج تحقّق فعلياً */}
+              {confirmedForecasts.length > 0 && (
+                <div className="rounded-2xl border border-emerald-300/40 bg-emerald-400/20 p-3 shadow-sm">
+                  <p className="text-sm font-black text-white flex items-center gap-1.5">
+                    ✅ تأكّد بالرادار
+                  </p>
+                  <p className="text-[13px] text-white/90 leading-relaxed mt-0.5">
+                    ما توقّعه النموذج سابقاً تحقّق الآن فعلياً في: <span className="font-black">{confirmedForecasts.map(toArabicCommune).join('، ')}</span>.
+                  </p>
                 </div>
               )}
               <div className="rounded-2xl p-4 shadow-lg backdrop-blur-sm bg-white/10 border border-white/15">
