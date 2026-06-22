@@ -2,11 +2,6 @@ import React from 'react';
 
 // هيدر افتتاحي عريض — انطباع أول قوي على الكمبيوتر (ومتجاوب على الهاتف)
 export default function HomeHeroBanner() {
-  const chips = [
-    '🛰️ رصد حيّ · 238 بلدية',
-    '🔔 إشعارات فورية',
-  ];
-
   return (
     <section className="relative overflow-hidden bg-gradient-to-l from-blue-800 via-blue-600 to-cyan-500 text-white">
       {/* لمعة زخرفية */}
@@ -28,20 +23,6 @@ export default function HomeHeroBanner() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-center md:justify-end gap-2 md:gap-2.5 max-w-xl">
-          {chips.map((c) => (
-            <span
-              key={c}
-              className="inline-flex items-center rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-[11px] md:text-sm font-bold backdrop-blur-sm whitespace-nowrap"
-            >
-              {c}
-            </span>
-          ))}
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/40 bg-emerald-400/20 px-3 py-1.5 text-[11px] md:text-sm font-black">
-            <span className="h-2 w-2 rounded-full bg-emerald-300 animate-pulse" />
-            مباشر الآن
-          </span>
-        </div>
       </div>
     </section>
   );
