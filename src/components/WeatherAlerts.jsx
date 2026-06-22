@@ -1043,9 +1043,6 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
             </div>
           </article>
 
-        {/* خريطة الرصد المباشر مدمجة تحت بطاقة رصد اليوم */}
-        <SatelliteViewer />
-
         {wilayaGroups.length > 0 ? (
           wilayaGroups.map(([wilaya, entries]) => renderWilayaCard(wilaya, entries))
         ) : (
@@ -1054,6 +1051,9 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
             <p className="text-sm text-slate-600 mt-1">لا توقعات أمطار بارزة على الولايات خلال الأيام القادمة، بإذن الله.</p>
           </article>
         )}
+
+        {/* خريطة الرصد المباشر (الطبقات) تحت التوقعات */}
+        <SatelliteViewer />
       </div>
     </div>
   );
