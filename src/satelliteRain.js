@@ -119,8 +119,8 @@ async function getTileMaxRain(tileUrl, px, py, radius = 3, colorFn = colorToRain
  * IMERG يلوّن فقط حيث يوجد هطول (شفاف = لا مطر)، من الأزرق (خفيف) للأحمر/الوردي (غزير جداً).
  */
 function colorToImergIntensity(r, g, b, a) {
-  // نشترط تعتيماً عالياً لتفادي حواف/أثر باهت فوق الصحراء (ضجيج IMERG)
-  if (a < 140) return { mmh: 0, label: null };
+  // تعتيم معتدل: نلتقط الهطول الحقيقي (حتى شبه الشفاف) ونتجاهل الأثر الباهت جداً
+  if (a < 90) return { mmh: 0, label: null };
   // وردي/بنفسجي قوي = غزير جداً
   if (r > 180 && b > 150 && g < 130) return { mmh: 40, label: 'غزير جداً' };
   // أحمر = غزير
