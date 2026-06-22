@@ -48,6 +48,10 @@ const REFERENCE_TOWNS = [
   { name: 'موجريه', lat: 17.85, lon: -12.27 },
   { name: 'كرمسين', lat: 16.48, lon: -16.21 },
   { name: 'المذرذرة', lat: 16.91, lon: -15.65 },
+  // الزاوية الجنوبية الشرقية
+  { name: 'فصاله', lat: 15.56, lon: -5.52 },
+  { name: 'عدل بكرو', lat: 15.68, lon: -7.02 },
+  { name: 'انبيكت لحواش', lat: 16.85, lon: -5.94 },
 ];
 
 const DEG2RAD = Math.PI / 180;
