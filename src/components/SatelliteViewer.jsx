@@ -288,13 +288,6 @@ const SatelliteViewer = () => {
           >
             <SafeIcon icon={FiRefreshCw} className={`text-gray-800 ${loading ? 'animate-spin' : ''}`} />
           </button>
-          <button
-            onClick={toggleFullscreen}
-            className="bg-white/90 backdrop-blur p-2.5 rounded-xl shadow-lg hover:bg-white transition-colors"
-            title="ملء الشاشة"
-          >
-            <SafeIcon icon={FiMaximize} className="text-gray-800" />
-          </button>
         </div>
 
         <div className="absolute top-4 left-4 bg-black/55 backdrop-blur-md text-white px-3 py-1 rounded-full text-[10px] md:text-xs font-mono z-10 inline-flex items-center gap-1.5">
