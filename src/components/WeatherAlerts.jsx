@@ -511,15 +511,14 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
     // أعلى أولوية: برق حقيقي مرصود فعلياً (Blitzortung)
     if (lightningReport && lightningReport.areas.length > 0) {
       const areasText = lightningReport.areas
-        .map((a) => `${toArabicCommune(a.city)} (${a.count})`)
+        .map((a) => toArabicCommune(a.city))
         .join('، ');
       return {
         tone: 'live',
         coverage: lightningReport.areas.length >= 3 ? 'wide' : 'regional',
         title: `⚡ برق مرصود فعلياً الآن (${lightningReport.total} ضربة)`,
-        summary: `كشفت شبكة الصواعق Blitzortung برقاً حقيقياً خلال آخر 30 دقيقة، الأكثر قرباً من: ${areasText}.`,
-        details: 'هذا رصد فعلي لضربات البرق (لا استنتاج) — يرجى الحذر من الصواعق والابتعاد عن الأماكن المكشوفة والأودية.',
-        chips: ['⚡ برق حقيقي', 'Blitzortung', `${lightningReport.total} ضربة/30د`],
+        summary: `قرب: ${areasText}.`,
+        chips: ['⚡ برق حقيقي', 'Blitzortung'],
       };
     }
 
