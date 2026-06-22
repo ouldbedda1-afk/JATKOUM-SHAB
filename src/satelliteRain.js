@@ -81,7 +81,7 @@ function latLonToTile(lat, lon, zoom = 4) {
  * نمسح مربعاً نصف قطره `radius` بكسل بدل بكسل واحد، لالتقاط الخلايا
  * القريبة أو المتّجهة نحو المدينة (zoom 4 ≈ 10كم/بكسل).
  */
-async function getTileMaxRain(tileUrl, px, py, radius = 3) {
+async function getTileMaxRain(tileUrl, px, py, radius = 3, colorFn = colorToRainIntensity) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -101,7 +101,7 @@ async function getTileMaxRain(tileUrl, px, py, radius = 3) {
 
         let best = { mmh: 0, label: null };
         for (let i = 0; i < data.length; i += 4) {
-          const intensity = colorToRainIntensity(data[i], data[i + 1], data[i + 2], data[i + 3]);
+          const intensity = colorFn(data[i], data[i + 1], data[i + 2], data[i + 3]);
           if (intensity.mmh > best.mmh) best = intensity;
         }
         resolve(best);
@@ -112,6 +112,68 @@ async function getTileMaxRain(tileUrl, px, py, radius = 3) {
     img.onerror = () => reject(new Error('Tile load failed'));
     img.src = tileUrl;
   });
+}
+
+/**
+ * تحويل لون بكسل IMERG (NASA GIBS) إلى شدة المطر.
+ * IMERG يلوّن فقط حيث يوجد هطول (شفاف = لا مطر)، من الأزرق (خفيف) للأحمر/الوردي (غزير جداً).
+ */
+function colorToImergIntensity(r, g, b, a) {
+  if (a < 40) return { mmh: 0, label: null };
+  // وردي/بنفسجي قوي = غزير جداً
+  if (r > 180 && b > 150 && g < 130) return { mmh: 40, label: 'غزير جداً' };
+  // أحمر = غزير
+  if (r > 190 && g < 110 && b < 110) return { mmh: 20, label: 'غزير' };
+  // برتقالي/أصفر = متوسط
+  if (r > 180 && g > 140 && b < 120) return { mmh: 9, label: 'متوسط' };
+  // أخضر = خفيف
+  if (g > 130 && g >= r && b < 150) return { mmh: 3, label: 'خفيف' };
+  // أزرق/سماوي = خفيف جداً
+  if (b > 130) return { mmh: 1, label: 'خفيف' };
+  // أي بكسل ملوّن آخر = هطول خفيف
+  if (a >= 60 && (r + g + b) > 80) return { mmh: 0.8, label: 'خفيف' };
+  return { mmh: 0, label: null };
+}
+
+const GIBS_IMERG_URL = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/IMERG_Precipitation_Rate_30min/default/default/GoogleMapsCompatible_Level6';
+
+async function checkImergAtLocation(lat, lon, zoom = 5, radius = 2) {
+  const { x, y, px, py } = latLonToTile(lat, lon, zoom);
+  const tileUrl = `${GIBS_IMERG_URL}/${zoom}/${y}/${x}.png`; // GIBS = z/y/x
+  try {
+    return await getTileMaxRain(tileUrl, px, py, radius, colorToImergIntensity);
+  } catch {
+    return { mmh: 0, label: null };
+  }
+}
+
+/**
+ * مصدر ثانٍ: تقدير المطر من أقمار NASA IMERG (تغطية كاملة تشمل عمق الصحراء).
+ * يُكمّل رادار RainViewer في المناطق ضعيفة التغطية الرادارية.
+ */
+export async function getRainingNowFromIMERG(cities) {
+  if (!cities || cities.length === 0) return [];
+
+  const toCheck = cities.filter((c) => c.latitude != null || c.lat != null);
+  const results = await Promise.allSettled(
+    toCheck.map(async (city) => {
+      const lat = city.latitude ?? city.lat;
+      const lon = city.longitude ?? city.lon;
+      const rain = await checkImergAtLocation(lat, lon);
+      return { city, rain };
+    })
+  );
+
+  return results
+    .filter((r) => r.status === 'fulfilled' && r.value.rain.mmh >= 1)
+    .map((r) => ({
+      city: r.value.city.city,
+      wilaya: r.value.city.wilaya || '',
+      mmh: r.value.rain.mmh,
+      label: r.value.rain.label,
+      source: 'imerg',
+    }))
+    .sort((a, b) => b.mmh - a.mmh);
 }
 
 /**

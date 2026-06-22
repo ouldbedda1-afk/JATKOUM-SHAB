@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useMemo 
 import { getAllCitiesWeather, getActiveFires, getMarineWeather, clearWeatherCache, getModelRainingNow } from './weatherApi';
 import { getRecentRainReports, getRecentBawahReports, getUpcomingRainForecasts, getActiveAlerts, getApprovedNews } from './supabase';
 import { getSatelliteVegetationStatus } from './satelliteVegetation';
-import { getRainingNowFromSatellite, getSameDayHeavyRainEventsFromSatellite } from './satelliteRain';
+import { getRainingNowFromSatellite, getSameDayHeavyRainEventsFromSatellite, getRainingNowFromIMERG } from './satelliteRain';
 import { MAURITANIA_RADAR_GRID } from './mauritaniaRadarGrid';
 import { getEcmwfBriefs } from './ecmwfBriefs';
 
@@ -83,18 +83,27 @@ export const WeatherProvider = ({ children }) => {
 
       // 🛰️ رصد الأمطار عبر الأقمار الصناعية (RainViewer) — بعد جلب بيانات المدن
       if (weather && weather.length > 0) {
+        const radarTargets = [...weather, ...MAURITANIA_RADAR_GRID];
         Promise.all([
-          // نفحص البلديات + شبكة نقاط تملأ فراغات الصحراء (شمال/شرق) لالتقاط المطر البعيد عن البلديات
-          getRainingNowFromSatellite([...weather, ...MAURITANIA_RADAR_GRID]).catch(e => {
+          // المصدر الأول: رادار RainViewer (البلديات + شبكة الفراغات)
+          getRainingNowFromSatellite(radarTargets).catch(e => {
             console.warn('🛰️ satellite rain check:', e);
+            return [];
+          }),
+          // المصدر الثاني: أقمار NASA IMERG (تغطية كاملة للصحراء) — يُكمّل الرادار
+          getRainingNowFromIMERG(radarTargets).catch(e => {
+            console.warn('🛰️ IMERG check:', e);
             return [];
           }),
           getSameDayHeavyRainEventsFromSatellite(weather).catch(e => {
             console.warn('🛰️ same-day rain archive check:', e);
             return [];
           }),
-        ]).then(([raining, sameDayEvents]) => {
-          setRainingNow(raining || []);
+        ]).then(([raining, imerg, sameDayEvents]) => {
+          // اتحاد: نضيف ما رصده IMERG ولم يرصده الرادار (يملأ ثغرات الصحراء)
+          const radarCities = new Set((raining || []).map(r => r.city));
+          const imergExtra = (imerg || []).filter(r => !radarCities.has(r.city));
+          setRainingNow([...(raining || []), ...imergExtra]);
           setSameDayRainEvents(sameDayEvents || []);
         });
       } else {
