@@ -3,6 +3,7 @@ import { getAllCitiesWeather, getActiveFires, getMarineWeather, clearWeatherCach
 import { getRecentRainReports, getRecentBawahReports, getUpcomingRainForecasts, getActiveAlerts, getApprovedNews } from './supabase';
 import { getSatelliteVegetationStatus } from './satelliteVegetation';
 import { getRainingNowFromSatellite, getSameDayHeavyRainEventsFromSatellite } from './satelliteRain';
+import { MAURITANIA_RADAR_GRID } from './mauritaniaRadarGrid';
 import { getEcmwfBriefs } from './ecmwfBriefs';
 
 const WeatherContext = createContext(null);
@@ -83,7 +84,8 @@ export const WeatherProvider = ({ children }) => {
       // 🛰️ رصد الأمطار عبر الأقمار الصناعية (RainViewer) — بعد جلب بيانات المدن
       if (weather && weather.length > 0) {
         Promise.all([
-          getRainingNowFromSatellite(weather).catch(e => {
+          // نفحص البلديات + شبكة نقاط تملأ فراغات الصحراء (شمال/شرق) لالتقاط المطر البعيد عن البلديات
+          getRainingNowFromSatellite([...weather, ...MAURITANIA_RADAR_GRID]).catch(e => {
             console.warn('🛰️ satellite rain check:', e);
             return [];
           }),
