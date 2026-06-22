@@ -57,6 +57,23 @@ function compassAr(deg) {
   return dirs[Math.round(deg / 45) % 8];
 }
 
+// تقدير شدة المطر المتوقعة عند الوجهة حسب تأهّل أجوائها (CAPE/CIN)
+function expectedRainAtTarget(name, conv) {
+  const cape = Math.round(conv.cape || 0);
+  switch (conv.level) {
+    case 'extreme':
+      return `🔥 أجواء ${name} مهيأة لمطر غزير ورعدي عند وصولها (CAPE ${cape}).`;
+    case 'high':
+      return `🔥 أجواء ${name} مهيأة لمطر متوسط إلى غزير عند وصولها (CAPE ${cape}).`;
+    case 'moderate':
+      return `أجواء ${name} تؤهّل لمطر متوسط إن وصلها (CAPE ${cape}).`;
+    case 'suppressed':
+      return `ℹ️ ${name} بها كبح حراري (CIN ${Math.round(conv.cin || 0)}) قد يحدّ من المطر.`;
+    default:
+      return `أجواء ${name} لا تؤهّل إلا لمطر خفيف إن وصلها (CAPE ${cape}).`;
+  }
+}
+
 // وصف حالة أجواء بلدية الهدف
 function describeTargetSky({ isRaining, code }) {
   if (isRaining) return 'وتشهد أمطاراً بالفعل';
@@ -122,7 +139,8 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
     // الاتجاه: المسار الحقيقي المرصود إن توفّر، وإلا الحركة الغربية الموسمية
     let moveBearing = Number.isFinite(t.heading) ? t.heading : (rainy ? 255 : null);
 
-    // البحث عن البلدية الهدف في مسار الحركة
+    // البحث عن البلدية الهدف في مسار الحركة — مع دراسة أجواء الجيران:
+    // العاصفة تميل/تتسع نحو الجار الأعلى طاقة كامنة (CAPE) ضمن قطاع الحركة.
     let target = null;
     if (Number.isFinite(moveBearing)) {
       let best = null;
@@ -132,8 +150,10 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
         if (d < 8 || d > 110) continue;
         const ad = angleDiff(bearingDeg(lat, lon, cand.lat, cand.lon), moveBearing);
         if (ad > 55) continue;
-        const score = ad + d * 0.6;
-        if (!best || score < best.score) best = { ...cand, d, score };
+        const conv = getCurrentConvection(byCity.get(cand.city));
+        const capeBonus = conv ? Math.min(conv.cape || 0, 2500) / 120 : 0; // ميل نحو عدم الاستقرار
+        const score = ad + d * 0.6 - capeBonus;
+        if (!best || score < best.score) best = { ...cand, d, score, conv };
       }
       target = best;
     }
@@ -161,13 +181,10 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
         ? `تتحرك نحو ${targetDir} بسرعة ~${t.speed} كم/س`
         : `يُرجّح تحركها نحو ${targetDir} (تقدير موسمي)`;
       message += `\n${moveVerb} صوب ${targetAr}${tw2} على بُعد ~${Math.round(target.d)} كم ${sky}.`;
-      const tConv = getCurrentConvection(tw);
+      // تقدير الشدة عند الوجهة حسب تأهّل أجوائها (الطاقة الكامنة)
+      const tConv = target.conv || getCurrentConvection(tw);
       if (tConv) {
-        if (tConv.primed) {
-          message += `\n🔥 ${targetAr} تختزن طاقة كامنة ${tConv.level === 'extreme' ? 'شديدة' : 'عالية'} (CAPE ${Math.round(tConv.cape)}) — مرشحة لتطوّر العاصفة عند وصولها.`;
-        } else if (tConv.level === 'suppressed') {
-          message += `\nℹ️ ${targetAr} بها طاقة محبوسة بكبح حراري (CIN ${Math.round(tConv.cin)}) قد يحدّ من تطورها.`;
-        }
+        message += `\n${expectedRainAtTarget(targetAr, tConv)}`;
       }
     } else if (Number.isFinite(moveBearing)) {
       message += t.speed
