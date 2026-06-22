@@ -155,9 +155,11 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
       const tcode = tw?.current?.weather_code ?? 0;
       const sky = describeTargetSky({ isRaining: rainingSet.has(target.city), code: tcode });
       const tw2 = target.wilaya && target.wilaya !== rep.wilaya ? ` (${target.wilaya})` : '';
+      // الاتجاه المعروض = الاتجاه الفعلي للوجهة المختارة (لا الاتجاه الموسمي العام)
+      const targetDir = compassAr(bearingDeg(lat, lon, target.lat, target.lon));
       const moveVerb = t.speed
-        ? `تتحرك نحو ${compassAr(moveBearing)} بسرعة ~${t.speed} كم/س`
-        : `يُرجّح تحركها نحو ${compassAr(moveBearing)} (تقدير موسمي)`;
+        ? `تتحرك نحو ${targetDir} بسرعة ~${t.speed} كم/س`
+        : `يُرجّح تحركها نحو ${targetDir} (تقدير موسمي)`;
       message += `\n${moveVerb} صوب ${targetAr}${tw2} على بُعد ~${Math.round(target.d)} كم ${sky}.`;
       const tConv = getCurrentConvection(tw);
       if (tConv) {
