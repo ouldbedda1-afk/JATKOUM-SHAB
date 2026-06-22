@@ -4,8 +4,6 @@ import React from 'react';
 export default function HomeHeroBanner() {
   const chips = [
     '🛰️ رصد حيّ · 238 بلدية',
-    '⚡ كشف العواصف والبرق',
-    '🔥 الطاقة الكامنة (CAPE)',
     '🔔 إشعارات فورية',
   ];
 
