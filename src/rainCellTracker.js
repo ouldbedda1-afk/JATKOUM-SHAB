@@ -20,6 +20,12 @@ import { toArabicCommune } from './mauritaniaCommuneNamesAr';
 const EARTH_RADIUS_KM = 6371;
 const DEG2RAD = Math.PI / 180;
 
+// موسم الأمطار في موريتانيا (يونيو→أكتوبر): حركة الخلايا غربية مع الموجات الشرقية
+function isRainySeason() {
+  const m = new Date().getMonth() + 1;
+  return m >= 6 && m <= 10;
+}
+
 function distanceKm(lat1, lon1, lat2, lon2) {
   const dLat = (lat2 - lat1) * DEG2RAD;
   const dLon = (lon2 - lon1) * DEG2RAD;
@@ -101,11 +107,18 @@ export function buildRainMovementAlerts({ rainingNow, weatherData, maxAlerts = 4
     const code = src.current?.weather_code ?? 0;
     const hasThunder = code >= 95 || cell.mmh >= 50;
 
-    // اتجاه حركة الخلية: عكس اتجاه قدوم الريح
+    // اتجاه حركة الخلية:
+    // في موسم الأمطار (يونيو→أكتوبر) تتحرك الخلايا غرباً/جنوب غربياً مع الموجات الشرقية
+    // الإفريقية والتيار الشرقي العلوي — لا مع رياح السطح الموسمية (التي تهبّ نحو الشمال الشرقي).
+    const rainy = isRainySeason();
     let target = null;
     let moveBearing = null;
-    if (Number.isFinite(windFrom)) {
+    if (rainy) {
+      moveBearing = 255; // غرب/جنوب غربي (حركة موسمية)
+    } else if (Number.isFinite(windFrom)) {
       moveBearing = (windFrom + 180) % 360;
+    }
+    if (Number.isFinite(moveBearing)) {
       let best = null;
       for (const cand of coordList) {
         if (cand.city === cell.city) continue;
@@ -113,7 +126,7 @@ export function buildRainMovementAlerts({ rainingNow, weatherData, maxAlerts = 4
         if (d < 8 || d > 90) continue; // ضمن نطاق معقول للحركة القريبة
         const b = bearingDeg(lat, lon, cand.lat, cand.lon);
         const ad = angleDiff(b, moveBearing);
-        if (ad > 50) continue; // يجب أن تكون في مسار الحركة تقريباً
+        if (ad > 55) continue; // يجب أن تكون في مسار الحركة تقريباً
         const score = ad + d * 0.6; // الأقرب والأكثر محاذاة أفضل
         if (!best || score < best.score) best = { ...cand, d, score };
       }
@@ -146,7 +159,9 @@ export function buildRainMovementAlerts({ rainingNow, weatherData, maxAlerts = 4
         }
       }
     } else if (Number.isFinite(moveBearing)) {
-      message += `\nاتجاه الحركة المرجّح نحو ${compassAr(moveBearing)}${windSpeed ? ` (رياح ${windSpeed} كم/س)` : ''}.`;
+      message += rainy
+        ? `\nاتجاه الحركة المرجّح نحو ${compassAr(moveBearing)} (حركة غربية موسمية مع الموجات الشرقية).`
+        : `\nاتجاه الحركة المرجّح نحو ${compassAr(moveBearing)}${windSpeed ? ` (رياح ${windSpeed} كم/س)` : ''}.`;
     }
 
     alerts.push({
