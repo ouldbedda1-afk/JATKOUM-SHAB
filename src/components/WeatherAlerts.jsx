@@ -881,6 +881,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
 
       <div className="space-y-5">
         <article
+          id="today-observation"
           className={`${todayTheme.card} ${
             isTodayObservationFlashing ? 'animate-pulse ring-4 ring-white/20 shadow-[0_0_45px_rgba(255,255,255,0.28)]' : ''
           } relative h-fit rounded-[2rem] border-2 text-white shadow-2xl ring-1 ring-white/10 overflow-hidden transition-all duration-500`}
