@@ -94,6 +94,8 @@ function labelFor(lat, lon) {
     if (!best || d < best.d) best = { ...t, d };
   }
   if (!best) return null;
+  // الربع الخالي: لا معلَم قريب بما يكفي للتسمية → نتجاهل النقطة
+  if (best.d > 200) return null;
   if (best.d <= 25) return `قرب ${best.name}`;
   const dir = compassAr(bearingDeg(best.lat, best.lon, lat, lon));
   return `${dir} ${best.name} (~${Math.round(best.d)}كم)`;

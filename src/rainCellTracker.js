@@ -108,6 +108,8 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
   for (const t of sorted) {
     const rep = t.cities?.[0] || {};
     const cellAr = toArabicCommune(rep.city);
+    // مسمّى الشبكة يحوي مسافة "(~كم)" → نستخدم فاصلة بدل "قرب" تفادياً لـ"قرب ... (~كم)"
+    const sep = /~\d+كم/.test(cellAr) ? '—' : 'قرب';
     const lat = t.lat, lon = t.lon;
     const mmh = t.mmh || 0;
 
@@ -143,7 +145,7 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
     else if (ageMin < 6) status = 'خلية جديدة';
     else status = `متابَعة منذ ${ageMin} دقيقة`;
 
-    const title = `${hasThunder ? '⛈️ عاصفة رعدية' : '🌧️ خلية مطرية'} قرب ${cellAr}`;
+    const title = `${hasThunder ? '⛈️ عاصفة رعدية' : '🌧️ خلية مطرية'} ${sep} ${cellAr}`;
     let message = `رصد متواصل: أمطار ${labelWord} فوق ${cellAr}${rep.wilaya ? ` (${rep.wilaya})` : ''} — ${status}.`;
     if (hasThunder) message += `\n⚡ مصحوبة ببرق ورعد — احذر الصواعق والأودية.`;
 
