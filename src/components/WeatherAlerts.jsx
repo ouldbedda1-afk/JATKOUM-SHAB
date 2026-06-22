@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useWeatherContext } from '../WeatherContext';
+import { buildRainMovementAlerts } from '../rainCellTracker';
 import { requestNotificationPermission, sendLocalNotification } from '../pwa';
 import {
   compareMauritaniaWilayaAdminOrder,
@@ -354,6 +355,12 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
     [rainingNow, modelRainingNow, cities]
   );
 
+  // خلايا المطر/البرق المتحركة على مستوى البلدية (رادار + اتجاه الريح)
+  const rainMovements = useMemo(
+    () => buildRainMovementAlerts({ rainingNow, weatherData: cities, maxAlerts: 5 }),
+    [rainingNow, cities]
+  );
+
   // نجمع البيانات مقسّمة حسب اليوم (3 أيام قادمة)
   const days = useMemo(() => {
     const map = {}; // key = dateStr
@@ -442,6 +449,21 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
   const issuedAt = `${todayDate} — ${fmtTime(new Date())}`;
 
   const todayObservation = useMemo(() => {
+    // أولوية أولى: خلايا مطر/برق متحركة مرصودة بالرادار (خبر دقيق على مستوى البلدية)
+    if (rainMovements && rainMovements.length > 0) {
+      const thunderCount = rainMovements.filter((m) => m.icon === '⚡').length;
+      return {
+        tone: 'live',
+        coverage: rainMovements.length >= 3 ? 'wide' : 'regional',
+        title: thunderCount > 0
+          ? `رصد اليوم: ${rainMovements.length} خلية مطرية/رعدية متحركة`
+          : `رصد اليوم: ${rainMovements.length} خلية مطرية متحركة`,
+        summary: `يرصد الرادار حالياً خلايا مطرية${thunderCount > 0 ? ' وعواصف رعدية' : ''} متحركة فوق موريتانيا، مع تحديد البلدية الأقرب واتجاه كل خلية حسب الريح.`,
+        movements: rainMovements,
+        chips: ['🛰️ رادار مباشر', `${rainMovements.length} خلية`, thunderCount > 0 ? `${thunderCount} رعدية` : 'حركة مرصودة'].filter(Boolean),
+      };
+    }
+
     if (currentRainNarrative) {
       return {
         tone: 'live',
@@ -497,7 +519,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         'تستمر متابعة الرادار وأرشيف اليوم وقراءة النموذج وحركة السحب، وتُحدَّث هذه البطاقة تلقائياً عند ظهور أي مؤشرات محلية أو مسار ممطر نحو أي ولاية.',
       chips: ['اليوم', 'متابعة مستمرة', 'تحديث آلي'],
     };
-  }, [currentRainNarrative, sameDayRainEvents, rainingNow, modelRainingNow]);
+  }, [rainMovements, currentRainNarrative, sameDayRainEvents, rainingNow, modelRainingNow]);
 
   const todayTheme = useMemo(() => {
     if (todayObservation.tone === 'live') {
@@ -802,7 +824,31 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
               <div className="rounded-2xl p-4 shadow-lg backdrop-blur-sm bg-white/10 border border-white/15">
                 <p className="text-base font-black text-white mb-2">{todayObservation.title}</p>
                 <p className="text-sm font-bold text-white/95 leading-relaxed mb-2">{todayObservation.summary}</p>
-                <p className="text-sm text-white/85 leading-relaxed">{todayObservation.details}</p>
+                {todayObservation.details && (
+                  <p className="text-sm text-white/85 leading-relaxed">{todayObservation.details}</p>
+                )}
+
+                {/* قائمة خلايا المطر/البرق المتحركة على مستوى البلدية */}
+                {todayObservation.movements?.length > 0 && (
+                  <div className="mt-3 space-y-2.5">
+                    {todayObservation.movements.map((m) => (
+                      <div key={m.id} className="rounded-xl border border-white/15 bg-white/10 p-3">
+                        <p className="text-sm font-black text-white mb-1 flex items-center gap-1.5">
+                          <span>{m.icon}</span>{m.title}
+                        </p>
+                        <p className="text-[13px] text-white/90 leading-relaxed whitespace-pre-wrap">{m.message}</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {m.tags.map((tag) => (
+                            <span key={tag} className="px-2 py-0.5 rounded-full border border-white/15 bg-white/10 text-[9px] font-black text-white/85">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="mt-3 flex flex-wrap gap-2">
                   {todayObservation.chips.map((chip) => (
                     <span key={chip} className="px-3 py-1 rounded-full border border-white/15 bg-white/10 text-[10px] font-black text-white/90">
