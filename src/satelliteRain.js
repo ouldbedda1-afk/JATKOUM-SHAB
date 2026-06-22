@@ -81,37 +81,72 @@ function latLonToTile(lat, lon, zoom = 4) {
  * نمسح مربعاً نصف قطره `radius` بكسل بدل بكسل واحد، لالتقاط الخلايا
  * القريبة أو المتّجهة نحو المدينة (zoom 4 ≈ 10كم/بكسل).
  */
-async function getTileMaxRain(tileUrl, px, py, radius = 3, colorFn = colorToRainIntensity) {
-  return new Promise((resolve, reject) => {
+// ── تحسين الذاكرة: canvas واحد مشترك + تخزين بيانات كل بلاطة مرة واحدة ──
+// (تفادي إنشاء مئات عناصر canvas التي تُعطّل متصفح الهاتف)
+let _sharedCanvas = null;
+let _sharedCtx = null;
+const _tileDataCache = new Map(); // url -> Uint8ClampedArray(256*256*4)
+const _tileLoading = new Map();   // url -> Promise
+
+function getSharedCtx() {
+  if (!_sharedCanvas) {
+    _sharedCanvas = document.createElement('canvas');
+    _sharedCanvas.width = 256;
+    _sharedCanvas.height = 256;
+    _sharedCtx = _sharedCanvas.getContext('2d', { willReadFrequently: true });
+  }
+  return _sharedCtx;
+}
+
+// يحمّل بيانات بكسلات البلاطة (مرة واحدة لكل رابط) ويخزّنها
+function loadTileData(url) {
+  const cached = _tileDataCache.get(url);
+  if (cached) return Promise.resolve(cached);
+  const pending = _tileLoading.get(url);
+  if (pending) return pending;
+
+  const p = new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       try {
-        const canvas = document.createElement('canvas');
-        canvas.width = 256;
-        canvas.height = 256;
-        const ctx = canvas.getContext('2d');
+        const ctx = getSharedCtx();
+        ctx.clearRect(0, 0, 256, 256);
         ctx.drawImage(img, 0, 0);
-
-        const x0 = Math.max(0, px - radius);
-        const y0 = Math.max(0, py - radius);
-        const w = Math.min(256 - x0, radius * 2 + 1);
-        const h = Math.min(256 - y0, radius * 2 + 1);
-        const { data } = ctx.getImageData(x0, y0, w, h);
-
-        let best = { mmh: 0, label: null };
-        for (let i = 0; i < data.length; i += 4) {
-          const intensity = colorFn(data[i], data[i + 1], data[i + 2], data[i + 3]);
-          if (intensity.mmh > best.mmh) best = intensity;
-        }
-        resolve(best);
-      } catch (e) {
-        reject(e);
+        const data = ctx.getImageData(0, 0, 256, 256).data;
+        // حدّ أقصى للذاكرة: نمسح الكاش إن كبر (بلاطات الإطارات القديمة)
+        if (_tileDataCache.size > 150) _tileDataCache.clear();
+        _tileDataCache.set(url, data);
+        resolve(data);
+      } catch {
+        resolve(null);
+      } finally {
+        _tileLoading.delete(url);
       }
     };
-    img.onerror = () => reject(new Error('Tile load failed'));
-    img.src = tileUrl;
+    img.onerror = () => { _tileLoading.delete(url); resolve(null); };
+    img.src = url;
   });
+  _tileLoading.set(url, p);
+  return p;
+}
+
+async function getTileMaxRain(tileUrl, px, py, radius = 3, colorFn = colorToRainIntensity) {
+  const data = await loadTileData(tileUrl);
+  if (!data) return { mmh: 0, label: null };
+  const x0 = Math.max(0, px - radius);
+  const y0 = Math.max(0, py - radius);
+  const x1 = Math.min(255, px + radius);
+  const y1 = Math.min(255, py + radius);
+  let best = { mmh: 0, label: null };
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const i = (y * 256 + x) * 4;
+      const intensity = colorFn(data[i], data[i + 1], data[i + 2], data[i + 3]);
+      if (intensity.mmh > best.mmh) best = intensity;
+    }
+  }
+  return best;
 }
 
 /**
