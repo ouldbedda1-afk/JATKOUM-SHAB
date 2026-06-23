@@ -137,6 +137,7 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
       let best = null;
       for (const cand of coordList) {
         if (cand.city === rep.city) continue;
+        if (toArabicCommune(cand.city) === cellAr) continue; // تفادي وجهة بنفس اسم المصدر (تكرار/مرادف)
         const d = distanceKm(lat, lon, cand.lat, cand.lon);
         if (d < 8 || d > 110) continue;
         const ad = angleDiff(bearingDeg(lat, lon, cand.lat, cand.lon), moveBearing);
