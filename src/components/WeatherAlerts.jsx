@@ -1073,9 +1073,9 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
                                   <div className="text-sm font-black text-white">{d.location}</div>
                                 </div>
                                 <div className="flex flex-col items-center text-white/90 px-1">
-                                  <div className="text-[10px] font-black">{mv.isMeasured ? `${mv.speed} كم/س` : 'موسمي'}</div>
+                                  <div className="text-[10px] font-black">{mv.isMeasured ? `${mv.speed} كم/س` : 'مرجّح'}</div>
                                   <div className="text-xl leading-none">⟸</div>
-                                  <div className="text-[10px] font-bold">{mv.dir}</div>
+                                  <div className="text-[11px] font-black text-amber-100">{mv.dir}</div>
                                 </div>
                                 <div className="text-center">
                                   <div className="text-[9px] text-white/60">الوجهة (~{mv.distance}كم)</div>

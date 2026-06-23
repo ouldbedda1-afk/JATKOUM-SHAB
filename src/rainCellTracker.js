@@ -149,12 +149,13 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
       target = best;
     }
 
-    // حالة المتابعة الزمنية
+    // حالة المتابعة الزمنية (مع جمع الدقائق الصحيح)
     const ageMin = Math.round((now - t.firstSeen) / 60000);
+    const minWord = ageMin === 1 ? 'دقيقة' : ageMin === 2 ? 'دقيقتين' : ageMin <= 10 ? 'دقائق' : 'دقيقة';
     let status;
     if ((t.missing || 0) > 0) status = 'بدأت بالتلاشي';
     else if (ageMin < 6) status = 'خلية جديدة';
-    else status = `متابَعة منذ ${ageMin} دقيقة`;
+    else status = `متابَعة منذ ${ageMin} ${minWord}`;
 
     const title = `${hasThunder ? '⛈️ عاصفة رعدية' : '🌩️ سحب رعدية'} ${sep} ${cellAr}`;
     let message = `سحب رعدية ${labelWord} فوق ${cellAr}${rep.wilaya ? ` (${rep.wilaya})` : ''} — ${status}.`;
