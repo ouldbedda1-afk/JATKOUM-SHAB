@@ -102,8 +102,12 @@ export async function getDeepCloudsFromEumetsat(cities) {
       out.push({
         city: c.city,
         wilaya: c.wilaya || '',
+        lat,
+        lon,
         coldness: maxv,
         level: maxv >= VERY_DEEP ? 'very_deep' : 'deep',
+        // شدّة تقديرية من برودة القمة (لتغذية المتتبّع والتصنيف)
+        mmh: maxv >= VERY_DEEP ? 22 : maxv >= 115 ? 10 : 4,
       });
     }
   }

@@ -541,12 +541,10 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       return {
         tone: 'live',
         coverage: rainMovements.length >= 3 ? 'wide' : 'regional',
-        title: thunderCount > 0
-          ? `رصد اليوم: ${rainMovements.length} خلية مطرية/رعدية متحركة`
-          : `رصد اليوم: ${rainMovements.length} خلية مطرية متحركة`,
-        summary: `يرصد الرادار حالياً خلايا مطرية${thunderCount > 0 ? ' وعواصف رعدية' : ''} متحركة فوق موريتانيا، مع تحديد البلدية الأقرب واتجاه كل خلية حسب الريح.`,
+        title: `🌩️ تتبّع العواصف: ${rainMovements.length} ${rainMovements.length === 1 ? 'كتلة سحب متحركة' : 'كتل سحب متحركة'}`,
+        summary: `ترصد الأقمار الصناعية (Meteosat) كتل سحب رعدية${thunderCount > 0 ? ' وعواصف' : ''} متحركة، مع تحديد اتجاه كل كتلة و${'البلدية المتوقّع وصولها'}.`,
         movements: rainMovements,
-        chips: ['🛰️ رادار مباشر', `${rainMovements.length} خلية`, thunderCount > 0 ? `${thunderCount} رعدية` : 'حركة مرصودة'].filter(Boolean),
+        chips: ['🛰️ تتبّع حيّ', `${rainMovements.length} كتلة`, thunderCount > 0 ? `${thunderCount} عاصفة` : 'حركة مرصودة'].filter(Boolean),
       };
     }
 

@@ -90,13 +90,22 @@ export const WeatherProvider = ({ children }) => {
       // ☁️ الرصد الجديد فقط: قمم سحب Meteosat IR (EUMETSAT) — على البلديات (أسماء وولايات صحيحة)
       if (weather && weather.length > 0) {
         getDeepCloudsFromEumetsat(weather)
-          .then((clouds) => setStormClouds(clouds || []))
+          .then((clouds) => {
+            setStormClouds(clouds || []);
+            // 🛰️ تتبّع زمني لكتل السحب: اتجاه وسرعة ووجهة (البلدية المتوقّع وصولها)
+            try {
+              const { active } = updateTracks(clouds || []);
+              setTrackedCells(active);
+            } catch (e) { console.warn('storm tracking:', e); }
+          })
           .catch((e) => {
             console.warn('🛰️ Meteosat clouds:', e);
             setStormClouds([]);
+            setTrackedCells([]);
           });
       } else {
         setStormClouds([]);
+        setTrackedCells([]);
       }
       setLastUpdated(new Date());
       setError(null);

@@ -106,21 +106,8 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
 
   // تصفية الخلايا الموثوقة (تفادي بكسل كاذب معزول عابر):
   //  قوية، أو متماسكة مكانياً (≥نقطتين)، أو استمرّت عبر الإطارات، أو يؤكّدها النموذج.
-  const valid = tracks.filter((t) => {
-    const mmh = t.mmh ?? 0;
-    if (mmh >= 8) return true;                       // قوية: الرادار وحده كافٍ
-    if ((t.cities?.length || 1) >= 2) return true;   // متماسكة مكانياً (منظومة حقيقية)
-    const rep = t.cities?.[0];
-    const src = rep && byCity.get(rep.city);
-    if (!src) return false;
-    // منطقة عالية الطاقة (مهيأة) + صدى رادار = مطر حملي حقيقي (النموذج أعمى للحمل الحراري)
-    const conv = getCurrentConvection(src);
-    if (conv && conv.primed) return true;
-    // خفيفة معزولة في أجواء غير مهيأة: نطلب تأكيد النموذج (تفادي الضجيج/الفيرغا)
-    const code = src.current?.weather_code ?? 0;
-    const precip = src.current?.precipitation ?? 0;
-    return precip > 0 || code >= 51;
-  });
+  // كتل سحب Meteosat كلها حقيقية (قمم باردة مرصودة) — لا حاجة لتحقّق ضد ضجيج الرادار
+  const valid = tracks.filter((t) => (t.mmh ?? 0) >= 4);
 
   const sorted = valid.sort((a, b) => (b.mmh || 0) - (a.mmh || 0)).slice(0, maxAlerts);
   const alerts = [];
@@ -135,9 +122,10 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
 
     const repSrc = byCity.get(rep.city);
     const code = repSrc?.current?.weather_code ?? 0;
-    const hasThunder = code >= 95 || mmh >= 50;
-    const strong = mmh >= 20 || hasThunder;
-    const labelWord = mmh >= 20 ? 'غزيرة' : mmh >= 8 ? 'متوسطة' : 'خفيفة';
+    // قمة شديدة البرودة (mmh التقديري ≥20) = عاصفة رعدية مرجّحة
+    const hasThunder = mmh >= 20;
+    const strong = mmh >= 20;
+    const labelWord = mmh >= 20 ? 'كثيفة جداً' : mmh >= 8 ? 'كثيفة' : 'متوسطة';
 
     // الاتجاه: المسار الحقيقي المرصود إن توفّر، وإلا الحركة الغربية الموسمية
     let moveBearing = Number.isFinite(t.heading) ? t.heading : (rainy ? 255 : null);
@@ -168,9 +156,8 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
     else if (ageMin < 6) status = 'خلية جديدة';
     else status = `متابَعة منذ ${ageMin} دقيقة`;
 
-    const title = `${hasThunder ? '⛈️ عاصفة رعدية' : '🌧️ خلية مطرية'} ${sep} ${cellAr}`;
-    let message = `رصد متواصل: أمطار ${labelWord} فوق ${cellAr}${rep.wilaya ? ` (${rep.wilaya})` : ''} — ${status}.`;
-    if (hasThunder) message += `\n⚡ مصحوبة ببرق ورعد — احذر الصواعق والأودية.`;
+    const title = `${hasThunder ? '⛈️ عاصفة رعدية' : '🌩️ سحب رعدية'} ${sep} ${cellAr}`;
+    let message = `سحب رعدية ${labelWord} (Meteosat) فوق ${cellAr}${rep.wilaya ? ` (${rep.wilaya})` : ''} — ${status}.`;
 
     if (target) {
       const targetAr = toArabicCommune(target.city);
@@ -202,10 +189,9 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
       icon: hasThunder ? '⚡' : '🌧️',
       color: hasThunder ? 'bg-red-800' : strong ? 'bg-blue-800' : 'bg-sky-700',
       tags: [
-        hasThunder ? '🛰️ برق ورعد' : '🛰️ رصد متواصل',
-        `${mmh} mm/h`,
+        '🛰️ Meteosat — تتبّع حيّ',
         status,
-        target ? `صوب ${toArabicCommune(target.city)}` : 'خلية محلية',
+        target ? `صوب ${toArabicCommune(target.city)}` : 'محلية',
       ].filter(Boolean),
     });
   }
