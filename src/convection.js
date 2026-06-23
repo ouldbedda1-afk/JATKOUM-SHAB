@@ -51,8 +51,8 @@ export function assessConvection(cape, cin, li) {
 
   let level = 'low';
   if (c >= 2500 || lift <= -7) level = 'extreme';
-  else if (c >= 1500 || lift <= -5) level = 'high';
-  else if (c >= 700 || lift <= -2) level = 'moderate';
+  else if (c >= 1200 || lift <= -5) level = 'high';
+  else if (c >= 600 || lift <= -2) level = 'moderate';
 
   if (stronglyCapped && (level === 'high' || level === 'moderate')) {
     level = 'suppressed';
