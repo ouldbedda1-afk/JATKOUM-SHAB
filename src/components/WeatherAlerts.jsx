@@ -605,8 +605,8 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         tone: 'live',
         coverage: wilayas.length >= 3 ? 'wide' : 'regional',
         title: `🌩️ سحب رعدية كثيفة الآن على ${wilayas.length} ${wilayas.length === 1 ? 'ولاية' : 'ولايات'}`,
-        summary: `ترصد أقمار Meteosat سحبًا رعدية كثيفة (حمل حراري نشط) على: ${formatShortList(wilayas, 6)}${intense.length ? `، وأكثفها فوق ${formatShortList(intense, 4)}` : ''} — عواصف وأمطار مرجّحة بإذن الله.`,
-        chips: ['☁️ Meteosat حيّ', `${wilayas.length} ولاية`, `${stormClouds.length} بلدية`],
+        summary: `ترصد الأقمار الصناعية سحبًا رعدية كثيفة الآن مع حمل حراري نشط على: ${formatShortList(wilayas, 6)}${intense.length ? `، وأكثفها فوق ${formatShortList(intense, 4)}` : ''} — عواصف وأمطار مرجّحة بإذن الله.`,
+        chips: ['🛰️ أقمار صناعية حيّة', `${wilayas.length} ولاية`, `${stormClouds.length} بلدية`],
       };
     }
 
