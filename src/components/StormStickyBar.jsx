@@ -1,0 +1,46 @@
+import React from 'react';
+import { useWeatherContext } from '../WeatherContext';
+import { normalizeMauritaniaWilayaName } from '../mauritaniaPlaceNames';
+
+/**
+ * شريط مثبّت أعلى الصفحة يظهر ما دامت هناك عواصف/سحب نشطة (Meteosat)،
+ * ويختفي تلقائياً حين تتلاشى. يأخذ الزائر لبطاقة "رصد اليوم" لمتابعة المسار.
+ * يتحدّث تلقائياً مع كل دورة رصد (قوة/ضعف/حركة).
+ */
+export default function StormStickyBar() {
+  const { stormClouds, lightningStrikes } = useWeatherContext();
+
+  const hasClouds = (stormClouds || []).length > 0;
+  const strikes = (lightningStrikes || []).length;
+  if (!hasClouds && strikes === 0) return null;
+
+  const wilayas = new Set(
+    (stormClouds || [])
+      .map((c) => normalizeMauritaniaWilayaName(c.wilaya) || c.wilaya)
+      .filter(Boolean)
+  );
+  const veryDeep = (stormClouds || []).filter((c) => c.level === 'very_deep').length;
+
+  const goToCard = () => {
+    document.getElementById('today-observation')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  return (
+    <div className="sticky top-1 z-40 px-2 mt-2" dir="rtl">
+      <button
+        onClick={goToCard}
+        className="w-full max-w-[1400px] mx-auto flex items-center justify-between gap-3 rounded-2xl border-2 border-white/20 bg-gradient-to-l from-red-700 via-rose-700 to-orange-700 text-white px-4 py-2.5 shadow-2xl backdrop-blur"
+      >
+        <span className="flex items-center gap-2 font-black text-sm md:text-base">
+          <span className="h-2.5 w-2.5 rounded-full bg-white animate-ping" />
+          {strikes > 0 ? `⚡ برق + ` : ''}🌩️ عواصف نشطة الآن
+          {wilayas.size > 0 ? ` على ${wilayas.size} ${wilayas.size === 1 ? 'ولاية' : 'ولايات'}` : ''}
+          {veryDeep > 0 ? ` (${veryDeep} شديدة)` : ''}
+        </span>
+        <span className="shrink-0 text-[11px] md:text-sm font-bold bg-white/20 px-3 py-1 rounded-full">
+          اضغط لمتابعة المسار ←
+        </span>
+      </button>
+    </div>
+  );
+}

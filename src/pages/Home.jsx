@@ -11,6 +11,7 @@ import StormAlertBanner from '../components/StormAlertBanner';
 import LivestockHomePreview from '../components/LivestockHomePreview';
 import HomeHeroBanner from '../components/HomeHeroBanner';
 import LightningSoundAlert from '../components/LightningSoundAlert';
+import StormStickyBar from '../components/StormStickyBar';
 
 // أثقل مكوّن (echarts) — يُحمَّل عند الحاجة فقط لتسريع أول تحميل
 const WeatherCharts = lazy(() => import('../components/WeatherCharts'));
@@ -107,6 +108,7 @@ export default function Home() {
       <Navbar onCitySelect={setSelectedCity} />
       <NewsTicker />
       <HomeHeroBanner />
+      <StormStickyBar />
       <LightningSoundAlert />
 
       {/* شريط دعوة لتحديد الموقع عند نسيانه/رفضه */}
