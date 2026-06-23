@@ -1053,7 +1053,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
                           <div className={`flex items-center justify-between gap-2 px-3.5 py-2.5 ${d.isStorm ? 'bg-red-500/25' : 'bg-sky-500/20'}`}>
                             <span className="flex items-center gap-2 font-black text-white text-[15px]">
                               <span className="text-lg">{d.isStorm ? '⛈️' : '🌩️'}</span>
-                              {d.isStorm ? 'عاصفة رعدية' : 'سحب رعدية'} — {d.location || ''}
+                              {d.isStorm ? 'عاصفة رعدية' : 'سحب رعدية'} الآن على {d.location || ''}
                             </span>
                             <span className="shrink-0 rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-black text-white">{d.intensity || ''}</span>
                           </div>
@@ -1064,6 +1064,13 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
                               {d.wilaya && <span className="inline-flex items-center gap-1">📍 {d.wilaya}</span>}
                               <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5">⏱️ {d.status}</span>
                             </div>
+
+                            {/* جملة الوجهة */}
+                            {mv && mv.target && (
+                              <p className="text-[13.5px] font-bold text-white leading-relaxed">
+                                🧭 يُتوقّع أن تتجه صوب <span className="font-black text-amber-200">{mv.target}{mv.targetWilaya ? ` (${mv.targetWilaya})` : ''}</span> {mv.isMeasured ? `بسرعة ~${mv.speed} كم/س` : '(تقدير مبدئي)'}.
+                              </p>
+                            )}
 
                             {/* المسار المرئي: المصدر ← الاتجاه/السرعة ← الوجهة */}
                             {mv && mv.target ? (
