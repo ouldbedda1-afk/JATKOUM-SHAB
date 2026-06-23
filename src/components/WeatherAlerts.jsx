@@ -1069,7 +1069,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
                             {mv && (
                               mv.target ? (
                                 <p className="text-[13.5px] font-bold text-white leading-relaxed">
-                                  🧭 يُتوقّع أن تتجه صوب <span className="font-black text-amber-200">{mv.target}{mv.targetWilaya ? ` (${mv.targetWilaya})` : ''}</span> {mv.isMeasured ? `بسرعة ~${mv.speed} كم/س` : '(تقدير مبدئي)'}.
+                                  🧭 يُتوقّع أن تتجه نحو {mv.dir} صوب <span className="font-black text-amber-200">{mv.target}{mv.targetWilaya ? ` (${mv.targetWilaya})` : ''}</span> (~{mv.distance}كم) {mv.isMeasured ? `بسرعة ~${mv.speed} كم/س` : '(تقدير مبدئي)'}.
                                 </p>
                               ) : (
                                 <p className="text-[13.5px] font-bold text-white leading-relaxed">
@@ -1077,29 +1077,6 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
                                 </p>
                               )
                             )}
-
-                            {/* المسار المرئي: المصدر ← الاتجاه/السرعة ← الوجهة */}
-                            {mv && mv.target ? (
-                              <div className="flex items-center justify-between gap-2 rounded-xl bg-black/20 px-3 py-2.5">
-                                <div className="text-center">
-                                  <div className="text-[9px] text-white/60">الموقع</div>
-                                  <div className="text-sm font-black text-white">{d.location}</div>
-                                </div>
-                                <div className="flex flex-col items-center text-white/90 px-1">
-                                  <div className="text-[10px] font-black">{mv.isMeasured ? `${mv.speed} كم/س` : 'مرجّح'}</div>
-                                  <div className="text-xl leading-none">⟸</div>
-                                  <div className="text-[11px] font-black text-amber-100">{mv.dir}</div>
-                                </div>
-                                <div className="text-center">
-                                  <div className="text-[9px] text-white/60">الوجهة (~{mv.distance}كم)</div>
-                                  <div className="text-sm font-black text-amber-200">{mv.target}{mv.targetWilaya ? ` · ${mv.targetWilaya}` : ''}</div>
-                                </div>
-                              </div>
-                            ) : mv ? (
-                              <div className="rounded-xl bg-black/20 px-3 py-2 text-[12px] font-bold text-white/90">
-                                {mv.isMeasured ? `تتحرك نحو ${mv.dir} بسرعة ~${mv.speed} كم/س` : `يُرجّح اتجاهها نحو ${mv.dir} (تقدير موسمي)`}
-                              </div>
-                            ) : null}
 
                             {/* تقدير الشدة عند الوجهة */}
                             {mv && mv.expectation && (
