@@ -110,6 +110,13 @@ export const WeatherProvider = ({ children }) => {
     }
   };
 
+  // ⚡ كشف الصواعق الحقيقي (Blitzortung) — يساعد على تتبّع مسار المطر واتجاهه
+  useEffect(() => {
+    startLightning();
+    const unsub = subscribeLightning((s) => setLightningStrikes(s));
+    return () => unsub();
+  }, []);
+
   useEffect(() => {
     // ✅ جلب أول مرة فقط عند التحميل
     refreshAllData();
