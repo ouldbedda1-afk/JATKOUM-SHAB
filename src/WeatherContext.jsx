@@ -6,6 +6,7 @@ import { getRainingNowFromSatellite, getSameDayHeavyRainEventsFromSatellite, get
 import { MAURITANIA_RADAR_GRID } from './mauritaniaRadarGrid';
 import { startLightning, subscribeLightning } from './lightningBlitzortung';
 import { updateTracks } from './cellTracking';
+import { getDeepCloudsFromEumetsat } from './satelliteCloudsEU';
 import { getEcmwfBriefs } from './ecmwfBriefs';
 
 const WeatherContext = createContext(null);
@@ -30,6 +31,7 @@ export const WeatherProvider = ({ children }) => {
   const [rainingNow,       setRainingNow]       = useState([]);
   const [sameDayRainEvents, setSameDayRainEvents] = useState([]);
   const [trackedCells,     setTrackedCells]     = useState([]);
+  const [stormClouds,      setStormClouds]      = useState([]);
   const [lightningStrikes, setLightningStrikes] = useState([]);
   const [loading,          setLoading]          = useState(true);
   const [lastUpdated,      setLastUpdated]      = useState(null);
@@ -116,9 +118,18 @@ export const WeatherProvider = ({ children }) => {
           } catch (e) { console.warn('cell tracking:', e); }
           setSameDayRainEvents(sameDayEvents || []);
         });
+
+        // ☁️ مصدر رابع حيّ: قمم السحب العميقة (Meteosat IR) — يملأ فجوة الساحل
+        getDeepCloudsFromEumetsat(radarTargets)
+          .then((clouds) => setStormClouds(clouds || []))
+          .catch((e) => {
+            console.warn('🛰️ Meteosat clouds:', e);
+            setStormClouds([]);
+          });
       } else {
         setRainingNow([]);
         setSameDayRainEvents([]);
+        setStormClouds([]);
       }
       setLastUpdated(new Date());
       setError(null);
@@ -195,6 +206,7 @@ export const WeatherProvider = ({ children }) => {
     modelRainingNow,
     sameDayRainEvents,
     trackedCells,
+    stormClouds,
     lightningStrikes,
     loading,
     lastUpdated,
@@ -207,7 +219,7 @@ export const WeatherProvider = ({ children }) => {
   }), [
     weatherData, fires, marineData,
     rainReports, bawahReports, rainForecasts, manualAlerts, approvedNews, ecmwfBriefs, vegetationData,
-    rainingNow, modelRainingNow, sameDayRainEvents, trackedCells, lightningStrikes, loading, lastUpdated, error,
+    rainingNow, modelRainingNow, sameDayRainEvents, trackedCells, stormClouds, lightningStrikes, loading, lastUpdated, error,
   ]);
 
   return (

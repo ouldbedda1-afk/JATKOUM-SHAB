@@ -360,7 +360,7 @@ function isRainySeason(dateStr) {
 /* ══════════════════════════════════════════
    مكوّن النشرة الجوية الرسمية (3 أيام موحدة)
 ══════════════════════════════════════════ */
-function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNow, lightningStrikes, trackedCells }) {
+function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNow, lightningStrikes, trackedCells, stormClouds }) {
   const [isTodayObservationFlashing, setIsTodayObservationFlashing] = useState(false);
   const [confirmedForecasts, setConfirmedForecasts] = useState([]);
   const flashTimeoutRef = useRef(null);
@@ -589,6 +589,20 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       };
     }
 
+    // سحب رعدية كثيفة حيّة (Meteosat IR) — تكشف عواصف الساحل التي يفوتها الرادار/IMERG
+    if (stormClouds && stormClouds.length > 0) {
+      const areas = stormClouds.slice(0, 6).map((c) => toArabicCommune(c.city));
+      const veryDeep = stormClouds.filter((c) => c.level === 'very_deep').length;
+      return {
+        tone: 'live',
+        coverage: stormClouds.length >= 3 ? 'wide' : 'regional',
+        title: `🌩️ سحب رعدية كثيفة الآن (${stormClouds.length} منطقة)`,
+        summary: `ترصد أقمار Meteosat قمم سحب باردة عميقة (حمل حراري نشط) فوق: ${formatShortList(areas, 6)} — عواصف وأمطار مرجّحة.`,
+        details: 'مصدر حيّ (Meteosat IR ~كل 15 دقيقة) يكشف العواصف العميقة فوق الساحل حيث تضعف تغطية الرادار.',
+        chips: ['☁️ Meteosat حيّ', `${stormClouds.length} منطقة`, veryDeep ? `${veryDeep} شديدة البرودة` : 'حمل حراري'],
+      };
+    }
+
     if ((modelRainingNow || []).length > 0) {
       const topModel = modelRainingNow.slice(0, 4);
       return {
@@ -620,7 +634,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         'تستمر متابعة الرادار وأرشيف اليوم وقراءة النموذج وحركة السحب، وتُحدَّث هذه البطاقة تلقائياً عند ظهور أي مؤشرات محلية أو مسار ممطر نحو أي ولاية.',
       chips: ['اليوم', 'متابعة مستمرة', 'تحديث آلي'],
     };
-  }, [lightningReport, rainMovements, convectiveWatch, currentRainNarrative, sameDayRainEvents, rainingNow, modelRainingNow]);
+  }, [lightningReport, rainMovements, stormClouds, convectiveWatch, currentRainNarrative, sameDayRainEvents, rainingNow, modelRainingNow]);
 
   const todayTheme = useMemo(() => {
     if (todayObservation.tone === 'live') {
@@ -1117,6 +1131,7 @@ const WeatherAlerts = () => {
     modelRainingNow,
     sameDayRainEvents,
     trackedCells,
+    stormClouds,
     lightningStrikes,
     loading,
     lastUpdated,
@@ -1307,6 +1322,7 @@ const WeatherAlerts = () => {
         modelRainingNow={modelRainingNow}
         lightningStrikes={lightningStrikes}
         trackedCells={trackedCells}
+        stormClouds={stormClouds}
       />
 
     </div>
