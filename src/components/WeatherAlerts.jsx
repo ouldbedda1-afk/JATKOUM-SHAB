@@ -586,17 +586,27 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       };
     }
 
-    // سحب رعدية كثيفة حيّة (Meteosat IR) — تكشف عواصف الساحل التي يفوتها الرادار/IMERG
+    // سحب رعدية كثيفة حيّة (Meteosat IR) — مجمّعة حسب الولاية
     if (stormClouds && stormClouds.length > 0) {
-      const areas = stormClouds.slice(0, 6).map((c) => toArabicCommune(c.city));
-      const veryDeep = stormClouds.filter((c) => c.level === 'very_deep').length;
+      // الولايات المتأثرة (مرتّبة بالأكثر بلديات)
+      const wilayaCount = {};
+      stormClouds.forEach((c) => {
+        const w = normalizeMauritaniaWilayaName(c.wilaya) || c.wilaya;
+        if (w) wilayaCount[w] = (wilayaCount[w] || 0) + 1;
+      });
+      const wilayas = Object.entries(wilayaCount).sort((a, b) => b[1] - a[1]).map(([w]) => w);
+      // أكثف البلديات برودةً (الأقوى) بالاسم
+      const intense = stormClouds
+        .filter((c) => c.level === 'very_deep')
+        .slice(0, 5)
+        .map((c) => toArabicCommune(c.city));
+
       return {
         tone: 'live',
-        coverage: stormClouds.length >= 3 ? 'wide' : 'regional',
-        title: `🌩️ سحب رعدية كثيفة الآن (${stormClouds.length} منطقة)`,
-        summary: `ترصد أقمار Meteosat قمم سحب باردة عميقة (حمل حراري نشط) فوق: ${formatShortList(areas, 6)} — عواصف وأمطار مرجّحة.`,
-        details: 'مصدر حيّ (Meteosat IR ~كل 15 دقيقة) يكشف العواصف العميقة فوق الساحل حيث تضعف تغطية الرادار.',
-        chips: ['☁️ Meteosat حيّ', `${stormClouds.length} منطقة`, veryDeep ? `${veryDeep} شديدة البرودة` : 'حمل حراري'],
+        coverage: wilayas.length >= 3 ? 'wide' : 'regional',
+        title: `🌩️ سحب رعدية كثيفة الآن على ${wilayas.length} ${wilayas.length === 1 ? 'ولاية' : 'ولايات'}`,
+        summary: `ترصد أقمار Meteosat سحبًا رعدية كثيفة (حمل حراري نشط) على: ${formatShortList(wilayas, 6)}${intense.length ? `، وأكثفها فوق ${formatShortList(intense, 4)}` : ''} — عواصف وأمطار مرجّحة بإذن الله.`,
+        chips: ['☁️ Meteosat حيّ', `${wilayas.length} ولاية`, `${stormClouds.length} بلدية`],
       };
     }
 

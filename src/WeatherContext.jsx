@@ -87,9 +87,9 @@ export const WeatherProvider = ({ children }) => {
       setEcmwfBriefs(ecmwf || []);
       setApprovedNews(news || []);
 
-      // ☁️ الرصد الجديد فقط: قمم سحب Meteosat IR (EUMETSAT) — كشف حيّ للعواصف يغطي إفريقيا
+      // ☁️ الرصد الجديد فقط: قمم سحب Meteosat IR (EUMETSAT) — على البلديات (أسماء وولايات صحيحة)
       if (weather && weather.length > 0) {
-        getDeepCloudsFromEumetsat([...weather, ...MAURITANIA_RADAR_GRID])
+        getDeepCloudsFromEumetsat(weather)
           .then((clouds) => setStormClouds(clouds || []))
           .catch((e) => {
             console.warn('🛰️ Meteosat clouds:', e);
