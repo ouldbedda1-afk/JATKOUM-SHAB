@@ -30,7 +30,7 @@ const memoryCache = new Map();
 // --- Cache دائم في localStorage (يبقى بعد إعادة التحميل) ---
 const LS_PREFIX = 'wx_cache_v2_';
 const DAILY_LIMIT_KEY = `${LS_PREFIX}daily_limit_blocked`;
-const ALL_CITIES_CACHE_KEY = 'all_cities_weather';
+const ALL_CITIES_CACHE_KEY = 'all_cities_weather_v2'; // v2: إبطال الكاش القديم بعد تصحيح إحداثيات (بومديد/كوبني)
 const ALL_CITIES_STALE_CACHE_KEY = `${ALL_CITIES_CACHE_KEY}_stale`;
 const ALL_CITIES_MERGED_CACHE_KEY = `${ALL_CITIES_CACHE_KEY}_merged`;
 const COVERAGE_BATCH_INDEX_KEY = `${LS_PREFIX}coverage_batch_index`;
