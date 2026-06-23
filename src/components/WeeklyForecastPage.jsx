@@ -108,7 +108,7 @@ function DayCard({ time, i, weatherData }) {
 
 const WeeklyForecastPage = () => {
   const [selectedCity, setSelectedCity] = useState('نواكشوط');
-  const [forecastRange, setForecastRange] = useState(14);
+  const [forecastRange, setForecastRange] = useState(7);
 
   const cityName = typeof selectedCity === 'string' ? selectedCity : selectedCity.name;
   const { data: weatherData, loading, error } = useWeather(
@@ -143,7 +143,7 @@ const WeeklyForecastPage = () => {
 
           {/* اختيار المدى الزمني */}
           <div className="flex gap-2">
-            {[7, 10, 14].map((n) => (
+            {[7].map((n) => (
               <button
                 key={n}
                 onClick={() => setForecastRange(n)}
