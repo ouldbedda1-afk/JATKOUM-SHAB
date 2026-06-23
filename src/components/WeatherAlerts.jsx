@@ -1041,46 +1041,62 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
                   <p className="text-sm text-white/85 leading-relaxed">{todayObservation.details}</p>
                 )}
 
-                {/* قائمة العواصف المتحركة — تصميم مرئي للمسار */}
+                {/* قائمة العواصف المتحركة — تصميم أنيق */}
                 {rainMovements?.length > 0 && (
                   <div className="mt-3 space-y-3">
                     {rainMovements.map((m) => {
                       const d = m.data || {};
                       const mv = d.movement;
                       return (
-                        <div key={m.id} className="rounded-2xl border border-white/15 bg-white/10 overflow-hidden shadow-lg">
-                          {/* الرأس: نوع + الموقع + شدّة */}
-                          <div className={`flex items-center justify-between gap-2 px-3.5 py-2.5 ${d.isStorm ? 'bg-red-500/25' : 'bg-sky-500/20'}`}>
-                            <span className="flex items-center gap-2 font-black text-white text-[15px]">
-                              <span className="text-lg">{d.isStorm ? '⛈️' : '🌩️'}</span>
-                              {d.isStorm ? 'عاصفة رعدية' : 'سحب رعدية'} الآن على {d.location || ''}
-                            </span>
-                            <span className="shrink-0 rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-black text-white">{d.intensity || ''}</span>
-                          </div>
+                        <div
+                          key={m.id}
+                          className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${d.isStorm ? 'from-red-600/30 via-rose-600/15 to-transparent' : 'from-sky-600/25 via-blue-600/10 to-transparent'} border border-white/15 shadow-xl`}
+                        >
+                          {/* شريط جانبي ملوّن */}
+                          <div className={`absolute top-0 bottom-0 right-0 w-1.5 ${d.isStorm ? 'bg-red-400' : 'bg-sky-400'}`} />
 
-                          <div className="px-3.5 py-3 space-y-2.5">
-                            {/* الولاية + الحالة */}
-                            <div className="flex items-center gap-2 flex-wrap text-[11px] font-bold text-white/80">
-                              {d.wilaya && <span className="inline-flex items-center gap-1">📍 {d.wilaya}</span>}
-                              <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5">⏱️ {d.status}</span>
+                          <div className="px-4 py-3.5 pr-5">
+                            {/* الرأس */}
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <div className="flex items-center gap-2.5">
+                                <span className="text-2xl drop-shadow">{d.isStorm ? '⛈️' : '🌩️'}</span>
+                                <div>
+                                  <div className="font-black text-white text-[15px] leading-tight">
+                                    {d.isStorm ? 'عاصفة رعدية' : 'سحب رعدية'} الآن على {d.location || ''}
+                                  </div>
+                                  <div className="mt-0.5 flex items-center gap-1.5 flex-wrap text-[10.5px] font-bold text-white/75">
+                                    {d.wilaya && <span>📍 {d.wilaya}</span>}
+                                    <span className="opacity-50">·</span>
+                                    <span>⏱️ {d.status}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black shadow ${d.isStorm ? 'bg-red-400 text-red-950' : 'bg-sky-300 text-sky-950'}`}>
+                                {d.intensity || ''}
+                              </span>
                             </div>
 
-                            {/* جملة الوجهة/الاتجاه — لكل العواصف */}
+                            {/* جملة الاتجاه/الوجهة */}
                             {mv && (
-                              mv.target ? (
-                                <p className="text-[13.5px] font-bold text-white leading-relaxed">
-                                  🧭 يُتوقّع أن تتجه نحو {mv.dir} صوب <span className="font-black text-amber-200">{mv.target}{mv.targetWilaya ? ` (${mv.targetWilaya})` : ''}</span> (~{mv.distance}كم) {mv.isMeasured ? `بسرعة ~${mv.speed} كم/س` : '(تقدير مبدئي)'}.
+                              <div className="rounded-xl bg-black/25 px-3 py-2.5 flex items-start gap-2">
+                                <span className="text-base leading-none mt-0.5">🧭</span>
+                                <p className="text-[13.5px] font-bold text-white/95 leading-relaxed">
+                                  {mv.target ? (
+                                    <>يُتوقّع أن تتجه نحو <span className="text-amber-200 font-black">{mv.dir}</span> صوب{' '}
+                                      <span className="inline-flex items-center rounded-lg bg-amber-400/25 border border-amber-300/40 px-2 py-0.5 font-black text-amber-100">{mv.target}{mv.targetWilaya ? ` · ${mv.targetWilaya}` : ''}</span>
+                                      {' '}<span className="text-white/60 text-[11px]">(~{mv.distance}كم)</span>
+                                      {mv.isMeasured ? <span className="text-white/80"> بسرعة ~{mv.speed} كم/س</span> : <span className="text-white/55 text-[11px]"> · تقدير مبدئي</span>}
+                                    </>
+                                  ) : (
+                                    <>{mv.isMeasured ? <>تتحرك نحو <span className="text-amber-200 font-black">{mv.dir}</span> بسرعة ~{mv.speed} كم/س</> : <>يُرجّح اتجاهها نحو <span className="text-amber-200 font-black">{mv.dir}</span> <span className="text-white/55 text-[11px]">(تقدير مبدئي)</span></>}</>
+                                  )}
                                 </p>
-                              ) : (
-                                <p className="text-[13.5px] font-bold text-white leading-relaxed">
-                                  🧭 {mv.isMeasured ? <>تتحرك نحو <span className="font-black text-amber-200">{mv.dir}</span> بسرعة ~{mv.speed} كم/س</> : <>يُرجّح اتجاهها نحو <span className="font-black text-amber-200">{mv.dir}</span> (تقدير مبدئي)</>}.
-                                </p>
-                              )
+                              </div>
                             )}
 
                             {/* تقدير الشدة عند الوجهة */}
                             {mv && mv.expectation && (
-                              <p className="text-[12px] leading-relaxed text-white/90 bg-white/5 rounded-lg px-2.5 py-1.5">{mv.expectation}</p>
+                              <p className="mt-2 text-[12px] leading-relaxed text-amber-50/90 bg-amber-400/10 border border-amber-300/20 rounded-xl px-3 py-2">{mv.expectation}</p>
                             )}
                           </div>
                         </div>
