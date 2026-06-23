@@ -110,10 +110,13 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
     const mmh = t.mmh ?? 0;
     if (mmh >= 8) return true;                       // قوية: الرادار وحده كافٍ
     if ((t.cities?.length || 1) >= 2) return true;   // متماسكة مكانياً (منظومة حقيقية)
-    // خفيفة معزولة: نطلب تأكيد النموذج (الاستمرار وحده لا يكفي — قد يكون ضجيجاً ثابتاً)
     const rep = t.cities?.[0];
     const src = rep && byCity.get(rep.city);
     if (!src) return false;
+    // منطقة عالية الطاقة (مهيأة) + صدى رادار = مطر حملي حقيقي (النموذج أعمى للحمل الحراري)
+    const conv = getCurrentConvection(src);
+    if (conv && conv.primed) return true;
+    // خفيفة معزولة في أجواء غير مهيأة: نطلب تأكيد النموذج (تفادي الضجيج/الفيرغا)
     const code = src.current?.weather_code ?? 0;
     const precip = src.current?.precipitation ?? 0;
     return precip > 0 || code >= 51;

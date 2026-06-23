@@ -1005,6 +1005,16 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
                   </p>
                 </div>
               )}
+
+              {/* 🔥 شريط دائم: أجواء مهيأة بشدة للعواصف (طاقة عالية) — لا يُخفى خلف غيره */}
+              {convectiveWatch && convectiveWatch.items.length > 0 && !todayObservation.title.includes('أجواء مهيأة') && (
+                <div className="rounded-2xl border border-amber-300/40 bg-amber-400/20 p-3 shadow-sm">
+                  <p className="text-sm font-black text-white flex items-center gap-1.5">🔥 أجواء مهيأة للعواصف (طاقة عالية)</p>
+                  <p className="text-[13px] text-white/90 leading-relaxed mt-0.5">
+                    عدم استقرار شديد ومرشّح لعواصف/أمطار في: <span className="font-black">{convectiveWatch.items.map((it) => toArabicCommune(it.city)).join('، ')}</span> (CAPE حتى {Math.round(Math.max(...convectiveWatch.items.map((i) => i.cape || 0)))}).
+                  </p>
+                </div>
+              )}
               <div className="rounded-2xl p-4 shadow-lg backdrop-blur-sm bg-white/10 border border-white/15">
                 <p className="text-base font-black text-white mb-2">{todayObservation.title}</p>
                 <p className="text-sm font-bold text-white/95 leading-relaxed mb-2">{todayObservation.summary}</p>
