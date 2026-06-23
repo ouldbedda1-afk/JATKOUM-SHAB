@@ -381,11 +381,8 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
     [trackedCells, cities]
   );
 
-  // مراقبة الحمل الحراري: أجواء مهيأة للعواصف (طاقة كامنة عالية) قبل ظهور المطر
-  const convectiveWatch = useMemo(
-    () => buildConvectiveWatch({ weatherData: cities, maxItems: 5 }),
-    [cities]
-  );
+  // (مُعطّل) مراقبة CAPE — نعتمد رصد سحب Meteosat IR وحده الآن
+  const convectiveWatch = useMemo(() => null, []);
 
   // ⚡ برق حقيقي مرصود (Blitzortung) — أعلى أولوية
   const lightningReport = useMemo(

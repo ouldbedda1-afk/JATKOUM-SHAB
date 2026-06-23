@@ -87,48 +87,15 @@ export const WeatherProvider = ({ children }) => {
       setEcmwfBriefs(ecmwf || []);
       setApprovedNews(news || []);
 
-      // 🛰️ رصد الأمطار عبر الأقمار الصناعية (RainViewer) — بعد جلب بيانات المدن
+      // ☁️ الرصد الجديد فقط: قمم سحب Meteosat IR (EUMETSAT) — كشف حيّ للعواصف يغطي إفريقيا
       if (weather && weather.length > 0) {
-        const radarTargets = [...weather, ...MAURITANIA_RADAR_GRID];
-        Promise.all([
-          // المصدر الأول: رادار RainViewer (البلديات + شبكة الفراغات)
-          getRainingNowFromSatellite(radarTargets).catch(e => {
-            console.warn('🛰️ satellite rain check:', e);
-            return [];
-          }),
-          // المصدر الثاني: أقمار NASA IMERG (تغطية كاملة للصحراء) — يُكمّل الرادار
-          getRainingNowFromIMERG(radarTargets).catch(e => {
-            console.warn('🛰️ IMERG check:', e);
-            return [];
-          }),
-          getSameDayHeavyRainEventsFromSatellite(weather).catch(e => {
-            console.warn('🛰️ same-day rain archive check:', e);
-            return [];
-          }),
-        ]).then(([raining, imerg, sameDayEvents]) => {
-          // اتحاد: نضيف ما رصده IMERG ولم يرصده الرادار (يملأ ثغرات الصحراء)
-          const radarCities = new Set((raining || []).map(r => r.city));
-          const imergExtra = (imerg || []).filter(r => !radarCities.has(r.city));
-          const merged = [...(raining || []), ...imergExtra];
-          setRainingNow(merged);
-          // 🛰️ تتبّع زمني: مطابقة الخلايا عبر الإطارات لحساب المسار والوجهة حتى التلاشي
-          try {
-            const { active } = updateTracks(merged);
-            setTrackedCells(active);
-          } catch (e) { console.warn('cell tracking:', e); }
-          setSameDayRainEvents(sameDayEvents || []);
-        });
-
-        // ☁️ مصدر رابع حيّ: قمم السحب العميقة (Meteosat IR) — يملأ فجوة الساحل
-        getDeepCloudsFromEumetsat(radarTargets)
+        getDeepCloudsFromEumetsat([...weather, ...MAURITANIA_RADAR_GRID])
           .then((clouds) => setStormClouds(clouds || []))
           .catch((e) => {
             console.warn('🛰️ Meteosat clouds:', e);
             setStormClouds([]);
           });
       } else {
-        setRainingNow([]);
-        setSameDayRainEvents([]);
         setStormClouds([]);
       }
       setLastUpdated(new Date());
@@ -142,13 +109,6 @@ export const WeatherProvider = ({ children }) => {
       isFetchingRef.current = false;
     }
   };
-
-  // ⚡ بدء كشف الصواعق الحقيقي (Blitzortung) والاشتراك في التحديثات
-  useEffect(() => {
-    startLightning();
-    const unsub = subscribeLightning((s) => setLightningStrikes(s));
-    return () => unsub();
-  }, []);
 
   useEffect(() => {
     // ✅ جلب أول مرة فقط عند التحميل
@@ -188,8 +148,8 @@ export const WeatherProvider = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // رصد المطر حسب النموذج (مصدر داعم للرادار) — مشتق من بيانات المدن
-  const modelRainingNow = useMemo(() => getModelRainingNow(weatherData), [weatherData]);
+  // (مُعطّل) الرصد القديم بالنموذج — نعتمد Meteosat IR وحده الآن
+  const modelRainingNow = useMemo(() => [], []);
 
   const value = useMemo(() => ({
     weatherData,
