@@ -542,7 +542,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         tone: 'live',
         coverage: rainMovements.length >= 3 ? 'wide' : 'regional',
         title: `🌩️ تتبّع العواصف: ${rainMovements.length} ${rainMovements.length === 1 ? 'كتلة سحب متحركة' : 'كتل سحب متحركة'}`,
-        summary: `ترصد الأقمار الصناعية (Meteosat) كتل سحب رعدية${thunderCount > 0 ? ' وعواصف' : ''} متحركة، مع تحديد اتجاه كل كتلة و${'البلدية المتوقّع وصولها'}.`,
+        summary: `ترصد الأقمار الصناعية كتل سحب رعدية${thunderCount > 0 ? ' وعواصف' : ''} متحركة، مع تحديد اتجاه كل كتلة والبلدية المتوقّع وصولها.`,
         movements: rainMovements,
         chips: ['🛰️ تتبّع حيّ', `${rainMovements.length} كتلة`, thunderCount > 0 ? `${thunderCount} عاصفة` : 'حركة مرصودة'].filter(Boolean),
       };

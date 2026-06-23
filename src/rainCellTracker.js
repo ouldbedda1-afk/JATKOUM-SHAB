@@ -157,7 +157,7 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
     else status = `متابَعة منذ ${ageMin} دقيقة`;
 
     const title = `${hasThunder ? '⛈️ عاصفة رعدية' : '🌩️ سحب رعدية'} ${sep} ${cellAr}`;
-    let message = `سحب رعدية ${labelWord} (Meteosat) فوق ${cellAr}${rep.wilaya ? ` (${rep.wilaya})` : ''} — ${status}.`;
+    let message = `سحب رعدية ${labelWord} فوق ${cellAr}${rep.wilaya ? ` (${rep.wilaya})` : ''} — ${status}.`;
 
     if (target) {
       const targetAr = toArabicCommune(target.city);
@@ -189,7 +189,7 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
       icon: hasThunder ? '⚡' : '🌧️',
       color: hasThunder ? 'bg-red-800' : strong ? 'bg-blue-800' : 'bg-sky-700',
       tags: [
-        '🛰️ Meteosat — تتبّع حيّ',
+        '🛰️ تتبّع حيّ بالأقمار',
         status,
         target ? `صوب ${toArabicCommune(target.city)}` : 'محلية',
       ].filter(Boolean),

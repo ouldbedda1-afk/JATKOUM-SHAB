@@ -369,7 +369,7 @@ const manualMauritanianCities = {
   'كيفة': { lat: 16.61, lon: -11.40, name: 'Kiffa', type: 'مقاطعة', wilaya: 'لعصابه' },
   'باركيول': { lat: 16.63, lon: -12.50, name: 'Barkéol', type: 'مقاطعة', wilaya: 'لعصابه' },
   'كرو': { lat: 16.81, lon: -11.83, name: 'Guerou', type: 'مقاطعة', wilaya: 'لعصابه' },
-  'بومديد': { lat: 16.38, lon: -10.03, name: 'Boumdeid', type: 'مقاطعة', wilaya: 'لعصابه' },
+  'بومديد': { lat: 17.484, lon: -11.367, name: 'Boumdeid', type: 'مقاطعة', wilaya: 'لعصابه' },
   'تناها': { lat: 15.121604003909406, lon: -10.899006284648546, name: 'Tenaha', type: 'بلدية', wilaya: 'لعصابه' },
   'هامد': { lat: 15.633125821113623, lon: -11.516237907118896, name: 'Hamed', type: 'مركز إداري', wilaya: 'لعصابه' },
 
