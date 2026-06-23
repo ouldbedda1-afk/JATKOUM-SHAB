@@ -377,7 +377,7 @@ const manualMauritanianCities = {
   'لعيون': { lat: 16.66, lon: -9.61, name: 'Aioun', type: 'مقاطعة', wilaya: 'الحوض الغربي' },
   'كنكوصة': { lat: 15.93, lon: -11.53, name: 'Kankossa', type: 'مقاطعة', wilaya: 'لعصابه' },
   'تمشكط': { lat: 17.42, lon: -10.67, name: 'Tamchekett', type: 'مقاطعة', wilaya: 'الحوض الغربي' },
-  'كوبني': { lat: 15.93, lon: -11.21, name: 'Kobenni', type: 'مقاطعة', wilaya: 'الحوض الغربي' },
+  'كوبني': { lat: 15.821, lon: -9.415, name: 'Kobenni', type: 'مقاطعة', wilaya: 'الحوض الغربي' },
   'الطينطان': { lat: 16.39, lon: -10.16, name: 'Tintane', type: 'مقاطعة', wilaya: 'الحوض الغربي' },
 
   // --- الحوض الشرقي ---

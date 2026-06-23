@@ -539,8 +539,8 @@ export const mauritaniaCommunesList = [
   {
     "city": "Gougui Zemmal",
     "name": "Gougui Zemmal",
-    "lat": 15.791,
-    "lon": -9.271,
+    "lat": 15.684,
+    "lon": -9.331,
     "type": "بلدية",
     "wilaya": "الحوض الغربي",
     "moughataa": "Kobeni",
