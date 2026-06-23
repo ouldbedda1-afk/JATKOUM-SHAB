@@ -159,33 +159,53 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
     const title = `${hasThunder ? '⛈️ عاصفة رعدية' : '🌩️ سحب رعدية'} ${sep} ${cellAr}`;
     let message = `سحب رعدية ${labelWord} فوق ${cellAr}${rep.wilaya ? ` (${rep.wilaya})` : ''} — ${status}.`;
 
+    // بيانات منظّمة للعرض الجميل
+    const data = {
+      location: cellAr,
+      wilaya: rep.wilaya || '',
+      intensity: labelWord,
+      isStorm: hasThunder,
+      status,
+      movement: null,
+    };
+
     if (target) {
       const targetAr = toArabicCommune(target.city);
       const tw = byCity.get(target.city);
       const tcode = tw?.current?.weather_code ?? 0;
       const sky = describeTargetSky({ isRaining: rainingSet.has(target.city), code: tcode });
       const tw2 = target.wilaya && target.wilaya !== rep.wilaya ? ` (${target.wilaya})` : '';
-      // الاتجاه المعروض = الاتجاه الفعلي للوجهة المختارة (لا الاتجاه الموسمي العام)
       const targetDir = compassAr(bearingDeg(lat, lon, target.lat, target.lon));
       const moveVerb = t.speed
         ? `تتحرك نحو ${targetDir} بسرعة ~${t.speed} كم/س`
         : `يُرجّح تحركها نحو ${targetDir} (تقدير موسمي)`;
       message += `\n${moveVerb} صوب ${targetAr}${tw2} على بُعد ~${Math.round(target.d)} كم ${sky}.`;
-      // تقدير الشدة عند الوجهة حسب تأهّل أجوائها (الطاقة الكامنة)
       const tConv = target.conv || getCurrentConvection(tw);
-      if (tConv) {
-        message += `\n${expectedRainAtTarget(targetAr, tConv)}`;
-      }
+      const expectation = tConv ? expectedRainAtTarget(targetAr, tConv) : null;
+      if (expectation) message += `\n${expectation}`;
+      data.movement = {
+        dir: targetDir,
+        speed: t.speed || null,
+        target: targetAr,
+        targetWilaya: target.wilaya && target.wilaya !== rep.wilaya ? target.wilaya : '',
+        distance: Math.round(target.d),
+        sky,
+        expectation,
+        isMeasured: Boolean(t.speed),
+      };
     } else if (Number.isFinite(moveBearing)) {
+      const dir = compassAr(moveBearing);
       message += t.speed
-        ? `\nتتحرك نحو ${compassAr(moveBearing)} بسرعة ~${t.speed} كم/س.`
-        : `\nيُرجّح اتجاهها نحو ${compassAr(moveBearing)} (تقدير موسمي).`;
+        ? `\nتتحرك نحو ${dir} بسرعة ~${t.speed} كم/س.`
+        : `\nيُرجّح اتجاهها نحو ${dir} (تقدير موسمي).`;
+      data.movement = { dir, speed: t.speed || null, target: null, isMeasured: Boolean(t.speed) };
     }
 
     alerts.push({
       id: `track-${t.id}`,
       title,
       message,
+      data,
       icon: hasThunder ? '⚡' : '🌧️',
       color: hasThunder ? 'bg-red-800' : strong ? 'bg-blue-800' : 'bg-sky-700',
       tags: [

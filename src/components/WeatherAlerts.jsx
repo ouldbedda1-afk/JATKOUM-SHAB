@@ -1041,24 +1041,61 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
                   <p className="text-sm text-white/85 leading-relaxed">{todayObservation.details}</p>
                 )}
 
-                {/* قائمة خلايا المطر/البرق المتحركة — تُعرض دائماً حتى مع وجود خبر برق */}
+                {/* قائمة العواصف المتحركة — تصميم مرئي للمسار */}
                 {rainMovements?.length > 0 && (
-                  <div className="mt-3 space-y-2.5">
-                    {rainMovements.map((m) => (
-                      <div key={m.id} className="rounded-xl border border-white/15 bg-white/10 p-3">
-                        <p className="text-sm font-black text-white mb-1 flex items-center gap-1.5">
-                          <span>{m.icon}</span>{m.title}
-                        </p>
-                        <p className="text-[13px] text-white/90 leading-relaxed whitespace-pre-wrap">{m.message}</p>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {m.tags.map((tag) => (
-                            <span key={tag} className="px-2 py-0.5 rounded-full border border-white/15 bg-white/10 text-[9px] font-black text-white/85">
-                              {tag}
+                  <div className="mt-3 space-y-3">
+                    {rainMovements.map((m) => {
+                      const d = m.data || {};
+                      const mv = d.movement;
+                      return (
+                        <div key={m.id} className="rounded-2xl border border-white/15 bg-white/10 overflow-hidden shadow-lg">
+                          {/* الرأس: نوع + الموقع + شدّة */}
+                          <div className={`flex items-center justify-between gap-2 px-3.5 py-2.5 ${d.isStorm ? 'bg-red-500/25' : 'bg-sky-500/20'}`}>
+                            <span className="flex items-center gap-2 font-black text-white text-[15px]">
+                              <span className="text-lg">{d.isStorm ? '⛈️' : '🌩️'}</span>
+                              {d.isStorm ? 'عاصفة رعدية' : 'سحب رعدية'} — {d.location || ''}
                             </span>
-                          ))}
+                            <span className="shrink-0 rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-black text-white">{d.intensity || ''}</span>
+                          </div>
+
+                          <div className="px-3.5 py-3 space-y-2.5">
+                            {/* الولاية + الحالة */}
+                            <div className="flex items-center gap-2 flex-wrap text-[11px] font-bold text-white/80">
+                              {d.wilaya && <span className="inline-flex items-center gap-1">📍 {d.wilaya}</span>}
+                              <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5">⏱️ {d.status}</span>
+                            </div>
+
+                            {/* المسار المرئي: المصدر ← الاتجاه/السرعة ← الوجهة */}
+                            {mv && mv.target ? (
+                              <div className="flex items-center justify-between gap-2 rounded-xl bg-black/20 px-3 py-2.5">
+                                <div className="text-center">
+                                  <div className="text-[9px] text-white/60">الموقع</div>
+                                  <div className="text-sm font-black text-white">{d.location}</div>
+                                </div>
+                                <div className="flex flex-col items-center text-white/90 px-1">
+                                  <div className="text-[10px] font-black">{mv.isMeasured ? `${mv.speed} كم/س` : 'موسمي'}</div>
+                                  <div className="text-xl leading-none">⟸</div>
+                                  <div className="text-[10px] font-bold">{mv.dir}</div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-[9px] text-white/60">الوجهة (~{mv.distance}كم)</div>
+                                  <div className="text-sm font-black text-amber-200">{mv.target}{mv.targetWilaya ? ` · ${mv.targetWilaya}` : ''}</div>
+                                </div>
+                              </div>
+                            ) : mv ? (
+                              <div className="rounded-xl bg-black/20 px-3 py-2 text-[12px] font-bold text-white/90">
+                                {mv.isMeasured ? `تتحرك نحو ${mv.dir} بسرعة ~${mv.speed} كم/س` : `يُرجّح اتجاهها نحو ${mv.dir} (تقدير موسمي)`}
+                              </div>
+                            ) : null}
+
+                            {/* تقدير الشدة عند الوجهة */}
+                            {mv && mv.expectation && (
+                              <p className="text-[12px] leading-relaxed text-white/90 bg-white/5 rounded-lg px-2.5 py-1.5">{mv.expectation}</p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
