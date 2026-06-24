@@ -521,21 +521,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
   const issuedAt = `${todayDate} — ${fmtTime(new Date())}`;
 
   const todayObservation = useMemo(() => {
-    // أعلى أولوية: برق حقيقي مرصود فعلياً (Blitzortung)
-    if (lightningReport && lightningReport.areas.length > 0) {
-      const areasText = lightningReport.areas
-        .map((a) => toArabicCommune(a.city))
-        .join('، ');
-      return {
-        tone: 'live',
-        coverage: lightningReport.areas.length >= 3 ? 'wide' : 'regional',
-        title: `⚡ برق مرصود فعلياً الآن (${lightningReport.total} ضربة)`,
-        summary: `قرب: ${areasText}.`,
-        chips: ['⚡ برق حقيقي', 'Blitzortung'],
-      };
-    }
-
-    // أولوية: خلايا مطر/برق متحركة مرصودة بالرادار (خبر دقيق على مستوى البلدية)
+    // أولوية: تتبّع العواصف (Meteosat) — البرق يظهر كشريط مدمج داخل البطاقة
     if (rainMovements && rainMovements.length > 0) {
       const thunderCount = rainMovements.filter((m) => m.icon === '⚡').length;
       return {
@@ -628,6 +614,18 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         summary: `دراسة الطاقة الكامنة في الهواء (CAPE) تُظهر عدم استقرار جوي في ${convectiveWatch.count} بلدية، أبرزها ${areas}.`,
         details: `أعلى طاقة في ${toArabicCommune(top.city)} (CAPE ${Math.round(top.cape)}، مؤشر رفع ${top.li != null ? top.li.toFixed(1) : '—'}). هذه الأجواء مرشحة لتكوّن عواصف رعدية وأمطار محلية إذا انخفض كبح الحمل الحراري — تستمر المتابعة عبر الرادار.`,
         chips: ['طاقة كامنة', `${convectiveWatch.count} بلدية مهيأة`, `CAPE ${Math.round(top.cape)}`],
+      };
+    }
+
+    // برق فقط (بلا سحب متتبَّعة) — يصبح هو الرصد الرئيسي
+    if (lightningReport && lightningReport.areas.length > 0) {
+      const areasText = lightningReport.areas.map((a) => toArabicCommune(a.city)).join('، ');
+      return {
+        tone: 'live',
+        coverage: lightningReport.areas.length >= 3 ? 'wide' : 'regional',
+        title: `⚡ برق مرصود فعلياً الآن (${lightningReport.total} ضربة)`,
+        summary: `قرب: ${areasText}.`,
+        chips: ['⚡ برق حقيقي', 'Blitzortung'],
       };
     }
 
@@ -1034,6 +1032,18 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
                   </p>
                 </div>
               )}
+              {/* ⚡ شريط البرق المدمج (Blitzortung) — يظهر مع العواصف، إلا حين يكون البرق هو الرئيسي */}
+              {lightningReport && lightningReport.areas.length > 0 && !todayObservation.title.includes('برق') && (
+                <div className="rounded-2xl border-2 border-yellow-300/40 bg-gradient-to-l from-yellow-500/25 to-amber-500/15 p-3 shadow-sm">
+                  <p className="text-sm font-black text-white flex items-center gap-1.5">
+                    ⚡ برق مرصود فعلياً الآن ({lightningReport.total} ضربة)
+                  </p>
+                  <p className="text-[13px] text-white/90 leading-relaxed mt-0.5">
+                    قرب: <span className="font-black text-yellow-100">{lightningReport.areas.map((a) => toArabicCommune(a.city)).join('، ')}</span> — احذر الصواعق.
+                  </p>
+                </div>
+              )}
+
               <div className="rounded-2xl p-4 shadow-lg backdrop-blur-sm bg-white/10 border border-white/15">
                 <p className="text-base font-black text-white mb-2">{todayObservation.title}</p>
                 <p className="text-sm font-bold text-white/95 leading-relaxed mb-2">{todayObservation.summary}</p>
