@@ -179,17 +179,70 @@ export default function Home() {
         </div>
       </main>
 
-      <footer className="mt-20 border-t border-gray-200 bg-white py-10">
-        <div className="max-w-[1400px] mx-auto px-4 text-center">
-          <p className="text-gray-500 font-bold">© 2026 جاتكم اسحاب - كافة الحقوق محفوظة</p>
-          <div className="flex justify-center gap-4 mt-2">
-            <a href="https://www.facebook.com/Beddetiii/" className="text-blue-600 hover:underline text-xs">صفحة فيسبوك</a>
-            <span className="text-gray-300">|</span>
-            <span className="text-xs text-gray-400">بيانات المركز الأوروبي للتنبؤات الجوية</span>
+      <footer className="mt-20 bg-gradient-to-l from-[#0b2c5e] via-[#103a78] to-[#0b2c5e] text-white" dir="rtl">
+        <div className="max-w-[1400px] mx-auto px-4 py-12">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start text-center md:text-right">
+            {/* الهوية */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-center md:justify-start gap-3">
+                <div className="w-11 h-11 rounded-xl overflow-hidden ring-1 ring-white/20 bg-white/95">
+                  <img
+                    src="https://graph.facebook.com/Beddetiii/picture?type=large"
+                    alt="جاتكم اسحاب"
+                    className="w-full h-full object-contain p-0.5"
+                    onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
+                  />
+                </div>
+                <div>
+                  <p className="font-black text-lg leading-none">جاتكم اسحاب</p>
+                  <p className="text-[11px] text-blue-200/90 mt-1">رصد ومتابعة السحب والأمطار في موريتانيا</p>
+                </div>
+              </div>
+              <p className="text-[11px] text-blue-200/70 leading-relaxed">
+                بيانات: المركز الأوروبي للتنبؤات (ECMWF) · Open-Meteo · EUMETSAT · Blitzortung.
+              </p>
+            </div>
+
+            {/* تنزيل التطبيق */}
+            <div className="space-y-3">
+              <h4 className="font-black text-sm text-blue-100">حمّل تطبيق جاتكم اسحاب</h4>
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+                <span className="inline-flex items-center gap-2 bg-black/40 hover:bg-black/55 transition-colors border border-white/15 rounded-xl px-4 py-2 cursor-pointer">
+                  <span className="text-2xl">▶</span>
+                  <span className="text-right leading-tight">
+                    <span className="block text-[9px] text-blue-200">GET IT ON</span>
+                    <span className="block text-sm font-bold">Google Play</span>
+                  </span>
+                </span>
+                <span className="inline-flex items-center gap-2 bg-black/40 hover:bg-black/55 transition-colors border border-white/15 rounded-xl px-4 py-2 cursor-pointer">
+                  <span className="text-2xl"></span>
+                  <span className="text-right leading-tight">
+                    <span className="block text-[9px] text-blue-200">Download on the</span>
+                    <span className="block text-sm font-bold">App Store</span>
+                  </span>
+                </span>
+              </div>
+              <p className="text-[10px] text-blue-200/60">قريباً على المتاجر — التطبيق قيد الإعداد.</p>
+            </div>
+
+            {/* تابعنا */}
+            <div className="space-y-3">
+              <h4 className="font-black text-sm text-blue-100">تابعنا علي</h4>
+              <div className="flex items-center justify-center md:justify-start gap-3">
+                <a href="https://www.facebook.com/Beddetiii/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center" aria-label="فيسبوك">f</a>
+                <a href="https://wa.me/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center text-lg" aria-label="واتساب">✆</a>
+                <a href="https://t.me/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center text-lg" aria-label="تيليجرام">✈</a>
+                <a href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center text-lg" aria-label="يوتيوب">▷</a>
+              </div>
+            </div>
           </div>
-          <p className="text-[10px] text-gray-300 mt-2">
-            صوت الرعد: Bidgee / Wikimedia Commons (CC BY 3.0) · بيانات الصواعق: Blitzortung.org
-          </p>
+
+          <div className="border-t border-white/10 mt-10 pt-5 text-center">
+            <p className="text-[11px] text-blue-200/80 font-bold">© 2026 جاتكم اسحاب — جميع الحقوق محفوظة</p>
+            <p className="text-[10px] text-blue-200/50 mt-1">
+              صوت الرعد: Bidgee / Wikimedia Commons (CC BY 3.0) · بيانات الصواعق: Blitzortung.org
+            </p>
+          </div>
         </div>
       </footer>
     </div>
