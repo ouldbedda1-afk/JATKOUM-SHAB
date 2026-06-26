@@ -88,7 +88,9 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    requestLocation();
+    // إذا اختار المستخدم مدينة مفضّلة بالنجمة — لا نتجاوزها بالموقع الجغرافي
+    const hasFav = !!localStorage.getItem('jatkoum_fav_city');
+    if (!hasFav) requestLocation();
   }, [requestLocation]);
 
   useEffect(() => {
