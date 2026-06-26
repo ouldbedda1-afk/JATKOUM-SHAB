@@ -12,16 +12,26 @@
 const EU_WMS = 'https://view.eumetsat.int/geoserver/wms';
 const BBOX = { lonMin: -18, lonMax: -4, latMin: 14, latMax: 28 }; // يغطي موريتانيا وأطرافها
 const IMG = 768; // 14° / 768 ≈ 2كم/بكسل
-const TTL = 10 * 60 * 1000;
+const TTL = 4 * 60 * 1000;
 
 // عتبات عمق السحب (معايرة ميدانية: الصافي ~48، كوبني/كيهيدي ~100-111، أعمق ~174)
-const DEEP = 100;       // سحب معتبرة (حمل حراري) — كوبني/كيهيدي ~101-111
+const DEEP = 115;       // سحب معتبرة (حمل حراري متوسط فأعلى) — رفع من 100 لتقليل الإنذارات الزائفة
 const VERY_DEEP = 140;  // قمم شديدة البرودة (عاصفة قوية مرجّحة)
 
-function mapUrl() {
+// أحدث فترة رصد متاحة (القمر الجغرافي يحدّث ~كل 15 دقيقة، مع هامش تأخّر ~20 دقيقة للإتاحة)
+function latestSlotIso() {
+  const lagMs = 20 * 60 * 1000;
+  const slotMs = 15 * 60 * 1000;
+  const t = Math.floor((Date.now() - lagMs) / slotMs) * slotMs;
+  return new Date(t).toISOString().replace(/\.\d+Z$/, 'Z'); // 2026-06-24T15:30:00Z
+}
+
+// withTime=false → الإطار الافتراضي (احتياطي إن لم يتوفّر الوقت المطلوب)
+function mapUrl(withTime = true) {
   const b = `${BBOX.lonMin},${BBOX.latMin},${BBOX.lonMax},${BBOX.latMax}`;
+  const time = withTime ? `&time=${latestSlotIso()}` : '';
   return `${EU_WMS}?service=WMS&request=GetMap&version=1.1.1&layers=mumi:worldcloudmap_ir108` +
-    `&styles=&format=image/png&transparent=false&srs=EPSG:4326&bbox=${b}&width=${IMG}&height=${IMG}&_=${Math.floor(Date.now() / TTL)}`;
+    `&styles=&format=image/png&transparent=false&srs=EPSG:4326&bbox=${b}&width=${IMG}&height=${IMG}${time}&_=${Math.floor(Date.now() / TTL)}`;
 }
 
 let _canvas = null;
@@ -46,24 +56,34 @@ function loadCloudData() {
   if (_loadingPromise) return _loadingPromise;
 
   _loadingPromise = new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      try {
-        const ctx = getCtx();
-        ctx.clearRect(0, 0, IMG, IMG);
-        ctx.drawImage(img, 0, 0, IMG, IMG);
-        _cacheData = ctx.getImageData(0, 0, IMG, IMG).data;
-        _cacheTime = Date.now();
-        resolve(_cacheData);
-      } catch {
-        resolve(null);
-      } finally {
-        _loadingPromise = null;
-      }
+    const tryLoad = (withTime) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const ctx = getCtx();
+          ctx.clearRect(0, 0, IMG, IMG);
+          ctx.drawImage(img, 0, 0, IMG, IMG);
+          _cacheData = ctx.getImageData(0, 0, IMG, IMG).data;
+          _cacheTime = Date.now();
+          resolve(_cacheData);
+        } catch {
+          resolve(null);
+        } finally {
+          _loadingPromise = null;
+        }
+      };
+      img.onerror = () => {
+        if (withTime) {
+          tryLoad(false); // الوقت المطلوب غير متاح → جرّب الإطار الافتراضي
+        } else {
+          _loadingPromise = null;
+          resolve(null);
+        }
+      };
+      img.src = mapUrl(withTime);
     };
-    img.onerror = () => { _loadingPromise = null; resolve(null); };
-    img.src = mapUrl();
+    tryLoad(true);
   });
   return _loadingPromise;
 }

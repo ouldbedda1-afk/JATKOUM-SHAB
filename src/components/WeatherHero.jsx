@@ -8,7 +8,7 @@ import { useWeatherContext } from '../WeatherContext';
 
 const { FiWind, FiDroplet, FiSun, FiThermometer, FiClock } = FiIcons;
 
-const WeatherHero = ({ city }) => {
+const WeatherHero = ({ city, favCity, onFavCity }) => {
   const { lastUpdated, weatherData: contextWeatherData } = useWeatherContext();
   const cityName = typeof city === 'string' ? city : city?.name || 'نواكشوط';
   const coords   = typeof city === 'object' && city?.lat ? city : null;
@@ -149,7 +149,18 @@ const WeatherHero = ({ city }) => {
               شارك عبر واتساب
             </button>
           </motion.div>
-          <h1 className="text-4xl md:text-7xl font-black mb-4 break-words">{cityName}</h1>
+          <div className="flex items-center justify-center md:justify-start gap-3 mb-4">
+            <h1 className="text-4xl md:text-7xl font-black break-words">{cityName}</h1>
+            {onFavCity && (
+              <button
+                onClick={() => onFavCity(cityName)}
+                title={favCity === cityName ? 'مدينتك المفضّلة' : 'احفظ كمدينة افتراضية'}
+                className="shrink-0 text-3xl md:text-4xl transition-transform hover:scale-110 active:scale-95"
+              >
+                {favCity === cityName ? '⭐' : '☆'}
+              </button>
+            )}
+          </div>
           <p className="text-lg md:text-xl opacity-90 mb-6 font-light">توقعات دقيقة لهطول الأمطار والحرارة</p>
           
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8">

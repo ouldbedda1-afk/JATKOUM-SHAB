@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
+import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import NewsTicker from '../components/NewsTicker';
 import WeatherHero from '../components/WeatherHero';
@@ -9,9 +10,9 @@ import PrayerTimes from '../components/PrayerTimes';
 import CloudTracker from '../components/CloudTracker';
 import StormAlertBanner from '../components/StormAlertBanner';
 import LivestockHomePreview from '../components/LivestockHomePreview';
-import HomeHeroBanner from '../components/HomeHeroBanner';
 import LightningSoundAlert from '../components/LightningSoundAlert';
 import StormStickyBar from '../components/StormStickyBar';
+import FloatingAIAgent from '../components/FloatingAIAgent';
 
 // أثقل مكوّن (echarts) — يُحمَّل عند الحاجة فقط لتسريع أول تحميل
 const WeatherCharts = lazy(() => import('../components/WeatherCharts'));
@@ -42,7 +43,18 @@ function LazyOnVisible({ children, minHeight = 256 }) {
 }
 
 export default function Home() {
-  const [selectedCity, setSelectedCity] = useState("نواكشوط");
+  const [favCity, setFavCity] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('jatkoum_fav_city')) || null; } catch { return null; }
+  });
+  const [selectedCity, setSelectedCity] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('jatkoum_fav_city')) || "نواكشوط"; } catch { return "نواكشوط"; }
+  });
+
+  const saveFavCity = (city) => {
+    const val = typeof city === 'string' ? city : city?.name || city;
+    localStorage.setItem('jatkoum_fav_city', JSON.stringify(val));
+    setFavCity(val);
+  };
   const [showLocBanner, setShowLocBanner] = useState(false);
   const [locLoading, setLocLoading] = useState(false);
 
@@ -107,14 +119,13 @@ export default function Home() {
     <div className="min-h-screen bg-gray-50 pb-20 overflow-x-hidden" dir="rtl">
       <Navbar onCitySelect={setSelectedCity} />
       <NewsTicker />
-      <HomeHeroBanner />
       <StormStickyBar />
       <LightningSoundAlert />
 
       {/* شريط دعوة لتحديد الموقع عند نسيانه/رفضه */}
       {showLocBanner && (
         <div className="bg-blue-600 text-white">
-          <div className="max-w-[1400px] mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
+          <div className="max-w-[1600px] mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
             <span className="text-xs md:text-sm font-bold flex items-center gap-2">
               📍 فعّل موقعك لعرض طقس منطقتك مباشرةً
             </span>
@@ -138,21 +149,21 @@ export default function Home() {
         </div>
       )}
 
-      <main className="max-w-[1400px] mx-auto px-4 mt-4 md:mt-8">
+      <main className="max-w-[1600px] mx-auto px-4 md:px-6 mt-4 md:mt-8">
         <StormAlertBanner />
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 mt-6">
           {/* Main Content */}
           <div className="lg:col-span-8 space-y-6 md:space-y-8">
-            <WeatherHero city={selectedCity} />
+            <WeatherHero city={selectedCity} favCity={favCity} onFavCity={saveFavCity} />
             <WeatherAlerts />
             <LazyOnVisible minHeight={288}>
               <Suspense fallback={<div className="bg-white rounded-[2rem] h-64 animate-pulse border border-gray-100" />}>
                 <WeatherCharts city={selectedCity} />
               </Suspense>
             </LazyOnVisible>
-            <CloudTracker />
-
             <LivestockHomePreview />
+            <CloudTracker />
             <CityGrid />
           </div>
 
@@ -180,7 +191,7 @@ export default function Home() {
       </main>
 
       <footer className="mt-20 bg-gradient-to-l from-[#0b2c5e] via-[#103a78] to-[#0b2c5e] text-white" dir="rtl">
-        <div className="max-w-[1400px] mx-auto px-4 py-12">
+        <div className="max-w-[1600px] mx-auto px-4 md:px-6 py-12">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start text-center md:text-right">
             {/* الهوية */}
             <div className="space-y-3">
@@ -227,7 +238,10 @@ export default function Home() {
 
             {/* تابعنا */}
             <div className="space-y-3">
-              <h4 className="font-black text-sm text-blue-100">تابعنا علي</h4>
+              <h4 className="font-black text-sm text-blue-100">روابط مفيدة</h4>
+              <Link to="/bloggers" className="block text-blue-200 hover:text-white text-sm font-bold transition-colors">
+                ✍️ المدوّنون
+              </Link>
               <div className="flex items-center justify-center md:justify-start gap-3">
                 <a href="https://www.facebook.com/Beddetiii/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center" aria-label="فيسبوك">f</a>
                 <a href="https://wa.me/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center text-lg" aria-label="واتساب">✆</a>
@@ -245,6 +259,8 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      <FloatingAIAgent onCitySelect={setSelectedCity} />
     </div>
   );
 }

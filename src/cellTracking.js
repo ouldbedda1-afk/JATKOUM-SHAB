@@ -8,7 +8,7 @@
 
 const CLUSTER_KM = 85;   // نقاط ضمن هذا النطاق = خلية واحدة (تفادي تشظّي المنظومة لأخبار متعددة)
 const MATCH_KM = 90;     // أقصى إزاحة لاعتبارها نفس الخلية بين تحديثين
-const MAX_MISSING = 2;   // بعد غيابها عن الرصد مرتين تُعتبر متلاشية
+const MAX_MISSING = 1;   // بعد غيابها عن الرصد مرة واحدة تُعتبر متلاشية
 
 const DEG2RAD = Math.PI / 180;
 function distKm(aLat, aLon, bLat, bLon) {

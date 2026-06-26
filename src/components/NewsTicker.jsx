@@ -53,6 +53,7 @@ const NewsTicker = () => {
     modelRainingNow,
     sameDayRainEvents,
     ecmwfBriefs,
+    weatherBulletins,
     loading,
     refreshAllData,
     lastUpdated,
@@ -68,6 +69,13 @@ const NewsTicker = () => {
     const externalAlerts = [];
     const forecastAlerts = [];
     const generalAlerts = [];
+
+    // ── نشرات إدارية من تيليجرام (أعلى الأولويات) ──
+    if (weatherBulletins && weatherBulletins.length > 0) {
+      weatherBulletins.forEach((b) => {
+        urgentAlerts.unshift(`${b.icon} ${b.text}`);
+      });
+    }
 
     const now = new Date();
     let sameDayHeadline = null;
@@ -252,7 +260,7 @@ const NewsTicker = () => {
     return finalNews.length > 0
       ? finalNews
       : ["لا توجد حالياً تنبيهات جوية مؤكدة في النظام الآلي. تستمر المتابعة المباشرة لأي تطور جديد."];
-  }, [loading, weatherData, fires, rainReports, rainingNow, modelRainingNow, sameDayRainEvents, ecmwfBriefs, lastUpdated]);
+  }, [loading, weatherData, fires, rainReports, rainingNow, modelRainingNow, sameDayRainEvents, ecmwfBriefs, weatherBulletins, lastUpdated]);
 
   // سرعة ثابتة: ~4.5 ثانية لكل خبر (حد أدنى 18ث) — يضمن مرور كل الأخبار بوضوح
   const tickerDuration = Math.max(18, newsItems.length * 4.5);

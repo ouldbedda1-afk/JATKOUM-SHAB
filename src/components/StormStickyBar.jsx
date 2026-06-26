@@ -10,16 +10,16 @@ import { normalizeMauritaniaWilayaName } from '../mauritaniaPlaceNames';
 export default function StormStickyBar() {
   const { stormClouds, lightningStrikes } = useWeatherContext();
 
-  const hasClouds = (stormClouds || []).length > 0;
+  const veryDeepClouds = (stormClouds || []).filter((c) => c.level === 'very_deep');
   const strikes = (lightningStrikes || []).length;
-  if (!hasClouds && strikes === 0) return null;
+  if (veryDeepClouds.length === 0 && strikes === 0) return null;
 
   const wilayas = new Set(
-    (stormClouds || [])
+    veryDeepClouds
       .map((c) => normalizeMauritaniaWilayaName(c.wilaya) || c.wilaya)
       .filter(Boolean)
   );
-  const veryDeep = (stormClouds || []).filter((c) => c.level === 'very_deep').length;
+  const veryDeep = veryDeepClouds.length;
 
   const goToCard = () => {
     document.getElementById('today-observation')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -29,7 +29,7 @@ export default function StormStickyBar() {
     <div className="sticky top-1 z-40 px-2 mt-2" dir="rtl">
       <button
         onClick={goToCard}
-        className="w-full max-w-[1400px] mx-auto flex items-center justify-between gap-3 rounded-2xl border-2 border-white/20 bg-gradient-to-l from-red-700 via-rose-700 to-orange-700 text-white px-4 py-2.5 shadow-2xl backdrop-blur"
+        className="w-full max-w-[1600px] mx-auto flex items-center justify-between gap-3 rounded-2xl border-2 border-white/20 bg-gradient-to-l from-red-700 via-rose-700 to-orange-700 text-white px-4 py-2.5 shadow-2xl backdrop-blur"
       >
         <span className="flex items-center gap-2 font-black text-sm md:text-base">
           <span className="h-2.5 w-2.5 rounded-full bg-white animate-ping" />

@@ -11,10 +11,22 @@ const InstallPWA = () => {
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
 
+  // أُغلِق سابقاً؟ لا نعيد إظهاره قبل 7 أيام
+  const recentlyDismissed = () => {
+    try {
+      const ts = Number(localStorage.getItem('pwa_install_dismissed') || 0);
+      return ts && Date.now() - ts < 7 * 24 * 60 * 60 * 1000;
+    } catch {
+      return false;
+    }
+  };
+
   useEffect(() => {
     // التحقق مما إذا كان التطبيق مثبتاً بالفعل
     const isRunningStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
     setIsStandalone(isRunningStandalone);
+
+    if (recentlyDismissed()) return; // أُغلِق مؤخراً → لا نظهره
 
     // اكتشاف نظام iOS
     const userAgent = window.navigator.userAgent.toLowerCase();
@@ -25,15 +37,15 @@ const InstallPWA = () => {
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      // إظهار الرسالة بعد ثانية واحدة من دخول الموقع لتكون بارزة فوراً
-      if (!isRunningStandalone) {
-        setTimeout(() => setIsVisible(true), 1000);
+      // إظهار الرسالة بعد ثانيتين من دخول الموقع
+      if (!isRunningStandalone && !recentlyDismissed()) {
+        setTimeout(() => setIsVisible(true), 2000);
       }
     });
 
     // بالنسبة لـ iOS، نظهر الرسالة يدوياً لأن النظام لا يدعم الحدث التلقائي
     if (isIOSDevice && !isRunningStandalone) {
-      setTimeout(() => setIsVisible(true), 1000);
+      setTimeout(() => setIsVisible(true), 2000);
     }
 
     // إخفاء الرسالة عند التثبيت بنجاح
@@ -75,11 +87,15 @@ const InstallPWA = () => {
           {/* خلفية جمالية */}
           <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-full -mr-16 -mt-16 z-0" />
           
-          <button 
-            onClick={() => setIsVisible(false)}
-            className="absolute top-4 left-4 text-gray-400 hover:text-gray-600 z-10"
+          <button
+            onClick={() => {
+              try { localStorage.setItem('pwa_install_dismissed', String(Date.now())); } catch {}
+              setIsVisible(false);
+            }}
+            className="absolute top-3 left-3 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-colors z-20"
+            aria-label="إغلاق"
           >
-            <SafeIcon icon={FiX} className="text-xl" />
+            <SafeIcon icon={FiX} className="text-base" />
           </button>
 
           <div className="relative z-10 flex flex-col gap-4">

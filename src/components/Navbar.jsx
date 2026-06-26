@@ -2,16 +2,18 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
+import { FaFacebook } from 'react-icons/fa';
 import SafeIcon from '../common/SafeIcon';
 import { searchCities } from '../weatherApi';
 
 const { FiSearch, FiMenu, FiX, FiBell, FiUser } = FiIcons;
 
-// روابط التنقّل (تشير إلى مسارات/أقسام حقيقية)
+// روابط التنقّل — to: مسار روتر | href: رابط خارجي
 const NAV_LINKS = [
-  { label: 'الرئيسية', to: '/' },
-  { label: 'التوقعات الأسبوعية', to: '/forecast' },
-  { label: 'دليل الظالة', to: '/althala' },
+  { icon: '🏠', label: 'الرئيسية',           to: '/'         },
+  { icon: '📅', label: 'التوقعات الأسبوعية', to: '/forecast' },
+  { icon: '🐫', label: 'الظالة',             to: '/althala'  },
+  { icon: '✍️', label: 'مدوّنو الطقس',       to: '/bloggers' },
 ];
 
 const Navbar = ({ onCitySelect }) => {
@@ -50,10 +52,10 @@ const Navbar = ({ onCitySelect }) => {
 
   return (
     <nav className="bg-gradient-to-l from-[#0b2c5e] via-[#103a78] to-[#0b2c5e] text-white sticky top-0 z-50 shadow-lg shadow-blue-950/20" dir="rtl">
-      <div className="max-w-[1400px] mx-auto flex items-center justify-between gap-3 px-4 py-2.5">
+      <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 md:py-4">
         {/* الشعار */}
         <Link to="/" className="flex items-center gap-3 shrink-0">
-          <div className="relative w-10 h-10 md:w-11 md:h-11 overflow-hidden rounded-xl shadow-md ring-1 ring-white/20 bg-white/95">
+          <div className="relative w-12 h-12 md:w-14 md:h-14 overflow-hidden rounded-2xl shadow-md ring-1 ring-white/20 bg-white/95">
             <img
               src="https://graph.facebook.com/Beddetiii/picture?type=large"
               alt="شعار جاتكم اسحاب"
@@ -65,32 +67,27 @@ const Navbar = ({ onCitySelect }) => {
             />
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="text-lg md:text-xl font-black text-white">جاتكم اسحاب</span>
-            <span className="hidden sm:block text-[10px] font-medium text-blue-200/90">
+            <span className="text-xl md:text-2xl font-black text-white">جاتكم اسحاب</span>
+            <span className="hidden sm:block text-[11px] md:text-xs font-medium text-blue-200/90 mt-0.5">
               رصد ومتابعة السحب والأمطار في موريتانيا
             </span>
           </div>
         </Link>
 
         {/* روابط سطح المكتب */}
-        <div className="hidden md:flex items-center gap-1 font-bold text-[13px]">
-          {NAV_LINKS.map((l) => (
-            <Link
-              key={l.to}
-              to={l.to}
-              className="px-3 py-2 rounded-lg text-blue-100 hover:text-white hover:bg-white/10 transition-colors"
-            >
-              {l.label}
-            </Link>
-          ))}
-          <a
-            href="https://www.facebook.com/Beddetiii/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-3 py-2 rounded-lg text-blue-100 hover:text-white hover:bg-white/10 transition-colors"
-          >
-            فيسبوك
-          </a>
+        <div className="hidden md:flex items-center gap-1.5 font-bold text-[13px]">
+          {NAV_LINKS.map((l) => {
+            const cls = `flex items-center gap-2 px-4 py-2 rounded-xl border border-white/20 bg-white/10 text-white text-[15px] hover:bg-white hover:text-[#0b2c5e] transition-all duration-200 font-bold whitespace-nowrap`;
+            return l.href ? (
+              <a key={l.href} href={l.href} className={cls}>
+                <span>{l.icon}</span>{l.label}
+              </a>
+            ) : (
+              <Link key={l.label} to={l.to} className={cls}>
+                <span>{l.icon}</span>{l.label}
+              </Link>
+            );
+          })}
         </div>
 
         {/* أدوات الجهة اليسرى */}
@@ -134,14 +131,6 @@ const Navbar = ({ onCitySelect }) => {
             <SafeIcon icon={FiBell} className="text-lg" />
           </button>
 
-          {/* تسجيل الدخول (واجهة — المصادقة مرحلة قادمة) */}
-          <button
-            className="hidden sm:flex items-center gap-1.5 bg-white text-[#0b2c5e] font-black text-[13px] px-4 py-2 rounded-full hover:bg-blue-50 transition-colors shadow-sm"
-            title="قريباً"
-          >
-            <SafeIcon icon={FiUser} className="text-sm" />
-            تسجيل الدخول
-          </button>
 
           {/* أدوات الجوال */}
           <div className="flex items-center gap-1 md:hidden">
@@ -214,26 +203,20 @@ const Navbar = ({ onCitySelect }) => {
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="absolute top-full left-0 right-0 bg-white border-b border-gray-100 shadow-xl p-6 flex flex-col gap-2 md:hidden z-40 text-gray-800"
+            className="absolute top-full left-0 right-0 bg-[#0b2c5e] border-b border-white/10 shadow-2xl p-4 grid grid-cols-2 gap-2 md:hidden z-40"
           >
-            {NAV_LINKS.map((l) => (
-              <Link
-                key={l.to}
-                to={l.to}
-                onClick={() => setIsMenuOpen(false)}
-                className="font-bold p-3 hover:bg-gray-50 rounded-xl"
-              >
-                {l.label}
-              </Link>
-            ))}
-            <a
-              href="https://www.facebook.com/Beddetiii/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 font-bold p-3 hover:bg-blue-50 rounded-xl"
-            >
-              صفحة فيسبوك
-            </a>
+            {NAV_LINKS.map((l) => {
+              const cls = `flex items-center gap-2 px-3 py-3 rounded-2xl border border-white/20 bg-white/10 text-white font-bold text-sm active:scale-95 active:bg-white active:text-[#0b2c5e] transition-all`;
+              return l.href ? (
+                <a key={l.href} href={l.href} onClick={() => setIsMenuOpen(false)} className={cls}>
+                  <span className="text-lg">{l.icon}</span>{l.label}
+                </a>
+              ) : (
+                <Link key={l.label} to={l.to} onClick={() => setIsMenuOpen(false)} className={cls}>
+                  <span className="text-lg">{l.icon}</span>{l.label}
+                </Link>
+              );
+            })}
           </motion.div>
         )}
       </div>

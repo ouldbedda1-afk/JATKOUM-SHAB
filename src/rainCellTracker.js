@@ -104,10 +104,8 @@ export function buildRainMovementAlerts({ tracks, weatherData, maxAlerts = 7 }) 
     .map((c) => ({ city: c.city, wilaya: c.wilaya || '', lat: c.latitude ?? c.lat, lon: c.longitude ?? c.lon }))
     .filter((c) => Number.isFinite(c.lat) && Number.isFinite(c.lon));
 
-  // تصفية الخلايا الموثوقة (تفادي بكسل كاذب معزول عابر):
-  //  قوية، أو متماسكة مكانياً (≥نقطتين)، أو استمرّت عبر الإطارات، أو يؤكّدها النموذج.
-  // كتل سحب Meteosat كلها حقيقية (قمم باردة مرصودة) — لا حاجة لتحقّق ضد ضجيج الرادار
-  const valid = tracks.filter((t) => (t.mmh ?? 0) >= 4);
+  // تصفية الخلايا الموثوقة: ظاهرة في آخر إطار Meteosat (missing === 0) وقمم شديدة البرودة فقط (≥140)
+  const valid = tracks.filter((t) => (t.mmh ?? 0) >= 20 && (t.missing || 0) === 0);
 
   const sorted = valid.sort((a, b) => (b.mmh || 0) - (a.mmh || 0)).slice(0, maxAlerts);
   const alerts = [];

@@ -8,7 +8,7 @@ export default function HomeHeroBanner() {
       <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 right-10 h-64 w-64 rounded-full bg-cyan-300/20 blur-3xl" />
 
-      <div className="relative max-w-[1400px] mx-auto px-4 py-6 md:py-9 flex flex-col md:flex-row items-center justify-between gap-5">
+      <div className="relative max-w-[1600px] mx-auto px-4 py-6 md:py-9 flex flex-col md:flex-row items-center justify-between gap-5">
         <div className="flex items-center gap-4">
           <img
             src="/logo.png"

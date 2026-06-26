@@ -9,6 +9,9 @@ import Home from './pages/Home';
 const WeeklyForecastPage = lazy(() => import('./components/WeeklyForecastPage'));
 const AlThalaPage = lazy(() => import('./components/AlThalaPage'));
 const AdminPage = lazy(() => import('./components/AdminPage'));
+const BloggersPage = lazy(() => import('./pages/BloggersPage'));
+const BloggerPage  = lazy(() => import('./pages/BloggerPage'));
+const PostPage     = lazy(() => import('./pages/PostPage'));
 
 function PageFallback() {
   return (
@@ -30,6 +33,9 @@ function App() {
               <Route path="/forecast" element={<WeeklyForecastPage />} />
               <Route path="/althala" element={<AlThalaPage />} />
               <Route path="/admin" element={<AdminPage />} />
+              <Route path="/bloggers" element={<BloggersPage />} />
+              <Route path="/blogger/:slug" element={<BloggerPage />} />
+              <Route path="/post/:id" element={<PostPage />} />
             </Routes>
           </Suspense>
         </Router>

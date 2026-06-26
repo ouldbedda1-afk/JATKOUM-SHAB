@@ -360,7 +360,7 @@ function isRainySeason(dateStr) {
 /* ══════════════════════════════════════════
    مكوّن النشرة الجوية الرسمية (3 أيام موحدة)
 ══════════════════════════════════════════ */
-function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNow, lightningStrikes, trackedCells, stormClouds }) {
+function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNow, lightningStrikes, trackedCells, stormClouds, weatherBulletins }) {
   const [isTodayObservationFlashing, setIsTodayObservationFlashing] = useState(false);
   const [confirmedForecasts, setConfirmedForecasts] = useState([]);
   const flashTimeoutRef = useRef(null);
@@ -521,6 +521,20 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
   const issuedAt = `${todayDate} — ${fmtTime(new Date())}`;
 
   const todayObservation = useMemo(() => {
+    // أولوية 0: نشرة إدارية مباشرة من تيليجرام
+    if (weatherBulletins && weatherBulletins.length > 0) {
+      const latest = weatherBulletins[0];
+      return {
+        tone: 'live',
+        coverage: 'regional',
+        title: `${latest.icon} ${latest.text.slice(0, 60)}${latest.text.length > 60 ? '...' : ''}`,
+        summary: latest.text,
+        chips: ['📢 نشرة إدارية', fmtTime(latest.created_at)],
+        _isAdminBulletin: true,
+        _allBulletins: weatherBulletins,
+      };
+    }
+
     // أولوية: تتبّع العواصف (Meteosat) — البرق يظهر كشريط مدمج داخل البطاقة
     if (rainMovements && rainMovements.length > 0) {
       const thunderCount = rainMovements.filter((m) => m.icon === '⚡').length;
@@ -570,30 +584,6 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       };
     }
 
-    // سحب رعدية كثيفة حيّة (Meteosat IR) — مجمّعة حسب الولاية
-    if (stormClouds && stormClouds.length > 0) {
-      // الولايات المتأثرة (مرتّبة بالأكثر بلديات)
-      const wilayaCount = {};
-      stormClouds.forEach((c) => {
-        const w = normalizeMauritaniaWilayaName(c.wilaya) || c.wilaya;
-        if (w) wilayaCount[w] = (wilayaCount[w] || 0) + 1;
-      });
-      const wilayas = Object.entries(wilayaCount).sort((a, b) => b[1] - a[1]).map(([w]) => w);
-      // أكثف البلديات برودةً (الأقوى) بالاسم
-      const intense = stormClouds
-        .filter((c) => c.level === 'very_deep')
-        .slice(0, 5)
-        .map((c) => toArabicCommune(c.city));
-
-      return {
-        tone: 'live',
-        coverage: wilayas.length >= 3 ? 'wide' : 'regional',
-        title: `🌩️ سحب رعدية كثيفة الآن على ${wilayas.length} ${wilayas.length === 1 ? 'ولاية' : 'ولايات'}`,
-        summary: `ترصد الأقمار الصناعية سحبًا رعدية كثيفة الآن مع حمل حراري نشط على: ${formatShortList(wilayas, 6)}${intense.length ? `، وأكثفها فوق ${formatShortList(intense, 4)}` : ''} — عواصف وأمطار مرجّحة بإذن الله.`,
-        chips: ['🛰️ أقمار صناعية حيّة', `${wilayas.length} ولاية`, `${stormClouds.length} بلدية`],
-      };
-    }
-
     if ((modelRainingNow || []).length > 0) {
       const topModel = modelRainingNow.slice(0, 4);
       return {
@@ -637,7 +627,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         'تستمر متابعة الرادار وأرشيف اليوم وقراءة النموذج وحركة السحب، وتُحدَّث هذه البطاقة تلقائياً عند ظهور أي مؤشرات محلية أو مسار ممطر نحو أي ولاية.',
       chips: ['اليوم', 'متابعة مستمرة', 'تحديث آلي'],
     };
-  }, [lightningReport, rainMovements, stormClouds, convectiveWatch, currentRainNarrative, sameDayRainEvents, rainingNow, modelRainingNow]);
+  }, [lightningReport, rainMovements, convectiveWatch, currentRainNarrative, sameDayRainEvents, rainingNow, modelRainingNow, weatherBulletins]);
 
   const todayTheme = useMemo(() => {
     if (todayObservation.tone === 'live') {
@@ -1191,6 +1181,7 @@ const WeatherAlerts = () => {
     trackedCells,
     stormClouds,
     lightningStrikes,
+    weatherBulletins,
     loading,
     lastUpdated,
   } = useWeatherContext();
@@ -1381,6 +1372,7 @@ const WeatherAlerts = () => {
         lightningStrikes={lightningStrikes}
         trackedCells={trackedCells}
         stormClouds={stormClouds}
+        weatherBulletins={weatherBulletins}
       />
 
     </div>
