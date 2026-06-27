@@ -4,6 +4,10 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 import { useWeatherContext } from '../WeatherContext';
 import { getWeatherDescription, getWeatherIcon } from '../weatherApi';
+import { logAgentQuery, logPageVisit } from '../supabase';
+import { COMMUNE_NAMES_AR } from '../mauritaniaCommuneNamesAr';
+import { mauritaniaCommunesList } from '../mauritaniaCommunes';
+import { getWeatherData } from '../weatherApi';
 
 const { FiX, FiSend, FiChevronDown } = FiIcons;
 
@@ -17,17 +21,7 @@ const QUESTIONS = [
 
 const WELCOME = `وعليكم السلام ورحمة الله وبركاته 🌤️
 
-أهلاً بك في **جاتكم اسحاب** — وكيلك الجوي لموريتانيا.
-
-أستطيع مساعدتك في:
-
-🌦️ **الطقس** — الحالة الآن، الأمطار، العواصف، الحرارة، الرياح، الرطوبة.
-🗺️ **الموقع** — أخبرني بمدينتك أو ولايتك وسأجيبك فوراً.
-📍 **موقعك الحالي** — شارك موقعك وسأعرض أقرب بلدية.
-🧭 **صفحات الموقع** — اسألني أين تجد أي قسم وسأوجّهك.
-📰 **أخبار الطقس** — ملخص يومي وتنبيهات موريتانيا.
-
-أسأل الله أن يجعل غيثه رحمةً وبركة 🇲🇷`;
+أهلاً بك في **جاتكم اسحاب** — أنا البوّاه وكيلك الجوي لموريتانيا.`;
 
 const RAIN_CODES  = [51,53,55,61,63,65,71,73,75,80,81,82,95,96,99];
 const STORM_CODES = [95,96,99];
@@ -162,12 +156,79 @@ function detectIntent(q) {
   return 'general';
 }
 
+function normalizeAr(s) {
+  return s
+    .replace(/[ً-ْٰٱ]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/[ىئ]/g, 'ي')
+    .replace(/ؤ/g, 'و')
+    .replace(/[ﮌگکكݣ]/g, 'ك')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function arSimilarity(a, b) {
+  const na = normalizeAr(a);
+  const nb = normalizeAr(b);
+  if (!na || !nb) return 0;
+  if (na === nb) return 1;
+  if (nb.includes(na) || na.includes(nb)) return 0.88;
+  const bigrams = (s) => { const r = new Set(); for (let i = 0; i < s.length - 1; i++) r.add(s.slice(i, i + 2)); return r; };
+  const bgA = bigrams(na); const bgB = bigrams(nb);
+  let ov = 0; for (const g of bgA) if (bgB.has(g)) ov++;
+  return bgA.size + bgB.size === 0 ? 0 : (2 * ov) / (bgA.size + bgB.size);
+}
+
+function cityArName(d) {
+  return COMMUNE_NAMES_AR[d.city] || d.city;
+}
+
+function fuzzyFindInCommunes(text) {
+  if (!mauritaniaCommunesList?.length) return null;
+  const norm = (s) => normalizeAr(s.replace(/^ال/, ''));
+  const nt = norm(text);
+  const words = text.split(/[\s،,؟?!.]+/).filter((w) => normalizeAr(w).length >= 2);
+  let best = null, bestScore = 0;
+  for (const c of mauritaniaCommunesList) {
+    const ar = COMMUNE_NAMES_AR[c.city] || c.city;
+    if (norm(ar) === nt) return c;
+    const scores = [...words.map((w) => arSimilarity(w, ar)), arSimilarity(text, ar)];
+    const score = Math.max(...scores);
+    if (score > bestScore) { bestScore = score; best = c; }
+  }
+  return bestScore >= 0.65 ? best : null;
+}
+
+function fuzzyRankCities(text, allData, topN = 3) {
+  if (!allData) return [];
+  const words = text.split(/[\s،,؟?!.]+/).filter((w) => normalizeAr(w).length >= 2);
+  return allData
+    .map((d) => {
+      const ar = cityArName(d);
+      const scores = [...words.map((w) => arSimilarity(w, ar)), arSimilarity(text, ar)];
+      return { d, score: Math.max(...scores) };
+    })
+    .filter((x) => x.score >= 0.55)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topN)
+    .map((x) => x.d);
+}
+
+
 function findCity(text, allData) {
   if (!allData) return null;
-  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const wm  = (h, n) => new RegExp(`(^|[\\s،,؟?!.])${esc(n)}([\\s،,؟?!.]|$)`).test(h);
+  const esc  = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const wm   = (h, n) => new RegExp(`(^|[\\s،,؟?!.])${esc(n)}([\\s،,؟?!.]|$)`).test(h);
+  const norm = (s) => normalizeAr(s.replace(/^ال/, ''));
+  const nt   = norm(text);
   const sorted = [...allData].sort((a, b) => b.city.length - a.city.length);
-  return sorted.find((d) => wm(text, d.city)) || sorted.find((d) => text.includes(d.city)) || null;
+  return (
+    sorted.find((d) => wm(text, d.city)) ||
+    sorted.find((d) => text.includes(d.city)) ||
+    sorted.find((d) => norm(cityArName(d)) === nt) ||
+    null
+  );
 }
 
 function findWilaya(text, allData) {
@@ -371,11 +432,154 @@ function buildNationalSummary(allData, ctx = {}) {
 
 // ─── حالة المحادثة (module-level) ───────────────────────────
 
-let lastCity    = null; // آخر بلدية/ولاية تم الرد عنها
-let pendingCity = null; // بلدية بانتظار تأكيد المستخدم (كائن كامل)
+let lastCity            = null;
+let pendingCity         = null;
+let pendingForecastCity = null;
 
 // ─── منطق الرد الرئيسي ──────────────────────────────────────
 // يُرجع { text, cityData } — cityData غير null عند الإجابة عن بلدية محددة
+
+function detectForecastPeriod(q) {
+  if (/14|أسبوعين|طويل.*مد|بعيد/.test(q)) return 14;
+  if (/7|أسبوع|أسبوعي|الأسبوع(?!ية)/.test(q)) return 7;
+  if (/3|ثلاث|ثلاثة/.test(q)) return 3;
+  return null;
+}
+
+function parseForecastChoice(q) {
+  const t = q.trim();
+  // أرقام الخيارات أولاً (1=3أيام، 2=7أيام، 3=14يوم)
+  if (t === '1') return 3;
+  if (t === '2') return 7;
+  if (t === '3') return 14;
+  // بالكلمات أو الأرقام مع وحدة الأيام
+  if (/^3\s*(أيام?|يوم)/.test(t) || /ثلاث(ة)?/.test(t)) return 3;
+  if (/^7\s*(أيام?|يوم)/.test(t) || /أسبوعي|سبع/.test(t)) return 7;
+  if (/^14/.test(t) || /طويل.*مد|أسبوعين/.test(t)) return 14;
+  return null;
+}
+
+function forecastTableReply(cityData, days, ctx = {}) {
+  const city  = cityData.city;
+  const daily = cityData.daily;
+  const adm   = adminLabel(cityData);
+  const adml  = adm ? `\n${adm}` : '';
+  const { rainForecasts = [], stormClouds = [] } = ctx;
+  const manualFc = rainForecasts.find((f) => (f.city && f.city === city) || (f.wilaya && f.wilaya === cityData.wilaya));
+  const satCloud = stormClouds.find((c) => c.city === city || c.wilaya === cityData.wilaya);
+
+  const cur     = cityData.current || {};
+  const curTemp = Math.round(cur.temperature_2m ?? 0);
+  const curCode = cur.weather_code ?? 0;
+  const curWind = Math.round(cur.wind_speed_10m ?? 0);
+  const curHum  = cur.relative_humidity_2m ?? 0;
+
+  const windNow  = curWind >= 60 ? ' · ⚠️ رياح عاصفية' : curWind >= 40 ? ' · 💨 رياح قوية' : curWind >= 20 ? ' · 🌬️ رياح معتدلة' : '';
+  const tempNow  = curTemp >= 45 ? ' · 🥵 حرارة شديدة جداً' : curTemp >= 40 ? ' · 🌡️ حرارة مرتفعة جداً' : '';
+  const satLine  = satCloud ? `\n🛰️ رصد Meteosat: سحب ${satCloud.level || 'عاصفية'} فوق المنطقة.` : '';
+
+  let out = `📍 **${city}** — توقعات ${days === 14 ? '14 يوماً' : days === 7 ? 'أسبوع' : '3 أيام'}\n`;
+  out += `${getWeatherIcon(curCode)} **الآن:** ${curTemp}°م · 💨 ${curWind} كم/س · 💧 ${curHum}%${windNow}${tempNow}${satLine}\n`;
+
+  if (!daily?.time) return out + '\nلا تتوفر بيانات توقعية حالياً.' + adml;
+
+  // جمع أيام الأمطار
+  const rainDays = daily.time.slice(0, days).map((t, i) => ({
+    date:    new Date(t),
+    label:   arabicDay(t),
+    dateStr: (() => { const d = new Date(t); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; })(),
+    max:     Math.round(daily.temperature_2m_max?.[i] ?? 0),
+    min:     Math.round(daily.temperature_2m_min?.[i] ?? 0),
+    prec:    daily.precipitation_sum?.[i] ?? 0,
+    wmax:    Math.round(daily.wind_speed_10m_max?.[i] ?? 0),
+    code:    daily.weather_code?.[i] ?? 0,
+  })).filter((d) => RAIN_CODES.includes(d.code) || d.prec > 0.5);
+
+  // أيام بدون أمطار للحرارة والرياح
+  const allDays = daily.time.slice(0, days).map((t, i) => ({
+    label: arabicDay(t),
+    max:   Math.round(daily.temperature_2m_max?.[i] ?? 0),
+    min:   Math.round(daily.temperature_2m_min?.[i] ?? 0),
+    wmax:  Math.round(daily.wind_speed_10m_max?.[i] ?? 0),
+    code:  daily.weather_code?.[i] ?? 0,
+  }));
+  const maxTemp = Math.max(...allDays.map((d) => d.max));
+  const maxWind = Math.max(...allDays.map((d) => d.wmax));
+
+  if (rainDays.length > 0) {
+    // ─── نشرة مطرية ───
+    out += '\n';
+    rainDays.forEach((d) => {
+      const isStorm  = STORM_CODES.includes(d.code);
+      const stormTxt = isStorm ? ' مصحوبة بعواصف رعدية قوية' : '';
+      const precTxt  = d.prec > 0.5 ? ` بكمية تصل إلى ${d.prec.toFixed(1)} ملم` : '';
+      const windTxt  = d.wmax >= 20 ? ` ورياح ${d.wmax >= 60 ? 'عاصفية' : d.wmax >= 40 ? 'قوية' : 'معتدلة'} تصل إلى ${d.wmax} كلم/س` : '';
+      const tempTxt  = `ودرجات حرارة بين ${d.min}° و${d.max}°م`;
+      out += `🌧️ تشير آخر التوقعات الجوية إلى فرص لهطول أمطار يوم **${d.dateStr}** (${d.label})${stormTxt}${precTxt}${windTxt}، ${tempTxt}.\n`;
+    });
+  } else {
+    // ─── لا أمطار ───
+    const tempComment = maxTemp >= 45 ? 'حرارة شديدة جداً' : maxTemp >= 42 ? 'حرارة مرتفعة جداً' : maxTemp >= 38 ? 'حرارة مرتفعة' : 'أجواء صافية';
+    const windComment = maxWind >= 40 ? `مع رياح ${maxWind >= 60 ? 'عاصفية' : 'قوية'} تصل إلى ${maxWind} كلم/س` : '';
+    out += `\n☀️ لا تشير التوقعات إلى هطول أمطار خلال الـ ${days} أيام القادمة.\n`;
+    out += `🌡️ ${tempComment}، أعلى حرارة متوقعة ${maxTemp}°م${windComment ? `، ${windComment}` : '.'}\n`;
+  }
+
+  if (manualFc) out += `\n📋 **توقع الفريق:** ${manualFc.description || 'أمطار متوقعة'} (${manualFc.date || ''}).`;
+
+  return out + adml;
+}
+
+function sliceCityData(cityData, days) {
+  if (!cityData || days >= 7) return cityData;
+  const sliceArr = (arr) => Array.isArray(arr) ? arr.slice(0, days) : arr;
+  const daily   = cityData.daily   ? Object.fromEntries(Object.entries(cityData.daily).map(([k,v]) => [k, sliceArr(v)])) : cityData.daily;
+  const hrCount = days * 24;
+  const hourly  = cityData.hourly  ? Object.fromEntries(Object.entries(cityData.hourly).map(([k,v]) => [k, Array.isArray(v) ? v.slice(0, hrCount) : v])) : cityData.hourly;
+  return { ...cityData, daily, hourly };
+}
+
+function forecastPeriodMenu(cityName, cityData = null) {
+  let currentWeather = '';
+  if (cityData && cityData.current) {
+    const cur  = cityData.current;
+    const temp = Math.round(cur.temperature_2m ?? 0);
+    const code = cur.weather_code ?? 0;
+    const wind = Math.round(cur.wind_speed_10m ?? 0);
+    const hum  = cur.relative_humidity_2m ?? 0;
+
+    // تفسير ذكي للقيم
+    const windNote = wind >= 60 ? '⚠️ رياح عاصفية جداً — تجنّب التنقل.' :
+                     wind >= 40 ? '💨 رياح قوية.' :
+                     wind >= 20 ? '🌬️ رياح معتدلة.' : '';
+    const tempNote = temp >= 45 ? '🥵 حرارة شديدة جداً — احترز.' :
+                     temp >= 40 ? '🌡️ حرارة مرتفعة جداً.' :
+                     temp >= 35 ? '☀️ حرارة مرتفعة.' :
+                     temp <= 10 ? '🧥 برودة ملحوظة.' : '';
+    const humNote  = hum >= 80  ? '💧 رطوبة عالية — يزداد الإحساس بالحرارة.' :
+                     hum <= 20  ? '🏜️ جفاف شديد في الهواء.' : '';
+
+    const notes = [windNote, tempNote, humNote].filter(Boolean).join(' ');
+
+    currentWeather = `\n${getWeatherIcon(code)} **حالة الطقس الآن:** ${getWeatherDescription(code)}\n🌡️ ${temp}°م · 💨 ${wind} كم/س · 💧 ${hum}%${notes ? `\n${notes}` : ''}\n`;
+  }
+  return (
+    `📍 تم التعرف على المنطقة: **${cityName}**.`
+    + currentWeather
+    + `
+ما نوع التوقعات التي تريد الاطلاع عليها؟
+
+`
+    + `1️⃣ التوقعات خلال **3 أيام**.
+`
+    + `2️⃣ التوقعات **الأسبوعية (7 أيام)**.
+`
+    + `3️⃣ التوقعات **طويلة المدى (14 يومًا)**.
+
+`
+    + `يمكنك كتابة رقم الخيار أو اسمه، مثل: 1 أو 3 أيام أو أسبوعية أو طويلة المدى.`
+  );
+}
 
 function buildAnswer(q, allData, ctx = {}) {
   const ok = (text, cityData = null) => ({ text, cityData });
@@ -416,6 +620,25 @@ function buildAnswer(q, allData, ctx = {}) {
     return ok('العفو! 😊 أسأل الله أن يجعله نافعاً. إذا أردت الاستفسار عن طقس أي بلدية فأنا هنا.');
   }
 
+  // 6b. اختيار فترة التوقعات (إذا كانت هناك بلدية منتظرة)
+  if (pendingForecastCity && !findCity(q, allData) && !findWilaya(q, allData)) {
+    const days = parseForecastChoice(q);
+    if (days !== null) {
+      const cd = pendingForecastCity;
+      pendingForecastCity = null;
+      lastCity = cd.city;
+      if (days === 14) return { text: '__FETCH_14DAY__', cityToRefetch: cd };
+      return ok(forecastTableReply(sliceCityData(cd, days), days, ctx), cd);
+    }
+    // سؤال عن الطقس (رياح، مطر...) — أجب ثم أعِد القائمة
+    const intent = detectIntent(q);
+    if (intent !== 'general' || FOLLOWUP_RE.test(q)) {
+      const weatherAnswer = cityWeatherReply(pendingForecastCity, intent, ctx);
+      return ok(`${weatherAnswer}\n\n${forecastPeriodMenu(pendingForecastCity.city, pendingForecastCity)}`);
+    }
+    return ok(forecastPeriodMenu(pendingForecastCity.city, pendingForecastCity));
+  }
+
   // 7. تأكيد بلدية معلّقة
   if (pendingCity) {
     if (CONFIRM_RE.test(q)) {
@@ -435,30 +658,65 @@ function buildAnswer(q, allData, ctx = {}) {
   // 8. هل يوجد اسم بلدية في الرسالة؟
   const detected = findCity(q, allData);
 
-  // 9. بلدية جديدة → اطلب تأكيداً
-  if (detected && detected.city !== lastCity) {
-    pendingCity = detected;
-    lastCity    = null;
-    return ok(`هل تقصد **${confirmLabel(detected)}**؟`);
+  // 9. بلدية مكتشفة → إذا ذُكرت الفترة اعرض مباشرة، وإلا اسأل عنها
+  if (detected) {
+    pendingCity = null;
+    const period = detectForecastPeriod(q);
+    if (period) {
+      pendingForecastCity = null;
+      lastCity = detected.city;
+      if (period === 14) return { text: '__FETCH_14DAY__', cityToRefetch: detected };
+      return ok(forecastTableReply(sliceCityData(detected, period), period, ctx), detected);
+    }
+    pendingForecastCity = detected;
+    lastCity = null;
+    return ok(forecastPeriodMenu(detected.city, detected));
   }
 
-  // 10. نفس البلدية المحفوظة → أجب مباشرة
-  if (detected && detected.city === lastCity) {
-    return ok(cityWeatherReply(detected, detectIntent(q), ctx), detected);
-  }
-
-  // 11. متابعة واضحة للبلدية أو الولاية السابقة
+  // 10. متابعة واضحة للبلدية أو الولاية السابقة
   if (lastCity && FOLLOWUP_RE.test(q)) {
     const cityData = allData.find((d) => d.city === lastCity);
     if (cityData) return ok(cityWeatherReply(cityData, detectIntent(q), ctx), cityData);
   }
 
-  // 12. بحث بالولاية (لم يُذكر اسم بلدية محددة)
+  // 11. بحث بالولاية (لم يُذكر اسم بلدية محددة)
   const wilayaResult = findWilaya(q, allData);
   if (wilayaResult) {
-    lastCity = wilayaResult.wilaya; // احفظ الولاية للمتابعة
+    lastCity = wilayaResult.wilaya;
     const reply = wilayaForecastReply(wilayaResult.wilaya, wilayaResult.cities, ctx);
     return ok(reply);
+  }
+
+  // 12. بحث تقريبي — إذا لم يُعثر على اسم مطابق تماماً
+  if (!wilayaResult) {
+    const candidates = fuzzyRankCities(q, allData, 3);
+    if (candidates.length === 1) {
+      const period = detectForecastPeriod(q);
+      if (period) {
+        lastCity = candidates[0].city;
+        pendingCity = null;
+        pendingForecastCity = null;
+        if (period === 14) return { text: '__FETCH_14DAY__', cityToRefetch: candidates[0] };
+        return ok(forecastTableReply(sliceCityData(candidates[0], period), period, ctx), candidates[0]);
+      }
+      pendingForecastCity = candidates[0];
+      lastCity = null;
+      return ok(forecastPeriodMenu(candidates[0].city, candidates[0]));
+    }
+    if (candidates.length > 1) {
+      pendingCity = candidates[0];
+      lastCity    = null;
+      const opts = candidates.map((c) => `**${confirmLabel(c)}**`).join(' أم ');
+      return ok(`هل تقصد ${opts}؟`);
+    }
+    // البحث في القائمة الكاملة للبلديات (قد لا تكون محملة في الدفعة الحالية)
+    const commune = fuzzyFindInCommunes(q);
+    if (commune) {
+      const ar = COMMUNE_NAMES_AR[commune.city] || commune.city;
+      const period = detectForecastPeriod(q);
+      return { text: '__FETCH_COMMUNE__', communeToFetch: commune, communeAr: ar, period };
+    }
+    return ok('لم أتعرف على المنطقة. هل يمكنك كتابة اسمها بطريقة أخرى أو ذكر الولاية التابعة لها؟');
   }
 
   // 13. أسئلة عامة (بدون بلدية)
@@ -589,24 +847,72 @@ export default function FloatingAIAgent({ onCitySelect }) {
     );
   };
 
-  const sendMessage = (text) => {
+  const sendMessage = async (text) => {
     const q = (text || input).trim();
     if (!q || typing) return;
     setInput('');
     setShowBubble(false);
     setMessages((prev) => [...prev, { from: 'user', text: q }]);
     setTyping(true);
-    setTimeout(() => {
-      const { text: answer, cityData } = buildAnswer(q, allData, ctx);
-      if (answer === '__GEO__') {
-        setTyping(false);
-        handleGeoRequest();
-        return;
-      }
-      setMessages((prev) => [...prev, { from: 'bot', text: answer }]);
+    logAgentQuery(q, null);
+
+    await new Promise((r) => setTimeout(r, 700));
+
+    const result = buildAnswer(q, allData, ctx);
+
+    if (result.text === '__GEO__') {
       setTyping(false);
-      if (cityData && onCitySelect) onCitySelect(cityData.city);
-    }, 700);
+      handleGeoRequest();
+      return;
+    }
+
+    if (result.text === '__FETCH_COMMUNE__') {
+      const { communeToFetch, communeAr, period } = result;
+      try {
+        const forecastDays = period === 14 ? 14 : 7;
+        const fetched = await getWeatherData(communeAr, { lat: communeToFetch.lat, lon: communeToFetch.lon }, { forecastDays });
+        const cityEntry = { ...fetched, city: communeAr };
+        const extended  = [...(allData || []), cityEntry];
+        if (period && period !== 14) {
+          // فترة محددة — اعرض مباشرة
+          const sliced = sliceCityData(cityEntry, period);
+          setMessages((prev) => [...prev, { from: 'bot', text: forecastTableReply(sliced, period, ctx) }]);
+          if (onCitySelect) onCitySelect(communeAr);
+        } else if (period === 14) {
+          setMessages((prev) => [...prev, { from: 'bot', text: cityWeatherReply(cityEntry, detectIntent(q), ctx) }]);
+          if (onCitySelect) onCitySelect(communeAr);
+        } else {
+          // لا فترة محددة → اعرض القائمة
+          pendingForecastCity = cityEntry;
+          setMessages((prev) => [...prev, { from: 'bot', text: forecastPeriodMenu(communeAr, cityEntry) }]);
+        }
+      } catch {
+        setMessages((prev) => [...prev, { from: 'bot', text: `عثرت على **${communeAr}** في قاعدة البيانات، لكن تعذّر تحميل بياناتها الآن. حاول مجدداً بعد لحظة.` }]);
+      }
+      setTyping(false);
+      return;
+    }
+
+    if (result.text === '__FETCH_14DAY__') {
+      const { cityToRefetch } = result;
+      try {
+        const lat = cityToRefetch.lat ?? cityToRefetch.latitude;
+        const lon = cityToRefetch.lon ?? cityToRefetch.longitude;
+        const coords = (lat != null && lon != null) ? { lat, lon } : null;
+        const fetched = await getWeatherData(cityToRefetch.city, coords, { forecastDays: 14 });
+        const cityEntry = { ...fetched, city: cityToRefetch.city };
+        setMessages((prev) => [...prev, { from: 'bot', text: forecastTableReply(cityEntry, 14, ctx) }]);
+        if (onCitySelect) onCitySelect(cityToRefetch.city);
+      } catch {
+        setMessages((prev) => [...prev, { from: 'bot', text: `تعذّر تحميل التوقعات طويلة المدى لـ **${cityToRefetch.city}** الآن. حاول مجدداً.` }]);
+      }
+      setTyping(false);
+      return;
+    }
+
+    setMessages((prev) => [...prev, { from: 'bot', text: result.text }]);
+    setTyping(false);
+    if (result.cityData && onCitySelect) onCitySelect(result.cityData.city);
   };
 
   return (

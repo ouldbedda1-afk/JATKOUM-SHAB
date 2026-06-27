@@ -8,7 +8,7 @@
 
 const CLUSTER_KM = 85;   // نقاط ضمن هذا النطاق = خلية واحدة (تفادي تشظّي المنظومة لأخبار متعددة)
 const MATCH_KM = 90;     // أقصى إزاحة لاعتبارها نفس الخلية بين تحديثين
-const MAX_MISSING = 1;   // بعد غيابها عن الرصد مرة واحدة تُعتبر متلاشية
+const MAX_MISSING = 0;   // تُحذف الخلية فوراً إذا غابت عن الإطار الأخير (لا تبقى إلا إن رُصدت)
 
 const DEG2RAD = Math.PI / 180;
 function distKm(aLat, aLon, bLat, bLon) {
@@ -108,4 +108,9 @@ export function updateTracks(detections, now = Date.now()) {
 
 export function getTracks() {
   return tracks.slice();
+}
+
+export function clearTracks() {
+  tracks = [];
+  nextId = 1;
 }

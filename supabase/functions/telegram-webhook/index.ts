@@ -108,6 +108,51 @@ async function handleBulletinCommand(chatId: number | string, text: string) {
     return true;
   }
 
+  // /خبر <العنوان>\n<المحتوى>  — ينشر مباشرة في قسم الأخبار
+  if (trimmed.startsWith('/خبر') || trimmed.startsWith('/news')) {
+    const body = trimmed.replace(/^\/خبر\s*|^\/news\s*/u, '').trim();
+    if (!body) {
+      await reply(chatId,
+        '⚠️ الصيغة الصحيحة:\n\n' +
+        '<code>/خبر عنوان الخبر هنا\nنص الخبر التفصيلي هنا</code>\n\n' +
+        'السطر الأول = العنوان، بقية النص = المحتوى.'
+      );
+      return true;
+    }
+    const lines = body.split('\n');
+    const title = lines[0].trim();
+    const content = lines.slice(1).join('\n').trim() || title;
+    const { error } = await supabase.from('news_submissions').insert([{
+      title,
+      body: content,
+      status: 'approved',
+      author_name: 'أدمن تيليجرام',
+    }]);
+    if (error) {
+      await reply(chatId, `❌ خطأ في نشر الخبر: ${error.message}`);
+    } else {
+      await reply(chatId, `✅ تم نشر الخبر في الموقع\n\n📰 <b>${title}</b>\n${content.slice(0, 100)}${content.length > 100 ? '...' : ''}`);
+    }
+    return true;
+  }
+
+  // /اخبار — عرض آخر الأخبار المنشورة
+  if (trimmed === '/اخبار' || trimmed === '/listnews') {
+    const { data, error } = await supabase
+      .from('news_submissions')
+      .select('id, title, created_at')
+      .eq('status', 'approved')
+      .order('created_at', { ascending: false })
+      .limit(5);
+    if (error || !data?.length) {
+      await reply(chatId, '🈳 لا توجد أخبار منشورة حالياً.');
+      return true;
+    }
+    const list = data.map((n, i) => `${i + 1}. 📰 ${n.title}`).join('\n\n');
+    await reply(chatId, `📋 آخر الأخبار المنشورة:\n\n${list}`);
+    return true;
+  }
+
   return false; // لم يكن أمر نشرة
 }
 

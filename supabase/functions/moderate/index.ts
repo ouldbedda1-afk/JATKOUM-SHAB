@@ -73,6 +73,13 @@ Deno.serve(async (req) => {
       return json({ ok: true, id, status });
     }
 
+    if (action === 'delete') {
+      if (!id) return json({ error: 'id مطلوب' }, 400);
+      const { error } = await supabase.from(table).delete().eq('id', id);
+      if (error) throw error;
+      return json({ ok: true, id });
+    }
+
     return json({ error: 'إجراء غير معروف' }, 400);
   } catch (err) {
     return json({ error: String(err) }, 500);

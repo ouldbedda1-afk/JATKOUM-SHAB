@@ -7,12 +7,23 @@ import { normalizeMauritaniaWilayaName } from '../mauritaniaPlaceNames';
  * ويختفي تلقائياً حين تتلاشى. يأخذ الزائر لبطاقة "رصد اليوم" لمتابعة المسار.
  * يتحدّث تلقائياً مع كل دورة رصد (قوة/ضعف/حركة).
  */
+function minutesAgo(date) {
+  if (!date) return null;
+  const m = Math.round((Date.now() - new Date(date)) / 60000);
+  return m <= 0 ? 'الآن' : `منذ ${m} د`;
+}
+
 export default function StormStickyBar() {
-  const { stormClouds, lightningStrikes } = useWeatherContext();
+  const { stormClouds, lightningStrikes, stormCloudsUpdatedAt } = useWeatherContext();
 
   const veryDeepClouds = (stormClouds || []).filter((c) => c.level === 'very_deep');
   const strikes = (lightningStrikes || []).length;
-  if (veryDeepClouds.length === 0 && strikes === 0) return null;
+  // يظهر الشريط فقط إذا تزامن سحب Meteosat مع برق، أو وجدت سحب شديدة وحدها
+  const hasActiveClouds = veryDeepClouds.length > 0;
+  const hasRecentLightning = strikes > 0;
+  if (!hasActiveClouds && !hasRecentLightning) return null;
+  // برق وحده بدون سحب → لا نعرضه (غالباً عاصفة انتهت)
+  if (hasRecentLightning && !hasActiveClouds) return null;
 
   const wilayas = new Set(
     veryDeepClouds
@@ -37,8 +48,11 @@ export default function StormStickyBar() {
           {wilayas.size > 0 ? ` على ${wilayas.size} ${wilayas.size === 1 ? 'ولاية' : 'ولايات'}` : ''}
           {veryDeep > 0 ? ` (${veryDeep} شديدة)` : ''}
         </span>
-        <span className="shrink-0 text-[11px] md:text-sm font-bold bg-white/20 px-3 py-1 rounded-full">
-          اضغط لمتابعة المسار ←
+        <span className="shrink-0 flex flex-col items-end gap-0.5">
+          <span className="text-[11px] md:text-sm font-bold bg-white/20 px-3 py-1 rounded-full">اضغط لمتابعة المسار ←</span>
+          {stormCloudsUpdatedAt && (
+            <span className="text-[10px] text-white/60 px-1">🛰️ رصد Meteosat · {minutesAgo(stormCloudsUpdatedAt)}</span>
+          )}
         </span>
       </button>
     </div>

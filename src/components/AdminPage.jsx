@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from './Navbar';
-import { adminListPending, adminModerate } from '../supabase';
+import { adminListPending, adminModerate, adminDelete } from '../supabase';
+import { useWeatherContext } from '../WeatherContext';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 
-const { FiLock, FiCheck, FiX, FiRefreshCw, FiInbox, FiShield } = FiIcons;
+const { FiLock, FiCheck, FiX, FiRefreshCw, FiInbox, FiShield, FiTrash2, FiCloudOff } = FiIcons;
 
 const TABS = [
   { id: 'rain', label: 'تبشيرات المطر' },
@@ -14,6 +15,7 @@ const TABS = [
 const TOKEN_KEY = 'jatkoum_admin_token';
 
 export default function AdminPage() {
+  const { clearStormAlerts, trackedCells } = useWeatherContext();
   const [token, setToken] = useState(() => sessionStorage.getItem(TOKEN_KEY) || '');
   const [authed, setAuthed] = useState(() => Boolean(sessionStorage.getItem(TOKEN_KEY)));
   const [tab, setTab] = useState('rain');
@@ -58,6 +60,19 @@ export default function AdminPage() {
     }
   };
 
+  const deleteItem = async (id) => {
+    if (!window.confirm('حذف نهائي؟ لا يمكن التراجع.')) return;
+    setBusyId(id);
+    try {
+      await adminDelete(token, tab, id);
+      setItems((prev) => prev.filter((it) => it.id !== id));
+    } catch (err) {
+      setError(err.message || 'فشل الحذف');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const logout = () => {
     sessionStorage.removeItem(TOKEN_KEY);
     setToken('');
@@ -78,6 +93,22 @@ export default function AdminPage() {
             <p className="text-sm text-gray-500">اعتماد أو رفض ما يرسله المستخدمون قبل نشره</p>
           </div>
         </div>
+
+        {/* زر مسح العواصف — يظهر دائماً لأنه عملية طارئة */}
+        {trackedCells.length > 0 && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-center justify-between gap-4">
+            <div>
+              <p className="font-black text-red-800 text-sm">⚠️ {trackedCells.length} خلية عاصفة نشطة الآن</p>
+              <p className="text-xs text-red-600 mt-0.5">مسح فوري — تختفي من الخريطة وتعود فقط إذا رصدها Meteosat من جديد.</p>
+            </div>
+            <button
+              onClick={() => { if (window.confirm(`مسح ${trackedCells.length} خلية عاصفة؟`)) clearStormAlerts(); }}
+              className="shrink-0 flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-black hover:bg-red-700 transition-all"
+            >
+              <SafeIcon icon={FiCloudOff} /> مسح العواصف
+            </button>
+          </div>
+        )}
 
         {!authed ? (
           <div className="bg-white rounded-[2rem] shadow-xl border border-gray-100 p-8 max-w-md mx-auto mt-10">
@@ -198,6 +229,13 @@ export default function AdminPage() {
                         className="flex-1 inline-flex items-center justify-center gap-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-xl text-sm font-bold hover:bg-red-100 hover:text-red-700 transition-all disabled:opacity-50"
                       >
                         <SafeIcon icon={FiX} /> رفض
+                      </button>
+                      <button
+                        onClick={() => deleteItem(it.id)}
+                        disabled={busyId === it.id}
+                        className="flex-1 inline-flex items-center justify-center gap-1 bg-red-50 text-red-600 px-4 py-2 rounded-xl text-sm font-bold hover:bg-red-600 hover:text-white transition-all disabled:opacity-50"
+                      >
+                        <SafeIcon icon={FiTrash2} /> حذف
                       </button>
                     </div>
                   </div>

@@ -533,6 +533,41 @@ export async function getPostById(id) {
   } catch (e) { return null; }
 }
 
+// ═══════════════════════════════════════════════════
+// إحصاءات — أسئلة الوكيل وزيارات الصفحة
+// ═══════════════════════════════════════════════════
+
+export function logAgentQuery(question, city = null) {
+  if (!supabaseUrl || !supabaseAnonKey) return;
+  const body = JSON.stringify({ question: String(question).slice(0, 300), city: city || null });
+  fetch(`${supabaseUrl}/rest/v1/agent_queries`, {
+    method: 'POST',
+    headers: {
+      'apikey': supabaseAnonKey,
+      'Authorization': `Bearer ${supabaseAnonKey}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal',
+    },
+    body,
+  }).catch(() => {});
+}
+
+export function logPageVisit() {
+  if (!supabaseUrl || !supabaseAnonKey) return;
+  if (sessionStorage.getItem('visit_logged')) return;
+  sessionStorage.setItem('visit_logged', '1');
+  fetch(`${supabaseUrl}/rest/v1/page_visits`, {
+    method: 'POST',
+    headers: {
+      'apikey': supabaseAnonKey,
+      'Authorization': `Bearer ${supabaseAnonKey}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal',
+    },
+    body: '{}',
+  }).catch(() => {});
+}
+
 export async function createPost(bloggerId, { title, content, cover_url, wilaya }) {
   const { data, error } = await supabase
     .from('posts')
@@ -667,4 +702,9 @@ export async function adminListPending(adminToken, kind) {
 /** الإدارة: موافقة أو رفض عنصر */
 export async function adminModerate(adminToken, kind, id, approve) {
   return callModerate(adminToken, { action: approve ? 'approve' : 'reject', kind, id });
+}
+
+/** الإدارة: حذف نهائي لعنصر */
+export async function adminDelete(adminToken, kind, id) {
+  return callModerate(adminToken, { action: 'delete', kind, id });
 }

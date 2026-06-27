@@ -1,5 +1,6 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import { logPageVisit } from './supabase';
 import ErrorBoundary from './components/ErrorBoundary';
 import InstallPWA from './components/InstallPWA';
 import { WeatherProvider } from './WeatherContext';
@@ -22,6 +23,8 @@ function PageFallback() {
 }
 
 function App() {
+  useEffect(() => { logPageVisit(); }, []);
+
   return (
     <ErrorBoundary>
       <WeatherProvider>

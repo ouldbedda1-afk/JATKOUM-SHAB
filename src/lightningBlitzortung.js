@@ -7,7 +7,7 @@
 
 const WS_SERVERS = ['wss://ws1.blitzortung.org/', 'wss://ws7.blitzortung.org/', 'wss://ws8.blitzortung.org/'];
 const MAURITANIA_BBOX = { latMin: 14.5, latMax: 27.8, lonMin: -17.6, lonMax: -4.4 };
-const STRIKE_TTL = 30 * 60 * 1000; // نحتفظ بآخر 30 دقيقة
+const STRIKE_TTL = 15 * 60 * 1000; // نحتفظ بآخر 15 دقيقة فقط
 
 let strikes = []; // [{ lat, lon, time }]
 let listeners = [];

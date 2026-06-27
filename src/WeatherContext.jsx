@@ -5,7 +5,7 @@ import { getSatelliteVegetationStatus } from './satelliteVegetation';
 import { getRainingNowFromSatellite, getSameDayHeavyRainEventsFromSatellite, getRainingNowFromIMERG } from './satelliteRain';
 import { MAURITANIA_RADAR_GRID } from './mauritaniaRadarGrid';
 import { startLightning, subscribeLightning } from './lightningBlitzortung';
-import { updateTracks } from './cellTracking';
+import { updateTracks, clearTracks } from './cellTracking';
 import { getDeepCloudsFromEumetsat } from './satelliteCloudsEU';
 import { getEcmwfBriefs } from './ecmwfBriefs';
 
@@ -33,6 +33,7 @@ export const WeatherProvider = ({ children }) => {
   const [sameDayRainEvents, setSameDayRainEvents] = useState([]);
   const [trackedCells,     setTrackedCells]     = useState([]);
   const [stormClouds,      setStormClouds]      = useState([]);
+  const [stormCloudsUpdatedAt, setStormCloudsUpdatedAt] = useState(null);
   const [lightningStrikes, setLightningStrikes] = useState([]);
   const [loading,          setLoading]          = useState(true);
   const [lastUpdated,      setLastUpdated]      = useState(null);
@@ -95,6 +96,7 @@ export const WeatherProvider = ({ children }) => {
         getDeepCloudsFromEumetsat(weather)
           .then((clouds) => {
             setStormClouds(clouds || []);
+            setStormCloudsUpdatedAt(new Date());
             // 🛰️ تتبّع زمني لكتل السحب: اتجاه وسرعة ووجهة (البلدية المتوقّع وصولها)
             try {
               const { active } = updateTracks(clouds || []);
@@ -187,6 +189,7 @@ export const WeatherProvider = ({ children }) => {
     sameDayRainEvents,
     trackedCells,
     stormClouds,
+    stormCloudsUpdatedAt,
     lightningStrikes,
     loading,
     lastUpdated,
@@ -195,11 +198,17 @@ export const WeatherProvider = ({ children }) => {
     clearCache: () => {
       clearWeatherCache();
       refreshAllData(true);
+    },
+    clearStormAlerts: () => {
+      clearTracks();
+      setTrackedCells([]);
+      setStormClouds([]);
+      setStormCloudsUpdatedAt(null);
     }
   }), [
     weatherData, fires, marineData,
     rainReports, bawahReports, rainForecasts, manualAlerts, approvedNews, ecmwfBriefs, vegetationData,
-    weatherBulletins, rainingNow, modelRainingNow, sameDayRainEvents, trackedCells, stormClouds, lightningStrikes, loading, lastUpdated, error,
+    weatherBulletins, rainingNow, modelRainingNow, sameDayRainEvents, trackedCells, stormClouds, stormCloudsUpdatedAt, lightningStrikes, loading, lastUpdated, error,
   ]);
 
   return (
