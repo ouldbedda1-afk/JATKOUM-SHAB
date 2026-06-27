@@ -94,22 +94,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* زر مسح العواصف — يظهر دائماً لأنه عملية طارئة */}
-        {trackedCells.length > 0 && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-center justify-between gap-4">
-            <div>
-              <p className="font-black text-red-800 text-sm">⚠️ {trackedCells.length} خلية عاصفة نشطة الآن</p>
-              <p className="text-xs text-red-600 mt-0.5">مسح فوري — تختفي من الخريطة وتعود فقط إذا رصدها Meteosat من جديد.</p>
-            </div>
-            <button
-              onClick={() => { if (window.confirm(`مسح ${trackedCells.length} خلية عاصفة؟`)) clearStormAlerts(); }}
-              className="shrink-0 flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-black hover:bg-red-700 transition-all"
-            >
-              <SafeIcon icon={FiCloudOff} /> مسح العواصف
-            </button>
-          </div>
-        )}
-
         {!authed ? (
           <div className="bg-white rounded-[2rem] shadow-xl border border-gray-100 p-8 max-w-md mx-auto mt-10">
             <div className="w-14 h-14 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -137,6 +121,22 @@ export default function AdminPage() {
           </div>
         ) : (
           <>
+            {/* زر مسح العواصف */}
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-center justify-between gap-4">
+              <div>
+                <p className="font-black text-red-800 text-sm">
+                  {trackedCells.length > 0 ? `⚠️ ${trackedCells.length} خلية عاصفة نشطة الآن` : '✅ لا توجد خلايا عاصفة نشطة حالياً'}
+                </p>
+                <p className="text-xs text-red-600 mt-0.5">مسح فوري — تختفي من الخريطة وتعود فقط إذا رصدها Meteosat من جديد.</p>
+              </div>
+              <button
+                onClick={() => { if (window.confirm('مسح جميع خلايا العواصف؟')) clearStormAlerts(); }}
+                className="shrink-0 flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-black hover:bg-red-700 transition-all disabled:opacity-40"
+              >
+                <SafeIcon icon={FiCloudOff} /> مسح العواصف
+              </button>
+            </div>
+
             <div className="flex items-center justify-between mb-4">
               <div className="flex bg-gray-100 p-1 rounded-xl">
                 {TABS.map((t) => (
