@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import {
   adminGetAllNews, adminCreateNews, adminUpdateNews,
-  adminDeleteNews, uploadNewsImage,
+  adminDeleteNews, uploadNewsImage, getLivestockReports, supabase,
 } from '../supabase';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
@@ -30,18 +31,23 @@ function fmtDate(d) {
 }
 
 export default function NewsAdmin() {
+  const [tab, setTab]               = useState('news'); // 'news' | 'livestock'
   const [articles, setArticles]     = useState([]);
   const [count, setCount]           = useState(0);
   const [page, setPage]             = useState(0);
   const [search, setSearch]         = useState('');
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
-  const [editing, setEditing]       = useState(null); // null | 'new' | article object
+  const [editing, setEditing]       = useState(null);
   const [form, setForm]             = useState(EMPTY);
   const [uploading, setUploading]   = useState(false);
   const [saving, setSaving]         = useState(false);
   const [preview, setPreview]       = useState(false);
   const [busyId, setBusyId]         = useState(null);
+  // الظالة
+  const [livestock, setLivestock]   = useState([]);
+  const [liveLoading, setLiveLoading] = useState(false);
+  const [liveBusy, setLiveBusy]     = useState(null);
   const fileRef = useRef();
   const PER_PAGE = 15;
 
@@ -54,7 +60,17 @@ export default function NewsAdmin() {
     finally { setLoading(false); }
   }, [page, search]);
 
+  const loadLivestock = useCallback(async () => {
+    setLiveLoading(true);
+    try {
+      const data = await getLivestockReports();
+      setLivestock(data || []);
+    } catch (e) { console.error(e); }
+    finally { setLiveLoading(false); }
+  }, []);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (tab === 'livestock') loadLivestock(); }, [tab, loadLivestock]);
 
   function openNew() {
     setForm(EMPTY); setEditing('new'); setPreview(false);
@@ -245,6 +261,79 @@ export default function NewsAdmin() {
   // ── List view ─────────────────────────────────────────────
   return (
     <div className="space-y-4" dir="rtl">
+      {/* Tab switcher */}
+      <div className="flex bg-gray-100 p-1 rounded-xl w-fit">
+        <button onClick={() => setTab('news')}
+          className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${tab === 'news' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}>
+          📰 الأخبار
+        </button>
+        <button onClick={() => setTab('livestock')}
+          className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${tab === 'livestock' ? 'bg-white shadow-sm text-amber-600' : 'text-gray-500'}`}>
+          🐄 الظالة {livestock.length > 0 && <span className="mr-1 text-xs bg-amber-100 text-amber-700 px-1.5 rounded-full">{livestock.length}</span>}
+        </button>
+      </div>
+
+      {/* ═══ قسم الظالة ═══ */}
+      {tab === 'livestock' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-bold text-gray-500">{livestock.length} بلاغ معتمد</p>
+            <button onClick={loadLivestock} className="p-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">
+              <SafeIcon icon={FiRefreshCw} className={`text-gray-600 ${liveLoading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+          {liveLoading ? (
+            [...Array(3)].map((_,i) => <div key={i} className="h-20 bg-white rounded-2xl animate-pulse border border-gray-100" />)
+          ) : livestock.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center text-gray-400">
+              لا توجد بلاغات معتمدة
+            </div>
+          ) : livestock.map((r) => {
+            const isLost = r.report_type === 'lost';
+            const loc = [r.village, r.region].filter(Boolean).join('، ');
+            return (
+              <div key={r.id} className="bg-white rounded-2xl border border-gray-100 p-4 flex gap-3 items-start">
+                {r.image_url ? (
+                  <img src={r.image_url} alt="" className="w-20 h-16 object-cover rounded-xl shrink-0" />
+                ) : (
+                  <div className="w-20 h-16 rounded-xl bg-amber-50 flex items-center justify-center text-2xl shrink-0">🐄</div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${isLost ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                      {isLost ? '🔴 ضالة' : '🟢 وُجدت'}
+                    </span>
+                    <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">{r.animal_type}</span>
+                  </div>
+                  <p className="font-bold text-gray-800 text-sm">{r.animal_type} — {loc || 'غير محدد'}</p>
+                  {r.description ? <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{r.description}</p> : null}
+                  <p className="text-[11px] text-gray-400 mt-1">📞 {r.contact_phone || '—'} · {fmtDate(r.created_at)}</p>
+                </div>
+                <div className="flex flex-col gap-2 shrink-0">
+                  <Link to={`/althala/${r.id}`} target="_blank"
+                    className="flex items-center gap-1 bg-amber-50 text-amber-700 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-amber-100 transition-all">
+                    <SafeIcon icon={FiExternalLink} /> عرض
+                  </Link>
+                  <button
+                    disabled={liveBusy === r.id}
+                    onClick={async () => {
+                      if (!window.confirm('حذف هذا البلاغ نهائياً؟')) return;
+                      setLiveBusy(r.id);
+                      await supabase.from('livestock_reports').delete().eq('id', r.id);
+                      setLivestock(prev => prev.filter(x => x.id !== r.id));
+                      setLiveBusy(null);
+                    }}
+                    className="flex items-center gap-1 bg-red-50 text-red-600 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-all disabled:opacity-50">
+                    <SafeIcon icon={FiTrash2} /> حذف
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {tab === 'news' && <>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-black text-gray-800">📰 إدارة الأخبار</h2>
@@ -335,6 +424,7 @@ export default function NewsAdmin() {
           </button>
         </div>
       )}
+      </> /* end tab === 'news' */}
     </div>
   );
 }

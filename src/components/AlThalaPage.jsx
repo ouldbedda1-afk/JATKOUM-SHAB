@@ -264,11 +264,11 @@ const AlThalaPage = () => {
                     </Link>
                     <button
                       onClick={() => {
-                        const url = `${window.location.origin}${window.location.pathname}#/althala/${report.id}`;
+                        const proxyUrl = `https://udtdfkvtmqfxjezhxaah.supabase.co/functions/v1/og-proxy?id=${report.id}&type=livestock`;
                         const loc = [report.village, report.region].filter(Boolean).join('، ');
                         const text = report.report_type === 'lost'
-                          ? `🔴 ضالة: ${report.animal_type} في ${loc || 'موريتانيا'}\nللتواصل: ${report.contact_phone || ''}\n${url}`
-                          : `🟢 وُجد: ${report.animal_type} في ${loc || 'موريتانيا'}\nللتواصل: ${report.contact_phone || ''}\n${url}`;
+                          ? `🔴 ضالة: ${report.animal_type} في ${loc || 'موريتانيا'}\nللتواصل: ${report.contact_phone || ''}\n${proxyUrl}`
+                          : `🟢 وُجد: ${report.animal_type} في ${loc || 'موريتانيا'}\nللتواصل: ${report.contact_phone || ''}\n${proxyUrl}`;
                         window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
                       }}
                       className="w-12 h-12 bg-green-50 text-green-700 rounded-xl flex items-center justify-center hover:bg-green-100 transition-all"

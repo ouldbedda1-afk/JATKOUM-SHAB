@@ -11,7 +11,9 @@ function fmtDate(d) {
 }
 
 function ShareButtons({ report }) {
-  const url = window.location.href;
+  // رابط proxy يحمل OG tags ديناميكية (صورة البلاغ) لواتساب وفيسبوك
+  const proxyUrl = `https://udtdfkvtmqfxjezhxaah.supabase.co/functions/v1/og-proxy?id=${report.id}&type=livestock`;
+  const url = proxyUrl;
   const isLost = report.report_type === 'lost';
   const loc = [report.village, report.region].filter(Boolean).join(' ، ');
   const text = isLost
