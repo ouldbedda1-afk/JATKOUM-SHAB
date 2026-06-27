@@ -2,13 +2,19 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from './Navbar';
 import { adminListPending, adminModerate, adminDelete } from '../supabase';
 import { useWeatherContext } from '../WeatherContext';
+import NewsAdmin from './NewsAdmin';
+import ForecastPublisher from './ForecastPublisher';
+import SnapshotArchive from './SnapshotArchive';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 
-const { FiLock, FiCheck, FiX, FiRefreshCw, FiInbox, FiShield, FiTrash2, FiCloudOff } = FiIcons;
+const { FiLock, FiCheck, FiX, FiRefreshCw, FiInbox, FiShield, FiTrash2, FiCloudOff, FiFileText } = FiIcons;
 
 const TABS = [
-  { id: 'rain', label: 'تبشيرات المطر' },
+  { id: 'forecast',  label: '📡 نشر توقعات' },
+  { id: 'archive',   label: '📦 أرشيف التوقعات' },
+  { id: 'news_mgmt', label: '📰 إدارة الأخبار' },
+  { id: 'rain',      label: 'تبشيرات المطر' },
   { id: 'livestock', label: 'الظالة' },
 ];
 
@@ -181,6 +187,15 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {/* قسم نشر التوقعات */}
+            {tab === 'forecast' ? (
+              <ForecastPublisher />
+            ) : tab === 'archive' ? (
+              <SnapshotArchive />
+            ) : tab === 'news_mgmt' ? (
+              <NewsAdmin />
+            ) : (<>
+
             {error && <p className="text-xs font-bold text-red-600 mb-3">{error}</p>}
 
             {loading ? (
@@ -266,6 +281,7 @@ export default function AdminPage() {
                 ))}
               </div>
             )}
+          </>) /* end non-news tabs */}
           </>
         )}
       </main>

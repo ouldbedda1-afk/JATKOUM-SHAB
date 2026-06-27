@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
-    "predeploy": "npm run build",
+    "generate:rss": "node scripts/generate-rss.js",
+    "generate:sitemap": "node scripts/generate-sitemap.js",
+    "predeploy": "npm run generate:rss && npm run generate:sitemap && npm run build",
     "deploy": "gh-pages -d dist",
     "build": "vite build",
     "lint": "eslint .",

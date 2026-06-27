@@ -10,9 +10,11 @@ import Home from './pages/Home';
 const WeeklyForecastPage = lazy(() => import('./components/WeeklyForecastPage'));
 const AlThalaPage = lazy(() => import('./components/AlThalaPage'));
 const AdminPage = lazy(() => import('./components/AdminPage'));
-const BloggersPage = lazy(() => import('./pages/BloggersPage'));
-const BloggerPage  = lazy(() => import('./pages/BloggerPage'));
-const PostPage     = lazy(() => import('./pages/PostPage'));
+const BloggersPage      = lazy(() => import('./pages/BloggersPage'));
+const BloggerPage       = lazy(() => import('./pages/BloggerPage'));
+const PostPage          = lazy(() => import('./pages/PostPage'));
+const NewsPage          = lazy(() => import('./pages/NewsPage'));
+const NewsArticlePage   = lazy(() => import('./pages/NewsArticlePage'));
 
 function PageFallback() {
   return (
@@ -39,6 +41,8 @@ function App() {
               <Route path="/bloggers" element={<BloggersPage />} />
               <Route path="/blogger/:slug" element={<BloggerPage />} />
               <Route path="/post/:id" element={<PostPage />} />
+              <Route path="/news" element={<NewsPage />} />
+              <Route path="/news/:slug" element={<NewsArticlePage />} />
             </Routes>
           </Suspense>
         </Router>

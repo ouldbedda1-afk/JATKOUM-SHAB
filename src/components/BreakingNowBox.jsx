@@ -1,12 +1,13 @@
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useMemo, useRef, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 import { useWeatherContext } from '../WeatherContext';
 import { sendLocalNotification, requestNotificationPermission } from '../pwa';
-import { broadcastPush } from '../supabase';
+import { broadcastPush, adminCreateNews } from '../supabase';
 import { toArabicCommune } from '../mauritaniaCommuneNamesAr';
 
-const { FiShare2 } = FiIcons;
+const { FiShare2, FiBookOpen } = FiIcons;
 
 // بناء نص الخبر القابل للنشر
 function buildBreakingText({ thunderCities, rainCities, modelThunder, modelRain, hasRadar }) {
@@ -32,6 +33,8 @@ function buildBreakingText({ thunderCities, rainCities, modelThunder, modelRain,
 
 export default function BreakingNowBox() {
   const { weatherData, rainingNow, modelRainingNow, loading } = useWeatherContext();
+  const navigate = useNavigate();
+  const [publishing, setPublishing] = useState(false);
 
   const breaking = useMemo(() => {
     if (loading || !weatherData) {
@@ -84,6 +87,59 @@ export default function BreakingNowBox() {
     })();
   }, [breaking]);
 
+  const publishAsNews = async () => {
+    setPublishing(true);
+    try {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('ar', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      const timeStr = now.toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
+
+      const isStorm = breaking.thunderCities.length > 0;
+      const isRain  = breaking.rainCities.length > 0;
+      const category = isStorm ? 'عواصف' : 'أمطار';
+      const icon     = isStorm ? '⛈️' : '🌧️';
+
+      let title = '';
+      if (isStorm)      title = `⚡ عاجل: عواصف رعدية مرصودة بالأقمار في ${breaking.thunderCities.slice(0,3).join('، ')}`;
+      else if (isRain)  title = `🌧️ عاجل: غيوم ماطرة مرصودة بالأقمار في ${breaking.rainCities.slice(0,3).join('، ')}`;
+      else if (breaking.modelThunder.length) title = `🔭 توقعات: عواصف رعدية محتملة في ${breaking.modelThunder.slice(0,3).join('، ')}`;
+      else              title = `🔭 توقعات: أمطار محتملة في ${breaking.modelRain.slice(0,3).join('، ')}`;
+
+      let excerpt = '';
+      if (isStorm)      excerpt = `رُصدت عواصف رعدية وبرق بالأقمار الصناعية (Meteosat) في ${breaking.thunderCities.join('، ')}. يُرجى الحذر والابتعاد عن الأودية والمناطق المكشوفة.`;
+      else if (isRain)  excerpt = `رُصدت غيوم ماطرة بالأقمار الصناعية في ${breaking.rainCities.join('، ')}. جعلها الله أمطار خير وبركة.`;
+      else              excerpt = `تشير نماذج التوقع الجوي إلى احتمال تساقط أمطار وعواصف في ${[...breaking.modelThunder, ...breaking.modelRain].join('، ')}.`;
+
+      let content = `📡 *نشرة طقس عاجلة — جاتكم اسحاب*\n`;
+      content += `📅 ${dateStr} · الساعة ${timeStr}\n\n`;
+
+      if (breaking.thunderCities.length) content += `⚡ **عواصف رعدية وبرق** (🛰️ رصد مباشر بالأقمار) في:\n${breaking.thunderCities.join('، ')}\n\n⚠️ يُرجى الحذر الشديد، والابتعاد عن الأودية والأماكن المكشوفة.\n\n`;
+      if (breaking.rainCities.length)    content += `🌧️ **غيوم ماطرة** (🛰️ رصد مباشر بالأقمار) في:\n${breaking.rainCities.join('، ')}\n\nجعلها الله أمطار خير وبركة وتقبّل الله الدعاء.\n\n`;
+      if (breaking.modelThunder.length)  content += `🔭 **عواصف رعدية محتملة** (توقّع نموذجي غير مؤكد) في:\n${breaking.modelThunder.join('، ')}\n\n`;
+      if (breaking.modelRain.length)     content += `🔭 **أمطار محتملة** (توقّع نموذجي غير مؤكد) في:\n${breaking.modelRain.join('، ')}\n\n`;
+      content += `---\nالمصدر: رصد الأقمار الصناعية Meteosat · جاتكم اسحاب\nتابع الرصد المباشر على الموقع.`;
+
+      const article = await adminCreateNews({
+        title,
+        excerpt,
+        content,
+        category,
+        author: 'جاتكم اسحاب',
+        is_published: true,
+        tags: ['عاجل', 'رصد مباشر', category],
+        featured_image: '',
+      });
+
+      if (article?.slug) {
+        navigate(`/news/${article.slug}`);
+      }
+    } catch (err) {
+      console.error('خطأ في النشر:', err);
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   const shareBreaking = (platform) => {
     if (platform === 'whatsapp') {
       window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(breakingText)}`, '_blank');
@@ -133,8 +189,17 @@ export default function BreakingNowBox() {
             <span className="font-black">{breaking.modelRain.join('، ')}</span>
           </p>
         )}
-        <div className="flex flex-wrap gap-2 mt-3">
-          <span className="text-[11px] text-gray-500 font-bold self-center ml-1">نشر كخبر:</span>
+        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-current border-opacity-10">
+          {/* زر نشر كخبر رئيسي */}
+          <button
+            onClick={publishAsNews}
+            disabled={publishing}
+            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-black transition-all shadow-sm ${breaking.hasRadar ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-amber-500 hover:bg-amber-600 text-white'} disabled:opacity-60`}
+          >
+            <SafeIcon icon={FiBookOpen} />
+            {publishing ? 'جارٍ النشر...' : '📰 نشر كخبر'}
+          </button>
+          <span className="text-[11px] text-gray-500 font-bold self-center">أو شارك:</span>
           <button onClick={() => shareBreaking('whatsapp')} className="inline-flex items-center gap-1 bg-green-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-green-600 transition-colors">💬 واتساب</button>
           <button onClick={() => shareBreaking('facebook')} className="inline-flex items-center gap-1 bg-[#1877F2] text-white px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-[#166fe5] transition-colors">📘 فيسبوك</button>
           <button onClick={() => shareBreaking('copy')} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-gray-200 transition-colors">

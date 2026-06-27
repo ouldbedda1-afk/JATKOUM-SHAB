@@ -26,6 +26,8 @@ function bearingDeg(aLat, aLon, bLat, bLon) {
 
 let tracks = [];
 let nextId = 1;
+// مناطق مُخمَدة يدوياً: { lat, lon, until }
+let suppressed = [];
 
 // يجمّع نقاط الرصد في خلايا (مركز ثقل مرجّح بالشدة)
 function clusterDetections(dets) {
@@ -61,8 +63,17 @@ function clusterDetections(dets) {
  * يحدّث التتبّع بإطار رصد جديد ويعيد الخلايا النشطة (بمسارها واتجاهها الحقيقي).
  * يُستدعى مرة واحدة لكل تحديث بيانات (لا في كل رسم).
  */
+function isSuppressed(lat, lon, now = Date.now()) {
+  suppressed = suppressed.filter((s) => s.until > now);
+  return suppressed.some((s) => distKm(lat, lon, s.lat, s.lon) < CLUSTER_KM);
+}
+
+export function suppressCell(lat, lon, hours = 3) {
+  suppressed.push({ lat, lon, until: Date.now() + hours * 3600 * 1000 });
+}
+
 export function updateTracks(detections, now = Date.now()) {
-  const clusters = clusterDetections(detections);
+  const clusters = clusterDetections(detections).filter((c) => !isSuppressed(c.lat, c.lon, now));
   const matched = new Set();
 
   for (const c of clusters) {
@@ -111,10 +122,37 @@ export function getTracks() {
 }
 
 export function clearTracks() {
+  tracks.forEach((t) => suppressCell(t.lat, t.lon, 3));
   tracks = [];
   nextId = 1;
 }
 
+// يُستدعى مرة واحدة عند تحميل الصفحة لاستعادة firstSeen من DB
+export function seedTracks(dbCells) {
+  if (!dbCells || dbCells.length === 0) return;
+  for (const c of dbCells) {
+    const already = tracks.find((t) => distKm(t.lat, t.lon, c.lat, c.lon) < MATCH_KM);
+    if (already) {
+      // استعد firstSeen القديم فقط إن كان أقدم
+      if (c.first_seen && new Date(c.first_seen) < new Date(already.firstSeen)) {
+        already.firstSeen = new Date(c.first_seen).getTime();
+      }
+    } else {
+      tracks.push({
+        id: nextId++,
+        lat: c.lat, lon: c.lon,
+        mmh: c.mmh || 0,
+        cities: c.city ? [{ city: c.city, wilaya: c.wilaya || '', mmh: c.mmh || 0 }] : [],
+        firstSeen: new Date(c.first_seen || Date.now()).getTime(),
+        lastSeen:  new Date(c.last_seen  || Date.now()).getTime(),
+        missing: 0, heading: null, speed: null, path: [],
+      });
+    }
+  }
+}
+
 export function removeTrack(id) {
-  tracks = tracks.filter((t) => t.id !== id);
+  const t = tracks.find((tr) => tr.id === id);
+  if (t) suppressCell(t.lat, t.lon, 3);
+  tracks = tracks.filter((tr) => tr.id !== id);
 }

@@ -708,3 +708,228 @@ export async function adminModerate(adminToken, kind, id, approve) {
 export async function adminDelete(adminToken, kind, id) {
   return callModerate(adminToken, { action: 'delete', kind, id });
 }
+
+/** جلب خلايا العواصف من DB لاستعادة firstSeen بعد إعادة التحميل */
+export async function getStormCells() {
+  if (!isSupabaseConfigured) return [];
+  try {
+    const twoHoursAgo = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+    const { data } = await supabase
+      .from('storm_cells')
+      .select('*')
+      .gt('last_seen', twoHoursAgo)
+      .or(`suppressed_until.is.null,suppressed_until.lt.${new Date().toISOString()}`);
+    return data || [];
+  } catch { return []; }
+}
+
+/** مزامنة خلايا العواصف النشطة مع Supabase */
+export async function syncStormCells(cells) {
+  if (!isSupabaseConfigured) return;
+  try {
+    // احذف الخلايا القديمة أولاً (غير موجودة في القائمة الحالية)
+    const ids = cells.map((c) => String(c.id));
+    if (ids.length > 0) {
+      await supabase.from('storm_cells')
+        .delete()
+        .not('id', 'in', `(${ids.map((id) => `'${id}'`).join(',')})`);
+    } else {
+      await supabase.from('storm_cells').delete().neq('id', '');
+    }
+    // ادفع الخلايا الحالية
+    if (cells.length > 0) {
+      const rows = cells.map((c) => ({
+        id:         String(c.id),
+        city:       c.cities?.[0]?.city || null,
+        wilaya:     c.cities?.[0]?.wilaya || null,
+        lat:        c.lat,
+        lon:        c.lon,
+        mmh:        c.mmh || 0,
+        first_seen: new Date(c.firstSeen || Date.now()).toISOString(),
+        last_seen:  new Date(c.lastSeen  || Date.now()).toISOString(),
+      }));
+      await supabase.from('storm_cells').upsert(rows, { onConflict: 'id', ignoreDuplicates: false });
+    }
+  } catch (e) {
+    console.warn('syncStormCells:', e);
+  }
+}
+
+/** جلب الإخماد اليدوي من Supabase لتطبيقه محلياً */
+export async function getRemoteSuppressions() {
+  if (!isSupabaseConfigured) return [];
+  try {
+    const { data } = await supabase
+      .from('storm_suppressions')
+      .select('lat,lon,suppressed_until')
+      .gt('suppressed_until', new Date().toISOString());
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  NEWS ARTICLES — منصة الأخبار الجوية
+// ═══════════════════════════════════════════════════════════
+
+function slugify(text) {
+  return text
+    .trim()
+    .replace(/[\s]+/g, '-')
+    .replace(/[^؀-ۿa-zA-Z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .toLowerCase()
+    .slice(0, 100)
+    + '-' + Date.now().toString(36);
+}
+
+/** جلب آخر الأخبار المنشورة */
+export async function getPublishedNews({ limit = 20, offset = 0, wilaya = null, category = null, search = null } = {}) {
+  if (!isSupabaseConfigured) return { data: [], count: 0 };
+  try {
+    let q = supabase
+      .from('news_articles')
+      .select('id,title,slug,excerpt,featured_image,category,wilaya,author,published_at,views', { count: 'exact' })
+      .eq('is_published', true)
+      .order('published_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (wilaya)   q = q.eq('wilaya', wilaya);
+    if (category) q = q.eq('category', category);
+    if (search)   q = q.ilike('title', `%${search}%`);
+    const { data, count, error } = await q;
+    if (error) throw error;
+    return { data: data || [], count: count || 0 };
+  } catch (e) { console.warn('getPublishedNews:', e); return { data: [], count: 0 }; }
+}
+
+/** جلب خبر واحد بالـ slug مع زيادة عداد المشاهدات */
+export async function getNewsBySlug(slug) {
+  if (!isSupabaseConfigured) return null;
+  try {
+    const { data, error } = await supabase
+      .from('news_articles')
+      .select('*')
+      .eq('slug', slug)
+      .eq('is_published', true)
+      .single();
+    if (error) return null;
+    // زيادة عداد المشاهدات
+    supabase.from('news_articles').update({ views: (data.views || 0) + 1 }).eq('id', data.id).then(() => {});
+    return data;
+  } catch { return null; }
+}
+
+/** جلب أخبار مشابهة */
+export async function getSimilarNews(currentId, category, wilaya, limit = 3) {
+  if (!isSupabaseConfigured) return [];
+  try {
+    let q = supabase
+      .from('news_articles')
+      .select('id,title,slug,excerpt,featured_image,published_at,wilaya')
+      .eq('is_published', true)
+      .neq('id', currentId)
+      .limit(limit);
+    if (category) q = q.eq('category', category);
+    else if (wilaya) q = q.eq('wilaya', wilaya);
+    const { data } = await q.order('published_at', { ascending: false });
+    return data || [];
+  } catch { return []; }
+}
+
+/** الإدارة: جلب جميع الأخبار (منشورة وغير منشورة) */
+export async function adminGetAllNews({ limit = 50, offset = 0, search = null } = {}) {
+  if (!isSupabaseConfigured) return { data: [], count: 0 };
+  try {
+    let q = supabase
+      .from('news_articles')
+      .select('id,title,slug,category,wilaya,is_published,published_at,created_at,views', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (search) q = q.ilike('title', `%${search}%`);
+    const { data, count, error } = await q;
+    if (error) throw error;
+    return { data: data || [], count: count || 0 };
+  } catch (e) { return { data: [], count: 0 }; }
+}
+
+/** الإدارة: إنشاء خبر جديد */
+export async function adminCreateNews(article) {
+  if (!isSupabaseConfigured) throw new Error('Supabase غير مهيأ');
+  const slug = article.slug || slugify(article.title);
+  const row = {
+    ...article,
+    slug,
+    published_at: article.is_published ? (article.published_at || new Date().toISOString()) : null,
+  };
+  const { data, error } = await supabase.from('news_articles').insert([row]).select().single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+// ─── أرشيف التوقعات (weather_snapshots) ──────────────────────────────────
+
+/** حفظ snapshot يومي للتوقعات الهامة */
+export async function saveWeatherSnapshot(forecastDays, citiesCount = 0) {
+  if (!isSupabaseConfigured) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('weather_snapshots')
+    .upsert(
+      { snapshot_date: today, forecasts: forecastDays, cities_count: citiesCount },
+      { onConflict: 'snapshot_date' }
+    )
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/** جلب آخر N لقطة */
+export async function getWeatherSnapshots(limit = 30) {
+  if (!isSupabaseConfigured) return { data: [], error: null };
+  return supabase
+    .from('weather_snapshots')
+    .select('id, snapshot_date, forecasts, cities_count, created_at')
+    .order('snapshot_date', { ascending: false })
+    .limit(limit);
+}
+
+/** جلب لقطة ليوم محدد */
+export async function getSnapshotByDate(date) {
+  if (!isSupabaseConfigured) return { data: null };
+  const { data } = await supabase
+    .from('weather_snapshots')
+    .select('*')
+    .eq('snapshot_date', date)
+    .maybeSingle();
+  return data;
+}
+
+/** الإدارة: تحديث خبر */
+export async function adminUpdateNews(id, updates) {
+  if (!isSupabaseConfigured) throw new Error('Supabase غير مهيأ');
+  if (updates.is_published && !updates.published_at) updates.published_at = new Date().toISOString();
+  if (!updates.is_published) updates.published_at = null;
+  const { data, error } = await supabase.from('news_articles').update(updates).eq('id', id).select().single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/** الإدارة: حذف خبر */
+export async function adminDeleteNews(id) {
+  if (!isSupabaseConfigured) throw new Error('Supabase غير مهيأ');
+  const { error } = await supabase.from('news_articles').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+/** رفع صورة للأخبار */
+export async function uploadNewsImage(file) {
+  if (!isSupabaseConfigured) throw new Error('Supabase غير مهيأ');
+  const ext  = file.name.split('.').pop();
+  const name = `news/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const { error } = await supabase.storage.from('news-images').upload(name, file, { upsert: true });
+  if (error) throw new Error(error.message);
+  const { data: { publicUrl } } = supabase.storage.from('news-images').getPublicUrl(name);
+  return publicUrl;
+}

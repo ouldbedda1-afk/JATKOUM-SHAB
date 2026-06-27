@@ -136,6 +136,22 @@ async function handleBulletinCommand(chatId: number | string, text: string) {
     return true;
   }
 
+  // /عاصفة <نص> — ينشر تنبيه عاصفة فوري في رصد اليوم
+  if (trimmed.startsWith('/عاصفة') || trimmed.startsWith('/storm')) {
+    const content = trimmed.replace(/^\/عاصفة\s*|^\/storm\s*/u, '').trim();
+    if (!content) {
+      await reply(chatId, '⚠️ مثال:\n<code>/عاصفة عاصفة رعدية قوية فوق كيدي ماغا الآن</code>');
+      return true;
+    }
+    const { error } = await supabase.from('weather_bulletins').insert([{ text: content, icon: '⛈️' }]);
+    if (error) {
+      await reply(chatId, `❌ خطأ: ${error.message}`);
+    } else {
+      await reply(chatId, `✅ نُشر تنبيه العاصفة في رصد اليوم\n\n⛈️ ${content}`);
+    }
+    return true;
+  }
+
   // /اخبار — عرض آخر الأخبار المنشورة
   if (trimmed === '/اخبار' || trimmed === '/listnews') {
     const { data, error } = await supabase
@@ -176,6 +192,41 @@ Deno.serve(async (req) => {
       }
 
       const [action, kind, id] = data.split(':');
+
+      // ── معالجة أزرار خلايا العواصف ──
+      if (action === 'storm') {
+        if (kind === 'suppress') {
+          // احذف الخلية وأضفها لقائمة الإخماد 3 ساعات
+          const { data: cell } = await supabase.from('storm_cells').select('lat,lon').eq('id', id).single();
+          const suppressUntil = new Date(Date.now() + 3 * 3600 * 1000).toISOString();
+          await supabase.from('storm_cells').delete().eq('id', id);
+          if (cell) {
+            await supabase.from('storm_suppressions').insert([{
+              lat: cell.lat, lon: cell.lon, suppressed_until: suppressUntil,
+            }]);
+          }
+          await tg('answerCallbackQuery', { callback_query_id: cq.id, text: '✅ تم حذف الخلية وإخمادها 3 ساعات' });
+          if (chatId && msgId) {
+            await tg('editMessageText', {
+              chat_id: chatId, message_id: msgId,
+              text: (cq.message.text || '') + '\n\n❌ <b>انتهت — تم الحذف</b>',
+              parse_mode: 'HTML',
+            });
+          }
+        } else {
+          await tg('answerCallbackQuery', { callback_query_id: cq.id, text: '👍 حسناً، تبقى مراقبة' });
+          if (chatId && msgId) {
+            await tg('editMessageText', {
+              chat_id: chatId, message_id: msgId,
+              text: (cq.message.text || '') + '\n\n✅ <b>مازالت نشطة</b>',
+              parse_mode: 'HTML',
+            });
+          }
+        }
+        return new Response('ok');
+      }
+
+      // ── معالجة أزرار الموافقة/الرفض العادية ──
       const table = TABLE[kind];
       if (!table || !id || !['approve', 'reject'].includes(action)) {
         await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'طلب غير صالح' });
@@ -218,10 +269,13 @@ Deno.serve(async (req) => {
       // مساعدة: أرسل قائمة الأوامر إن كانت الرسالة غير معروفة وتبدأ بـ /
       if (!handled && msg.text.startsWith('/')) {
         await reply(chatId,
-          '📋 أوامر النشرة الجوية:\n\n' +
+          '📋 الأوامر المتاحة:\n\n' +
           '/نشر &lt;نص&gt; — نشر نشرة في رصد اليوم\n' +
+          '/عاصفة &lt;نص&gt; — نشر تنبيه عاصفة فوري ⛈️\n' +
+          '/خبر &lt;العنوان\\nالمحتوى&gt; — نشر خبر\n' +
           '/حذف — حذف آخر نشرة\n' +
-          '/نشرات — عرض النشرات النشطة'
+          '/نشرات — عرض النشرات النشطة\n' +
+          '/اخبار — آخر الأخبار المنشورة'
         );
       }
     }

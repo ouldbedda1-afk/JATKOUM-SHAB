@@ -10,6 +10,7 @@ import PrayerTimes from '../components/PrayerTimes';
 import CloudTracker from '../components/CloudTracker';
 import StormAlertBanner from '../components/StormAlertBanner';
 import LivestockHomePreview from '../components/LivestockHomePreview';
+import NewsSection from '../components/NewsSection';
 import LightningSoundAlert from '../components/LightningSoundAlert';
 import StormStickyBar from '../components/StormStickyBar';
 import FloatingAIAgent from '../components/FloatingAIAgent';
@@ -190,6 +191,7 @@ export default function Home() {
             </div>
           </div>
         </div>
+        <NewsSection />
       </main>
 
       <footer className="mt-20 bg-gradient-to-l from-[#0b2c5e] via-[#103a78] to-[#0b2c5e] text-white" dir="rtl">

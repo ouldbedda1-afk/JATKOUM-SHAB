@@ -12,6 +12,9 @@ import {
   normalizeMauritaniaWilayaName,
   OFFICIAL_MAURITANIA_WILAYA_ORDER,
 } from '../mauritaniaPlaceNames';
+import { adminCreateNews } from '../supabase';
+import { autoPublishForecastNews } from '../forecastToNews';
+import { useNavigate } from 'react-router-dom';
 
 /* ── تنسيق التواريخ والأوقات بالأحرف اللاتينية فقط ── */
 function fmtDate(dateStr) {
@@ -1282,13 +1285,19 @@ const WeatherAlerts = () => {
         }
       }
 
-      /* ── 5. رياح قوية الآن (wind_speed موثوق من محطات) ── */
+      /* ── 5. رياح قوية الآن ── */
       const windNow = cities.filter(c => (c.current?.wind_speed_10m ?? 0) >= 45);
       if (windNow.length > 0) {
+        const dateStr = fmtDate(new Date());
+        const citiesList = windNow.map(c => `${toArabicCommune(c.city) || c.city}: ${Math.round(c.current.wind_speed_10m)} km/h`).join('\n');
+        const topCities = windNow.slice(0, 3).map(c => toArabicCommune(c.city) || c.city).join('، ');
         result.push({
           id: 'wind-now',
-          title: 'تحذير: رياح قوية الآن',
-          message: `رياح قوية تتجاوز 45 km/h في: ${windNow.map(c => `${c.city} (${Math.round(c.current.wind_speed_10m)} km/h)`).join('، ')}.`,
+          title: 'تحذير من رياح قوية',
+          message: `📅 ${dateStr}\n💨 رُصدت رياح قوية تتجاوز 45 km/h في:\n\n${citiesList}\n\n⚠️ يُنصح بتأمين الأشياء غير الثابتة في الهواء الطلق وتجنّب الطرق الصحراوية خلال هذه الفترة.\n\nنسأل الله السلامة للجميع. 🤲`,
+          newsTitle: `تحذير من رياح قوية — ${topCities}`,
+          newsContent: `📅 ${dateStr}\n💨 رُصدت رياح قوية تتجاوز 45 كيلومتراً في الساعة في عدة مناطق موريتانية:\n\n${citiesList}\n\n⚠️ يُنصح بتأمين الأشياء غير الثابتة في الهواء الطلق، وتجنّب الطرق الصحراوية خلال هذه الفترة، وتوخّي الحذر أثناء القيادة.\n\nنسأل الله السلامة للجميع. 🤲\n\nالمصدر: Open-Meteo — جاتكم اسحاب`,
+          newsCategory: 'طقس',
           icon: '🌬️',
           color: 'bg-orange-700',
           tags: ['رياح عاتية', fmtTime(new Date())]
@@ -1298,13 +1307,19 @@ const WeatherAlerts = () => {
       /* ── 6. موجة حر ── */
       const heatNow = cities.filter(c => (c.current?.temperature_2m ?? 0) >= 45);
       if (heatNow.length > 0) {
+        const dateStr = fmtDate(new Date());
+        const citiesList = heatNow.map(c => `${toArabicCommune(c.city) || c.city}: ${Math.round(c.current.temperature_2m)}°م`).join('\n');
+        const topCities = heatNow.slice(0, 3).map(c => toArabicCommune(c.city) || c.city).join('، ');
         result.push({
           id: 'heat-now',
-          title: 'تحذير: موجة حر شديدة',
-          message: `درجات حرارة تتجاوز 45°C في: ${heatNow.map(c => `${c.city} (${Math.round(c.current.temperature_2m)}°C)`).join('، ')}.\nيُرجى شرب السوائل وتجنّب الشمس.`,
+          title: 'تحذير من موجة حر شديدة',
+          message: `📅 ${dateStr}\n🌡️ يُتوقع بإذن الله أن تتجاوز درجات الحرارة 45°م في:\n\n${citiesList}\n\n⚠️ يُنصح بالإكثار من شرب السوائل، وتجنب التعرض المباشر لأشعة الشمس، خاصة خلال ساعات الظهيرة.\n\nنسأل الله السلامة للجميع. 🤲`,
+          newsTitle: `تحذير من موجة حر شديدة — ${topCities}`,
+          newsContent: `📅 ${dateStr}\n🌡️ يُتوقع بإذن الله أن تتجاوز درجات الحرارة 45 درجة مئوية في عدة مناطق موريتانية:\n\n${citiesList}\n\n⚠️ يُنصح بالإكثار من شرب السوائل، وتجنب التعرض المباشر لأشعة الشمس خاصة خلال ساعات الظهيرة (12:00 — 16:00)، وإيلاء الاهتمام الخاص للأطفال وكبار السن.\n\nنسأل الله السلامة للجميع. 🤲\n\nالمصدر: Open-Meteo — جاتكم اسحاب`,
+          newsCategory: 'طقس حار',
           icon: '🔥',
           color: 'bg-orange-600',
-          tags: ['موجة حر', fmtDate(new Date())]
+          tags: ['موجة حر', dateStr]
         });
       }
     }
@@ -1313,19 +1328,86 @@ const WeatherAlerts = () => {
   }, [loading, citiesWeather, manualAlerts, rainReports, rainingNow, modelRainingNow, sameDayRainEvents, lastUpdated, currentRainNarrative]);
 
   /* إشعارات المتصفح */
+  const navigate = useNavigate();
+  const [publishingAlert, setPublishingAlert] = useState(null);
+  const publishingInFlight = useRef(new Set());
+  // نشر أوتوماتيكي للتوقعات — مرة واحدة في اليوم عند تحميل البيانات
+  const forecastPublishDone = useRef(false);
+  useEffect(() => {
+    if (loading || !citiesWeather?.length || forecastPublishDone.current) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const key = `forecast_news_published_${today}`;
+    if (localStorage.getItem(key)) return;
+    forecastPublishDone.current = true;
+    autoPublishForecastNews(citiesWeather)
+      .then(({ published }) => {
+        if (published > 0) localStorage.setItem(key, '1');
+      })
+      .catch(() => { forecastPublishDone.current = false; });
+  }, [loading, citiesWeather]);
+
+  // إشعارات + auto-publish لكل تحذير جديد له newsTitle
   useEffect(() => {
     if (!loading && weatherAlerts.length > 0) {
-      if (weatherAlerts[0].id === 'same-day-archive-event') return;
-      const key = weatherAlerts[0].id + weatherAlerts[0].title;
-      if (localStorage.getItem('last_alert_id') !== key) {
-        sendLocalNotification(`تنبيه جوي: ${weatherAlerts[0].title}`, {
-          body: weatherAlerts[0].message.substring(0, 100) + '...',
-          tag: 'weather-alert'
-        });
-        localStorage.setItem('last_alert_id', key);
-      }
+      const today = new Date().toISOString().slice(0, 10);
+      weatherAlerts.forEach(async (alert) => {
+        if (alert.id === 'same-day-archive-event') return;
+        const notifKey = `last_alert_${alert.id}`;
+        const key = alert.id + alert.title;
+        if (localStorage.getItem(notifKey) !== key) {
+          sendLocalNotification(`تنبيه جوي: ${alert.title}`, {
+            body: alert.message.substring(0, 100) + '...',
+            tag: 'weather-alert'
+          });
+          localStorage.setItem(notifKey, key);
+        }
+        // auto-publish للتحذيرات التي لها newsTitle (حر / رياح)
+        if (!alert.newsTitle) return;
+        const publishKey = `alert_published_${alert.id}_${today}`;
+        // تحقق مزدوج: localStorage + ref (يمنع race condition)
+        if (localStorage.getItem(publishKey)) return;
+        if (publishingInFlight.current.has(publishKey)) return;
+        publishingInFlight.current.add(publishKey); // احجز الموضع فوراً
+        try {
+          await adminCreateNews({
+            title: alert.newsTitle,
+            excerpt: alert.newsTitle,
+            content: alert.newsContent || alert.message,
+            category: alert.newsCategory || 'طقس',
+            author: 'جاتكم اسحاب',
+            is_published: true,
+            tags: ['تحذير', alert.newsCategory || 'طقس', today],
+            featured_image: '',
+          });
+          localStorage.setItem(publishKey, '1');
+        } catch (e) {
+          publishingInFlight.current.delete(publishKey); // أعد المحاولة لاحقاً
+          console.warn('تعذّر نشر التحذير كخبر:', e);
+        }
+      });
     }
   }, [loading, weatherAlerts]);
+
+  const publishAlertAsNews = async (alert) => {
+    setPublishingAlert(alert.id);
+    try {
+      const article = await adminCreateNews({
+        title: alert.newsTitle || alert.title,
+        excerpt: alert.newsTitle || alert.title,
+        content: alert.newsContent || alert.message,
+        category: alert.newsCategory || 'طقس',
+        author: 'جاتكم اسحاب',
+        is_published: true,
+        tags: ['تحذير', alert.newsCategory || 'طقس'],
+        featured_image: '',
+      });
+      if (article?.slug) navigate(`/news/${article.slug}`);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setPublishingAlert(null);
+    }
+  };
 
   if (loading || !citiesWeather || citiesWeather.length === 0) return null;
 
@@ -1354,6 +1436,15 @@ const WeatherAlerts = () => {
                     {tag}
                   </span>
                 ))}
+                {alert.newsTitle && (
+                  <button
+                    onClick={() => publishAlertAsNews(alert)}
+                    disabled={publishingAlert === alert.id}
+                    className="px-3 py-1 bg-white/25 hover:bg-white/40 text-white text-[11px] font-black rounded-full transition-all disabled:opacity-60"
+                  >
+                    {publishingAlert === alert.id ? '⏳ جارٍ النشر...' : '📰 نشر كخبر'}
+                  </button>
+                )}
               </div>
             )}
           </div>
