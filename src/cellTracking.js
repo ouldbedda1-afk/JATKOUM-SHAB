@@ -114,3 +114,7 @@ export function clearTracks() {
   tracks = [];
   nextId = 1;
 }
+
+export function removeTrack(id) {
+  tracks = tracks.filter((t) => t.id !== id);
+}

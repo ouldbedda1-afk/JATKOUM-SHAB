@@ -5,7 +5,7 @@ import { getSatelliteVegetationStatus } from './satelliteVegetation';
 import { getRainingNowFromSatellite, getSameDayHeavyRainEventsFromSatellite, getRainingNowFromIMERG } from './satelliteRain';
 import { MAURITANIA_RADAR_GRID } from './mauritaniaRadarGrid';
 import { startLightning, subscribeLightning } from './lightningBlitzortung';
-import { updateTracks, clearTracks } from './cellTracking';
+import { updateTracks, clearTracks, removeTrack } from './cellTracking';
 import { getDeepCloudsFromEumetsat } from './satelliteCloudsEU';
 import { getEcmwfBriefs } from './ecmwfBriefs';
 
@@ -204,6 +204,10 @@ export const WeatherProvider = ({ children }) => {
       setTrackedCells([]);
       setStormClouds([]);
       setStormCloudsUpdatedAt(null);
+    },
+    removeStormCell: (id) => {
+      removeTrack(id);
+      setTrackedCells((prev) => prev.filter((t) => t.id !== id));
     }
   }), [
     weatherData, fires, marineData,
