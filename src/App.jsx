@@ -13,8 +13,9 @@ const AdminPage = lazy(() => import('./components/AdminPage'));
 const BloggersPage      = lazy(() => import('./pages/BloggersPage'));
 const BloggerPage       = lazy(() => import('./pages/BloggerPage'));
 const PostPage          = lazy(() => import('./pages/PostPage'));
-const NewsPage          = lazy(() => import('./pages/NewsPage'));
-const NewsArticlePage   = lazy(() => import('./pages/NewsArticlePage'));
+const NewsPage              = lazy(() => import('./pages/NewsPage'));
+const NewsArticlePage       = lazy(() => import('./pages/NewsArticlePage'));
+const LivestockReportPage   = lazy(() => import('./pages/LivestockReportPage'));
 
 function PageFallback() {
   return (
@@ -43,6 +44,7 @@ function App() {
               <Route path="/post/:id" element={<PostPage />} />
               <Route path="/news" element={<NewsPage />} />
               <Route path="/news/:slug" element={<NewsArticlePage />} />
+              <Route path="/althala/:id" element={<LivestockReportPage />} />
             </Routes>
           </Suspense>
         </Router>

@@ -101,7 +101,7 @@ function LivestockCard({ report }) {
   const isLost = report.report_type === 'lost';
   const location = [report.village, report.region].filter(Boolean).join(' · ');
   return (
-    <div className="flex gap-3 bg-white rounded-xl border border-gray-100 hover:border-amber-200 hover:shadow-md transition-all overflow-hidden p-3">
+    <Link to={`/althala/${report.id}`} className="flex gap-3 bg-white rounded-xl border border-gray-100 hover:border-amber-200 hover:shadow-md transition-all overflow-hidden p-3">
       {report.image_url ? (
         <img src={report.image_url} alt="" loading="lazy"
           className="w-20 h-16 object-cover rounded-lg shrink-0" />
@@ -129,7 +129,7 @@ function LivestockCard({ report }) {
           📞 {report.contact_phone} · {fmtDate(report.created_at)}
         </p>
       </div>
-    </div>
+    </Link>
   );
 }
 

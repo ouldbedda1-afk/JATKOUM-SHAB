@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import Navbar from './Navbar';
 import { getLivestockReports } from '../supabase';
 import LivestockReportForm from './LivestockReportForm';
@@ -241,7 +242,7 @@ const AlThalaPage = () => {
 
                   <div className="flex items-center gap-2 border-t pt-4">
                     {hasPhone ? (
-                      <a 
+                      <a
                         href={`tel:${report.contact_phone}`}
                         className="flex-1 bg-amber-50 text-amber-900 py-3 rounded-xl font-bold text-center flex items-center justify-center gap-2 hover:bg-amber-100 transition-all"
                       >
@@ -254,7 +255,25 @@ const AlThalaPage = () => {
                         لا يوجد رقم
                       </div>
                     )}
-                    <button className="w-12 h-12 bg-gray-50 text-gray-400 rounded-xl flex items-center justify-center hover:bg-gray-100 transition-all">
+                    <Link
+                      to={`/althala/${report.id}`}
+                      className="w-12 h-12 bg-amber-50 text-amber-700 rounded-xl flex items-center justify-center hover:bg-amber-100 transition-all"
+                      title="عرض التفاصيل ومشاركة الرابط"
+                    >
+                      <span className="text-xl">🔗</span>
+                    </Link>
+                    <button
+                      onClick={() => {
+                        const url = `${window.location.origin}${window.location.pathname}#/althala/${report.id}`;
+                        const loc = [report.village, report.region].filter(Boolean).join('، ');
+                        const text = report.report_type === 'lost'
+                          ? `🔴 ضالة: ${report.animal_type} في ${loc || 'موريتانيا'}\nللتواصل: ${report.contact_phone || ''}\n${url}`
+                          : `🟢 وُجد: ${report.animal_type} في ${loc || 'موريتانيا'}\nللتواصل: ${report.contact_phone || ''}\n${url}`;
+                        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+                      }}
+                      className="w-12 h-12 bg-green-50 text-green-700 rounded-xl flex items-center justify-center hover:bg-green-100 transition-all"
+                      title="مشاركة واتساب"
+                    >
                       <span className="text-xl">💬</span>
                     </button>
                   </div>

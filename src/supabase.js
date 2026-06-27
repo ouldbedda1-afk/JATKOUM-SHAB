@@ -156,6 +156,17 @@ export async function addLivestockReport(report) {
   }
 }
 
+// جلب بلاغ واحد بمعرّفه
+export async function getLivestockById(id) {
+  if (!isSupabaseConfigured) return null;
+  const { data } = await supabase
+    .from('livestock_reports')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  return data;
+}
+
 // جلب البلاغات المعتمدة فقط (المنشورة للعموم)
 export async function getLivestockReports(type = null) {
   if (!isSupabaseConfigured) return [];
