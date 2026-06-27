@@ -1,0 +1,110 @@
+<!--
+  ويدجت أخبار جاتكم اسحاب — للصق في Joomla (Custom HTML Module)
+  يعرض آخر 6 أخبار منشورة تلقائياً
+-->
+<div id="jatkoum-widget" style="font-family:Tahoma,Arial,sans-serif;direction:rtl;text-align:right;">
+  <div id="jatkoum-loading" style="color:#888;padding:10px;">⏳ جارٍ تحميل الأخبار...</div>
+</div>
+
+<style>
+#jatkoum-widget a { text-decoration: none; color: inherit; }
+#jatkoum-widget .jk-header {
+  display: flex; align-items: center; gap: 8px;
+  border-bottom: 3px solid #1a7abf; padding-bottom: 8px; margin-bottom: 12px;
+}
+#jatkoum-widget .jk-header-title {
+  font-size: 16px; font-weight: 900; color: #1a3a5c;
+}
+#jatkoum-widget .jk-header-sub {
+  font-size: 11px; color: #888;
+}
+#jatkoum-widget .jk-item {
+  display: flex; gap: 10px; padding: 9px 0;
+  border-bottom: 1px solid #eee; align-items: flex-start;
+}
+#jatkoum-widget .jk-item:last-child { border-bottom: none; }
+#jatkoum-widget .jk-img {
+  width: 64px; height: 48px; object-fit: cover;
+  border-radius: 6px; flex-shrink: 0; background: #e8f4fd;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+}
+#jatkoum-widget .jk-img img {
+  width: 64px; height: 48px; object-fit: cover; border-radius: 6px;
+}
+#jatkoum-widget .jk-cat {
+  display: inline-block; font-size: 10px; font-weight: 700;
+  background: #e8f4fd; color: #1a7abf;
+  padding: 1px 7px; border-radius: 20px; margin-bottom: 3px;
+}
+#jatkoum-widget .jk-title {
+  font-size: 13px; font-weight: 700; color: #1a3a5c;
+  line-height: 1.5; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+#jatkoum-widget .jk-title:hover { color: #1a7abf; }
+#jatkoum-widget .jk-date { font-size: 10px; color: #aaa; margin-top: 3px; }
+#jatkoum-widget .jk-footer {
+  text-align: center; margin-top: 10px;
+  font-size: 11px; color: #aaa;
+}
+#jatkoum-widget .jk-footer a { color: #1a7abf; font-weight: 700; }
+</style>
+
+<script>
+(function() {
+  var API = 'https://udtdfkvtmqfxjezhxaah.supabase.co/functions/v1/latest-news?limit=6';
+  var SITE = 'https://ouldbedda1-afk.github.io/JATKOUM-SHAB';
+
+  function fmtDate(iso) {
+    var d = new Date(iso);
+    var months = ['يناير','فبراير','مارس','أبريل','مايو','يونيو',
+                  'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+    return d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+  }
+
+  function icon(cat) {
+    if (!cat) return '🌦️';
+    if (cat.includes('عواصف')) return '⛈️';
+    if (cat.includes('أمطار') || cat.includes('مطر')) return '🌧️';
+    if (cat.includes('حار') || cat.includes('حر')) return '🔥';
+    if (cat.includes('رياح')) return '💨';
+    return '🌦️';
+  }
+
+  fetch(API)
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      var articles = data.articles || [];
+      var box = document.getElementById('jatkoum-widget');
+      if (!articles.length) { box.innerHTML = '<p style="color:#aaa;font-size:12px;">لا توجد أخبار حالياً.</p>'; return; }
+
+      var html = '<div class="jk-header">';
+      html += '<span style="font-size:22px;">🌦️</span>';
+      html += '<div><div class="jk-header-title">أخبار جاتكم اسحاب</div>';
+      html += '<div class="jk-header-sub">آخر توقعات وتحذيرات الطقس الموريتاني</div></div>';
+      html += '</div>';
+
+      articles.forEach(function(a) {
+        html += '<div class="jk-item">';
+        if (a.image) {
+          html += '<div class="jk-img"><img src="' + a.image + '" alt="" loading="lazy"/></div>';
+        } else {
+          html += '<div class="jk-img">' + icon(a.category) + '</div>';
+        }
+        html += '<div style="flex:1;min-width:0;">';
+        html += '<span class="jk-cat">' + (a.category || 'طقس') + '</span>';
+        html += '<div class="jk-title"><a href="' + a.url + '" target="_blank">' + a.title + '</a></div>';
+        html += '<div class="jk-date">' + fmtDate(a.published_at) + (a.wilaya ? ' · 📍 ' + a.wilaya : '') + '</div>';
+        html += '</div></div>';
+      });
+
+      html += '<div class="jk-footer">المصدر: <a href="' + SITE + '" target="_blank">جاتكم اسحاب</a></div>';
+      box.innerHTML = html;
+    })
+    .catch(function() {
+      document.getElementById('jatkoum-widget').innerHTML =
+        '<p style="color:#aaa;font-size:12px;">تعذّر تحميل الأخبار.</p>';
+    });
+})();
+</script>
