@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import NewsTicker from '../components/NewsTicker';
@@ -12,36 +12,8 @@ import StormAlertBanner from '../components/StormAlertBanner';
 import LivestockHomePreview from '../components/LivestockHomePreview';
 import NewsSection from '../components/NewsSection';
 import LightningSoundAlert from '../components/LightningSoundAlert';
-import StormStickyBar from '../components/StormStickyBar';
 import FloatingAIAgent from '../components/FloatingAIAgent';
 
-// أثقل مكوّن (echarts) — يُحمَّل عند الحاجة فقط لتسريع أول تحميل
-const WeatherCharts = lazy(() => import('../components/WeatherCharts'));
-
-// غلاف يؤجّل تحميل المحتوى حتى يقترب من الشاشة (يوفّر تحميل echarts على الهاتف)
-function LazyOnVisible({ children, minHeight = 256 }) {
-  const ref = useRef(null);
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    if (visible || !ref.current) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          setVisible(true);
-          obs.disconnect();
-        }
-      },
-      { rootMargin: '300px' }
-    );
-    obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, [visible]);
-  return (
-    <div ref={ref}>
-      {visible ? children : <div style={{ minHeight }} className="bg-white rounded-[2rem] animate-pulse border border-gray-100" />}
-    </div>
-  );
-}
 
 export default function Home() {
   const [favCity, setFavCity] = useState(() => {
@@ -122,7 +94,6 @@ export default function Home() {
     <div className="min-h-screen bg-gray-50 pb-20 overflow-x-hidden" dir="rtl">
       <Navbar onCitySelect={setSelectedCity} />
       <NewsTicker />
-      <StormStickyBar />
       <LightningSoundAlert />
 
       {/* شريط دعوة لتحديد الموقع عند نسيانه/رفضه */}
@@ -160,11 +131,7 @@ export default function Home() {
           <div className="lg:col-span-8 space-y-6 md:space-y-8">
             <WeatherHero city={selectedCity} favCity={favCity} onFavCity={saveFavCity} />
             <WeatherAlerts />
-            <LazyOnVisible minHeight={288}>
-              <Suspense fallback={<div className="bg-white rounded-[2rem] h-64 animate-pulse border border-gray-100" />}>
-                <WeatherCharts city={selectedCity} />
-              </Suspense>
-            </LazyOnVisible>
+            <NewsSection />
             <LivestockHomePreview />
             <CloudTracker />
             <CityGrid />
@@ -191,7 +158,8 @@ export default function Home() {
             </div>
           </div>
         </div>
-        <NewsSection />
+
+
       </main>
 
       <footer className="mt-20 bg-gradient-to-l from-[#0b2c5e] via-[#103a78] to-[#0b2c5e] text-white" dir="rtl">

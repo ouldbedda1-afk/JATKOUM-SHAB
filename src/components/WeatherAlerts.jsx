@@ -1,10 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useWeatherContext } from '../WeatherContext';
-import { buildRainMovementAlerts } from '../rainCellTracker';
 import { buildConvectiveWatch } from '../convection';
 import { buildLightningReport } from '../lightningBlitzortung';
 import { toArabicCommune } from '../mauritaniaCommuneNamesAr';
-import SatelliteViewer from './SatelliteViewer';
 import BreakingNowBox from './BreakingNowBox';
 import { requestNotificationPermission, sendLocalNotification } from '../pwa';
 import {
@@ -378,12 +376,6 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
     [rainingNow, modelRainingNow, cities]
   );
 
-  // خلايا المطر/البرق المتتبَّعة زمنياً (مسار/سرعة/وجهة حقيقية حتى التلاشي)
-  const rainMovements = useMemo(
-    () => buildRainMovementAlerts({ tracks: trackedCells, weatherData: cities, maxAlerts: 7 }),
-    [trackedCells, cities]
-  );
-
   // (مُعطّل) مراقبة CAPE — نعتمد رصد سحب Meteosat IR وحده الآن
   const convectiveWatch = useMemo(() => null, []);
 
@@ -538,19 +530,6 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       };
     }
 
-    // أولوية: تتبّع العواصف (Meteosat) — البرق يظهر كشريط مدمج داخل البطاقة
-    if (rainMovements && rainMovements.length > 0) {
-      const thunderCount = rainMovements.filter((m) => m.icon === '⚡').length;
-      return {
-        tone: 'live',
-        coverage: rainMovements.length >= 3 ? 'wide' : 'regional',
-        title: `🌩️ تتبّع العواصف: ${rainMovements.length} ${rainMovements.length === 1 ? 'كتلة سحب متحركة' : 'كتل سحب متحركة'}`,
-        summary: `ترصد الأقمار الصناعية كتل سحب رعدية${thunderCount > 0 ? ' وعواصف' : ''} متحركة، مع تحديد اتجاه كل كتلة والبلدية المتوقّع وصولها.`,
-        movements: rainMovements,
-        chips: ['🛰️ تتبّع حيّ', `${rainMovements.length} كتلة`, thunderCount > 0 ? `${thunderCount} عاصفة` : 'حركة مرصودة'].filter(Boolean),
-      };
-    }
-
     if (currentRainNarrative) {
       return {
         tone: 'live',
@@ -630,7 +609,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         'تستمر متابعة الرادار وأرشيف اليوم وقراءة النموذج وحركة السحب، وتُحدَّث هذه البطاقة تلقائياً عند ظهور أي مؤشرات محلية أو مسار ممطر نحو أي ولاية.',
       chips: ['اليوم', 'متابعة مستمرة', 'تحديث آلي'],
     };
-  }, [lightningReport, rainMovements, convectiveWatch, currentRainNarrative, sameDayRainEvents, rainingNow, modelRainingNow, weatherBulletins]);
+  }, [lightningReport, convectiveWatch, currentRainNarrative, sameDayRainEvents, rainingNow, modelRainingNow, weatherBulletins]);
 
   const todayTheme = useMemo(() => {
     if (todayObservation.tone === 'live') {
@@ -971,153 +950,23 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       </div>
 
       <div className="space-y-5">
-        <article
-          id="today-observation"
-          className={`${todayTheme.card} ${
-            isTodayObservationFlashing ? 'animate-pulse ring-4 ring-white/20 shadow-[0_0_45px_rgba(255,255,255,0.28)]' : ''
-          } relative h-fit rounded-[2rem] border-2 text-white shadow-2xl ring-1 ring-white/10 overflow-hidden transition-all duration-500`}
-        >
-            <div className="px-5 py-4 flex items-center justify-between gap-3 border-b border-white/15 bg-black/15">
-              <div className="flex items-center gap-3">
-                <span className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-xl shadow-sm ${isTodayObservationFlashing ? 'animate-bounce' : ''}`}>🛰️</span>
-                <div>
-                  <span className={`block font-black text-xl ${todayTheme.accent}`}>رصد اليوم</span>
-                  <span className="block text-[11px] text-white/70 mt-1">بطاقة اليوم قبل بطاقات التوقعات القادمة</span>
-                </div>
+        {/* ⚡ رصد البرق (Blitzortung) */}
+        {lightningReport && lightningReport.areas.length > 0 && (
+          <article className="rounded-[2rem] border-2 border-yellow-400/60 bg-gradient-to-br from-yellow-500 via-amber-600 to-orange-700 p-5 shadow-2xl text-white">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-2xl shadow-sm animate-pulse">⚡</span>
+              <div>
+                <p className="font-black text-xl text-white">برق مرصود الآن</p>
+                <p className="text-[11px] text-white/70">رصد Blitzortung المباشر</p>
               </div>
-              <div className="text-left">
-                <div className={`rounded-2xl border px-4 py-2 shadow-sm ${todayTheme.pill}`}>
-                  <span className="block text-lg font-black leading-none md:text-xl">
-                    {todayDate}
-                  </span>
-                  <span className="mt-1 block text-[11px] font-bold text-white/80">
-                    {todayDayName}
-                  </span>
-                </div>
-              </div>
+              <div className="mr-auto bg-white/20 rounded-full px-3 py-1 text-xs font-black">{lightningReport.total} ضربة</div>
             </div>
-            <div className="px-5 py-4 space-y-3">
-              {isTodayObservationFlashing && (
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-black text-white shadow-sm animate-pulse">
-                  <span className="h-2 w-2 rounded-full bg-white animate-ping" />
-                  رصد جديد
-                </div>
-              )}
-
-              {/* ✅ تأكّد بالرادار: توقّع النموذج تحقّق فعلياً */}
-              {confirmedForecasts.length > 0 && (
-                <div className="rounded-2xl border border-emerald-300/40 bg-emerald-400/20 p-3 shadow-sm">
-                  <p className="text-sm font-black text-white flex items-center gap-1.5">
-                    ✅ تأكّد بالرادار
-                  </p>
-                  <p className="text-[13px] text-white/90 leading-relaxed mt-0.5">
-                    ما توقّعه النموذج سابقاً تحقّق الآن فعلياً في: <span className="font-black">{confirmedForecasts.map(toArabicCommune).join('، ')}</span>.
-                  </p>
-                </div>
-              )}
-
-              {/* 🔥 شريط دائم: أجواء مهيأة بشدة للعواصف (طاقة عالية) — لا يُخفى خلف غيره */}
-              {convectiveWatch && convectiveWatch.items.length > 0 && !todayObservation.title.includes('أجواء مهيأة') && (
-                <div className="rounded-2xl border border-amber-300/40 bg-amber-400/20 p-3 shadow-sm">
-                  <p className="text-sm font-black text-white flex items-center gap-1.5">🔥 أجواء مهيأة للعواصف (طاقة عالية)</p>
-                  <p className="text-[13px] text-white/90 leading-relaxed mt-0.5">
-                    عدم استقرار شديد ومرشّح لعواصف/أمطار في: <span className="font-black">{convectiveWatch.items.map((it) => toArabicCommune(it.city)).join('، ')}</span> (CAPE حتى {Math.round(Math.max(...convectiveWatch.items.map((i) => i.cape || 0)))}).
-                  </p>
-                </div>
-              )}
-              {/* ⚡ شريط البرق المدمج (Blitzortung) — يظهر مع العواصف، إلا حين يكون البرق هو الرئيسي */}
-              {lightningReport && lightningReport.areas.length > 0 && !todayObservation.title.includes('برق') && (
-                <div className="rounded-2xl border-2 border-yellow-300/40 bg-gradient-to-l from-yellow-500/25 to-amber-500/15 p-3 shadow-sm">
-                  <p className="text-sm font-black text-white flex items-center gap-1.5">
-                    ⚡ برق مرصود فعلياً الآن ({lightningReport.total} ضربة)
-                  </p>
-                  <p className="text-[13px] text-white/90 leading-relaxed mt-0.5">
-                    قرب: <span className="font-black text-yellow-100">{lightningReport.areas.map((a) => toArabicCommune(a.city)).join('، ')}</span> — احذر الصواعق.
-                  </p>
-                </div>
-              )}
-
-              <div className="rounded-2xl p-4 shadow-lg backdrop-blur-sm bg-white/10 border border-white/15">
-                <p className="text-base font-black text-white mb-2">{todayObservation.title}</p>
-                <p className="text-sm font-bold text-white/95 leading-relaxed mb-2">{todayObservation.summary}</p>
-                {todayObservation.details && (
-                  <p className="text-sm text-white/85 leading-relaxed">{todayObservation.details}</p>
-                )}
-
-                {/* قائمة العواصف المتحركة — تصميم أنيق */}
-                {rainMovements?.length > 0 && (
-                  <div className="mt-3 space-y-3">
-                    {rainMovements.map((m) => {
-                      const d = m.data || {};
-                      const mv = d.movement;
-                      return (
-                        <div
-                          key={m.id}
-                          className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${d.isStorm ? 'from-red-600/30 via-rose-600/15 to-transparent' : 'from-sky-600/25 via-blue-600/10 to-transparent'} border border-white/15 shadow-xl`}
-                        >
-                          {/* شريط جانبي ملوّن */}
-                          <div className={`absolute top-0 bottom-0 right-0 w-1.5 ${d.isStorm ? 'bg-red-400' : 'bg-sky-400'}`} />
-
-                          <div className="px-4 py-3.5 pr-5">
-                            {/* الرأس */}
-                            <div className="flex items-start justify-between gap-2 mb-2">
-                              <div className="flex items-center gap-2.5">
-                                <span className="text-2xl drop-shadow">{d.isStorm ? '⛈️' : '🌩️'}</span>
-                                <div>
-                                  <div className="font-black text-white text-[15px] leading-tight">
-                                    {d.isStorm ? 'عاصفة رعدية' : 'سحب رعدية'} الآن على {d.location || ''}
-                                  </div>
-                                  <div className="mt-0.5 flex items-center gap-1.5 flex-wrap text-[10.5px] font-bold text-white/75">
-                                    {d.wilaya && <span>📍 {d.wilaya}</span>}
-                                    <span className="opacity-50">·</span>
-                                    <span>⏱️ {d.status}</span>
-                                  </div>
-                                </div>
-                              </div>
-                              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black shadow ${d.isStorm ? 'bg-red-400 text-red-950' : 'bg-sky-300 text-sky-950'}`}>
-                                {d.intensity || ''}
-                              </span>
-                            </div>
-
-                            {/* جملة الاتجاه/الوجهة */}
-                            {mv && (
-                              <div className="rounded-xl bg-black/25 px-3 py-2.5 flex items-start gap-2">
-                                <span className="text-base leading-none mt-0.5">🧭</span>
-                                <p className="text-[13.5px] font-bold text-white/95 leading-relaxed">
-                                  {mv.target ? (
-                                    <>يُتوقّع أن تتجه نحو <span className="text-amber-200 font-black">{mv.dir}</span> صوب{' '}
-                                      <span className="inline-flex items-center rounded-lg bg-amber-400/25 border border-amber-300/40 px-2 py-0.5 font-black text-amber-100">{mv.target}{mv.targetWilaya ? ` · ${mv.targetWilaya}` : ''}</span>
-                                      {' '}<span className="text-white/60 text-[11px]">(~{mv.distance}كم)</span>
-                                      {mv.isMeasured ? <span className="text-white/80"> بسرعة ~{mv.speed} كم/س</span> : <span className="text-white/55 text-[11px]"> · تقدير مبدئي</span>}
-                                    </>
-                                  ) : (
-                                    <>{mv.isMeasured ? <>تتحرك نحو <span className="text-amber-200 font-black">{mv.dir}</span> بسرعة ~{mv.speed} كم/س</> : <>يُرجّح اتجاهها نحو <span className="text-amber-200 font-black">{mv.dir}</span> <span className="text-white/55 text-[11px]">(تقدير مبدئي)</span></>}</>
-                                  )}
-                                </p>
-                              </div>
-                            )}
-
-                            {/* تقدير الشدة عند الوجهة */}
-                            {mv && mv.expectation && (
-                              <p className="mt-2 text-[12px] leading-relaxed text-amber-50/90 bg-amber-400/10 border border-amber-300/20 rounded-xl px-3 py-2">{mv.expectation}</p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {todayObservation.chips.map((chip) => (
-                    <span key={chip} className="px-3 py-1 rounded-full border border-white/15 bg-white/10 text-[10px] font-black text-white/90">
-                      {chip}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <p className="text-sm font-bold text-white/95 leading-relaxed">
+              قرب: <span className="font-black text-yellow-100">{lightningReport.areas.map((a) => toArabicCommune(a.city)).join('، ')}</span>
+            </p>
+            <p className="text-xs text-white/70 mt-2">احذر الصواعق وابتعد عن الأماكن المكشوفة</p>
           </article>
+        )}
 
         {/* صندوق المتابعة/الرصد العاجل — فوق التوقعات */}
         <BreakingNowBox />
@@ -1131,8 +980,6 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
           </article>
         )}
 
-        {/* خريطة الرصد المباشر (الطبقات) تحت التوقعات */}
-        <SatelliteViewer />
       </div>
     </div>
   );
