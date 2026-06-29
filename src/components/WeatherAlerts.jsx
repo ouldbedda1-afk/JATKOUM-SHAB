@@ -1027,16 +1027,15 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
           </p>
 
           {/* زر "اقرأ التوقعات كاملة" */}
-          <div className="mt-4 flex items-center gap-3">
-            <Link
-              to={forecastPath}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-black transition-all shadow-sm bg-gradient-to-l ${theme.bar} text-white hover:opacity-90`}
-            >
-              عرض التفاصيل كاملة
-              <span className="text-base">←</span>
-            </Link>
-            <WilayaShareButtons wilaya={wilaya} entries={entries} compact />
-          </div>
+          <Link
+            to={forecastPath}
+            className={`mt-4 flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-black transition-all shadow-sm bg-gradient-to-l ${theme.bar} text-white hover:opacity-90`}
+          >
+            عرض التفاصيل كاملة ←
+          </Link>
+
+          {/* أزرار المشاركة */}
+          <WilayaShareButtons wilaya={wilaya} entries={entries} />
 
         </div>
       </article>

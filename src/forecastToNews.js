@@ -119,8 +119,7 @@ function buildWilayaContent(wilaya, entries) {
     content += `\n`;
   });
 
-  content += `بإذن الله 🤲\nاللهم اسقنا الغيث ولا تجعلنا من القانطين\n\n`;
-  content += `المصدر: Open-Meteo (ECMWF/GFS) — جاتكم اسحاب`;
+  content += `بإذن الله 🤲\nاللهم اسقنا الغيث ولا تجعلنا من القانطين`;
   return content;
 }
 
