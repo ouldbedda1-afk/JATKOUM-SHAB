@@ -74,43 +74,60 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
+// ملفات ثابتة: تحتوي على hash في اسمها (مثل index-Abc123.js) — لن تتغير أبداً
+function isHashedAsset(url) {
+  return /\/assets\/[^/]+-[A-Za-z0-9_-]{8,}\.(js|css)(\?.*)?$/.test(url);
+}
+
 self.addEventListener('fetch', (event) => {
-  // تجاهل طلبات الـ API لضمان بيانات حية
+  const url = event.request.url;
+
+  // تجاهل طلبات الـ API والخارجية
   if (
-    event.request.url.includes('supabase.co') || 
-    event.request.url.includes('api.open-meteo.com') ||
-    event.request.url.includes('nominatim.openstreetmap.org')
+    url.includes('supabase.co') ||
+    url.includes('api.open-meteo.com') ||
+    url.includes('nominatim.openstreetmap.org') ||
+    url.includes('api.rainviewer.com') ||
+    url.includes('counter.dev') ||
+    url.includes('blitzortung') ||
+    !url.startsWith('http')
   ) {
     return;
   }
 
-  // لملفات HTML و الـ Assets، نستخدم Network First مع معالجة الأخطاء
+  // ── Cache First للملفات الثابتة (JS/CSS بـ hash) ──
+  // هذه الملفات لا تتغير → نخدمها من الكاش فوراً بدون طلب شبكة
+  if (isHashedAsset(url)) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(event.request).then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
+  // ── Network First لملفات HTML والصور ──
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // إذا كانت الاستجابة صالحة، نقوم بتخزينها
         if (response && response.status === 200 && response.type === 'basic') {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
       })
       .catch(async () => {
-        // إذا فشل الاتصال، نبحث في الكاش
-        const cachedResponse = await caches.match(event.request);
-        if (cachedResponse) return cachedResponse;
-
-        // إذا لم يوجد كاش، نرجع خطأ شبكة بدلاً من تعليق المتصفح
-        if (event.request.mode === 'navigate') {
-          return caches.match('./index.html');
-        }
-        
-        return new Response('Network error occurred', {
-          status: 408,
-          headers: { 'Content-Type': 'text/plain' }
-        });
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+        if (event.request.mode === 'navigate') return caches.match('./index.html');
+        return new Response('Network error', { status: 408, headers: { 'Content-Type': 'text/plain' } });
       })
   );
 });
