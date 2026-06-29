@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   adminGetAllNews, adminCreateNews, adminUpdateNews,
   adminDeleteNews, uploadNewsImage, getLivestockReports, supabase,
+  cleanupDuplicateNews, addImagesToExistingNews,
 } from '../supabase';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
@@ -44,6 +45,8 @@ export default function NewsAdmin() {
   const [saving, setSaving]         = useState(false);
   const [preview, setPreview]       = useState(false);
   const [busyId, setBusyId]         = useState(null);
+  const [cleanupStatus, setCleanupStatus] = useState('');
+  const [imagesStatus, setImagesStatus]   = useState('');
   // الظالة
   const [livestock, setLivestock]   = useState([]);
   const [liveLoading, setLiveLoading] = useState(false);
@@ -134,6 +137,29 @@ export default function NewsAdmin() {
     try { await adminDeleteNews(a.id); load(); }
     catch (e) { setError(e.message); }
     finally { setBusyId(null); }
+  }
+
+  async function handleCleanupDuplicates() {
+    if (!window.confirm('سيتم حذف التكرارات (نفس الولاية + نفس اليوم) — المتابعة؟')) return;
+    setCleanupStatus('⏳ جارٍ...');
+    try {
+      const { deleted, kept } = await cleanupDuplicateNews();
+      setCleanupStatus(`✅ حُذف ${deleted} مقالة مكررة — بقي ${kept}`);
+      load();
+    } catch (e) {
+      setCleanupStatus(`❌ ${e.message}`);
+    }
+  }
+
+  async function handleAddImages() {
+    setImagesStatus('⏳ جارٍ...');
+    try {
+      const { updated } = await addImagesToExistingNews();
+      setImagesStatus(`✅ أُضيفت الصور لـ ${updated} مقالة`);
+      load();
+    } catch (e) {
+      setImagesStatus(`❌ ${e.message}`);
+    }
   }
 
   const totalPages = Math.ceil(count / PER_PAGE);
@@ -347,6 +373,27 @@ export default function NewsAdmin() {
             className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-black hover:bg-blue-700">
             <SafeIcon icon={FiPlus} /> خبر جديد
           </button>
+        </div>
+      </div>
+
+      {/* أدوات الصيانة */}
+      <div className="flex flex-wrap gap-3 bg-amber-50 border border-amber-200 rounded-2xl p-4">
+        <p className="w-full text-xs font-black text-amber-800 mb-1">🛠️ أدوات الصيانة</p>
+
+        <div className="flex flex-col gap-1">
+          <button onClick={handleCleanupDuplicates}
+            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-black transition-colors">
+            🗑️ حذف التكرارات
+          </button>
+          {cleanupStatus && <span className="text-xs font-bold text-amber-900">{cleanupStatus}</span>}
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <button onClick={handleAddImages}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-black transition-colors">
+            🖼️ إضافة صور للمقالات
+          </button>
+          {imagesStatus && <span className="text-xs font-bold text-amber-900">{imagesStatus}</span>}
         </div>
       </div>
 

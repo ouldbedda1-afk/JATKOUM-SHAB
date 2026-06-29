@@ -934,6 +934,84 @@ export async function adminDeleteNews(id) {
   if (error) throw new Error(error.message);
 }
 
+/**
+ * حذف التكرارات: إذا نُشر أكثر من خبر لنفس الولاية في نفس اليوم، يُبقى الأحدث ويُحذف الباقي.
+ * تُعالَج آخر 30 يومًا.
+ * @returns {{ deleted: number, kept: number }}
+ */
+export async function cleanupDuplicateNews() {
+  if (!isSupabaseConfigured) throw new Error('Supabase غير مهيأ');
+
+  const since = new Date();
+  since.setDate(since.getDate() - 30);
+
+  const { data, error } = await supabase
+    .from('news_articles')
+    .select('id, wilaya, published_at, title')
+    .gte('published_at', since.toISOString())
+    .order('published_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  if (!data?.length) return { deleted: 0, kept: 0 };
+
+  // تجميع حسب (ولاية + يوم)
+  const groups = {};
+  data.forEach((a) => {
+    if (!a.wilaya) return;
+    const day = a.published_at?.slice(0, 10) || 'unknown';
+    const key = `${a.wilaya}__${day}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(a);
+  });
+
+  let deleted = 0;
+  for (const items of Object.values(groups)) {
+    if (items.length <= 1) continue;
+    // نرتب تنازلياً (الأحدث أولاً) ونحذف الباقي
+    const sorted   = items.sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
+    const toDelete = sorted.slice(1).map((a) => a.id);
+    for (const id of toDelete) {
+      const { error: delErr } = await supabase.from('news_articles').delete().eq('id', id);
+      if (!delErr) deleted++;
+    }
+  }
+
+  return { deleted, kept: data.length - deleted };
+}
+
+/**
+ * إضافة صور للمقالات الموجودة التي لا تحمل صورة.
+ * يستنتج الصورة من التصنيف والعنوان.
+ * @returns {{ updated: number }}
+ */
+export async function addImagesToExistingNews() {
+  if (!isSupabaseConfigured) throw new Error('Supabase غير مهيأ');
+
+  const { data, error } = await supabase
+    .from('news_articles')
+    .select('id, title, category, featured_image')
+    .or('featured_image.is.null,featured_image.eq.');
+
+  if (error) throw new Error(error.message);
+  if (!data?.length) return { updated: 0 };
+
+  // استيراد ديناميكي لتجنب الدورة الحلقية
+  const { getImageForAlert } = await import('./weatherImages.js');
+
+  let updated = 0;
+  for (const article of data) {
+    const img = getImageForAlert(article.category || '', article.title || '');
+    if (!img) continue;
+    const { error: updErr } = await supabase
+      .from('news_articles')
+      .update({ featured_image: img })
+      .eq('id', article.id);
+    if (!updErr) updated++;
+  }
+
+  return { updated };
+}
+
 /** رفع صورة للأخبار */
 export async function uploadNewsImage(file) {
   if (!isSupabaseConfigured) throw new Error('Supabase غير مهيأ');

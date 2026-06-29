@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 import { useWeatherContext } from '../WeatherContext';
-import { sendLocalNotification, requestNotificationPermission } from '../pwa';
 import { broadcastPush, adminCreateNews } from '../supabase';
 import { toArabicCommune } from '../mauritaniaCommuneNamesAr';
 
@@ -75,16 +74,7 @@ export default function BreakingNowBox() {
     if (signature === lastNotifiedRef.current) return;
     lastNotifiedRef.current = signature;
 
-    (async () => {
-      const granted = await requestNotificationPermission();
-      if (!granted) return;
-      const title = allThunder.length > 0 ? '⚡ عاجل: عواصف رعدية الآن' : '🌧️ عاجل: أمطار مرصودة الآن';
-      const body = allThunder.length > 0
-        ? `برق وعواصف رعدية في: ${allThunder.join('، ')}. يرجى الحذر.`
-        : `غيوم ماطرة في: ${allRain.join('، ')}. جعلها الله خيراً.`;
-      sendLocalNotification(title, { body, tag: 'breaking-weather', renotify: true });
-      broadcastPush({ title, body, url: '/', tag: 'breaking-weather', dedupeKey: 'breaking-weather', signature, windowMinutes: 30 });
-    })();
+    // الإشعارات موقوفة
   }, [breaking]);
 
   const publishAsNews = async () => {

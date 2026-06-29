@@ -3,36 +3,44 @@ import { useParams, Link } from 'react-router-dom';
 import { getNewsBySlug, getSimilarNews } from '../supabase';
 import Navbar from '../components/Navbar';
 
-const SITE_URL = 'https://www.jatkoumshab.com';
+const SITE_URL   = 'https://www.jatkoumshab.com';
+// Worker يخدم OG tags لبوتات فيسبوك — بعد النشر استبدل بالدومين الفعلي للـ Worker
+const WORKER_URL = 'https://share.jatkoumshab.com';
 
 function fmtDate(d) {
   if (!d) return '';
   return new Date(d).toLocaleDateString('ar', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-function ShareButtons({ url, title }) {
-  const enc  = encodeURIComponent;
-  const text = enc(title);
-  const href = enc(url);
+function ShareButtons({ url, title, slug }) {
+  const enc = encodeURIComponent;
+  // رابط الـ Worker لفيسبوك — يُظهر العنوان والصورة فقط بلا وصف
+  const fbUrl   = enc(`${WORKER_URL}/news/${slug}`);
+  const fullUrl = enc(url);
+  const text    = enc(title);
   return (
     <div className="flex items-center gap-2 flex-wrap" dir="rtl">
       <span className="text-xs font-bold text-gray-500">مشاركة:</span>
-      <a href={`https://www.facebook.com/sharer/sharer.php?u=${href}`} target="_blank" rel="noreferrer"
-        className="flex items-center gap-1 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors">
-        📘 Facebook
+      {/* فيسبوك: رابط Worker يُظهر العنوان فقط لإجبار الزوار على الدخول */}
+      <a href={`https://www.facebook.com/sharer/sharer.php?u=${fbUrl}`}
+        target="_blank" rel="noreferrer"
+        className="flex items-center gap-1.5 bg-[#1877F2] text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-[#166FE5] transition-colors">
+        <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M24 12.07C24 5.41 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.04V9.41c0-3.02 1.8-4.7 4.54-4.7 1.31 0 2.68.24 2.68.24v2.97h-1.5c-1.5 0-1.96.93-1.96 1.89v2.26h3.32l-.53 3.5h-2.8V24C19.62 23.1 24 18.1 24 12.07z"/></svg>
+        Facebook
       </a>
-      <a href={`https://wa.me/?text=${text}%20${href}`} target="_blank" rel="noreferrer"
-        className="flex items-center gap-1 bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-600 transition-colors">
-        💬 WhatsApp
+      <a href={`https://wa.me/?text=${text}%20${fullUrl}`} target="_blank" rel="noreferrer"
+        className="flex items-center gap-1.5 bg-[#25D366] text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-[#1ebe5d] transition-colors">
+        <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97s-.47-.15-.67.15-.77.97-.94 1.17-.35.22-.64.07a8.08 8.08 0 0 1-2.38-1.47 8.96 8.96 0 0 1-1.65-2.05c-.17-.3 0-.46.13-.6s.3-.35.44-.52a2 2 0 0 0 .3-.5.55.55 0 0 0 0-.52c-.07-.15-.67-1.62-.92-2.22s-.49-.5-.67-.5h-.57a1.1 1.1 0 0 0-.8.37 3.37 3.37 0 0 0-1.04 2.5 5.84 5.84 0 0 0 1.22 3.1c.15.2 2.1 3.2 5.08 4.49a17.2 17.2 0 0 0 1.7.63 4.1 4.1 0 0 0 1.87.12 3.1 3.1 0 0 0 2.03-1.43 2.5 2.5 0 0 0 .17-1.43c-.07-.13-.27-.2-.57-.35zM12 0A12 12 0 0 0 1.05 17.6L0 24l6.57-1.72A12 12 0 1 0 12 0zm0 21.82a9.82 9.82 0 0 1-5-1.37l-.36-.21-3.7.97.99-3.6-.23-.37A9.84 9.84 0 1 1 12 21.82z"/></svg>
+        WhatsApp
       </a>
-      <a href={`https://t.me/share/url?url=${href}&text=${text}`} target="_blank" rel="noreferrer"
-        className="flex items-center gap-1 bg-sky-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-sky-600 transition-colors">
+      <a href={`https://t.me/share/url?url=${fullUrl}&text=${text}`} target="_blank" rel="noreferrer"
+        className="flex items-center gap-1.5 bg-[#229ED9] text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-[#1a8bbf] transition-colors">
         ✈️ Telegram
       </a>
-      <a href={`https://twitter.com/intent/tweet?text=${text}&url=${href}`} target="_blank" rel="noreferrer"
-        className="flex items-center gap-1 bg-black text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-800 transition-colors">
-        𝕏 X
-      </a>
+      <button onClick={() => navigator.clipboard?.writeText(url)}
+        className="flex items-center gap-1.5 bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors">
+        🔗 نسخ الرابط
+      </button>
     </div>
   );
 }
@@ -210,7 +218,7 @@ export default function NewsArticlePage() {
 
             {/* Share */}
             <div className="mt-6 pt-4 border-t border-gray-100">
-              <ShareButtons url={articleUrl} title={article.title} />
+              <ShareButtons url={articleUrl} title={article.title} slug={slug} />
             </div>
           </div>
         </article>

@@ -4,6 +4,7 @@
 import { toArabicCommune } from './mauritaniaCommuneNamesAr';
 import { normalizeMauritaniaWilayaName } from './mauritaniaPlaceNames';
 import { adminCreateNews, supabase, saveWeatherSnapshot } from './supabase';
+import { getImageForAlert } from './weatherImages';
 
 const DAYS_AR   = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
 const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -149,25 +150,31 @@ function buildWilayaTitle(wilaya, entries) {
   return `يتوقع بإذن الله هطول أمطار ${intensity} على ${loc} (${wilaya})`;
 }
 
-function slugify(text) {
-  return text
+function slugifyWilaya(wilaya) {
+  return wilaya
     .replace(/[أإآا]/g,'a').replace(/ى/g,'y').replace(/ة/g,'h')
     .replace(/[^\w\s-]/g,'').replace(/\s+/g,'-').toLowerCase()
-    .slice(0, 70) + '-' + Date.now();
+    .slice(0, 50);
+}
+
+// slug حتمي لكل ولاية + يوم → يمنع التكرار حتى عند التشغيل المتزامن
+function makeDailySlug(wilaya) {
+  const today = new Date().toISOString().slice(0, 10);
+  return `forecast-${slugifyWilaya(wilaya)}-${today}`;
 }
 
 // ─── 5. تجنب التكرار ─────────────────────────────────────────────────────
 async function articleExistsForWilaya(wilaya) {
-  // هل نُشر خبر تحمل وسومه اسم الولاية اليوم؟
+  const slug = makeDailySlug(wilaya);
+  // أولاً: تحقق بـ slug الحتمي (أكثر دقة)
+  const bySlug = await supabase.from('news_articles').select('id').eq('slug', slug).limit(1);
+  if (bySlug.data?.length > 0) return true;
+  // ثانياً: احتياطي — تحقق بـ wilaya + تاريخ اليوم (للتوافق مع المقالات القديمة)
   const todayStart = new Date();
-  todayStart.setHours(0,0,0,0);
-  const { data } = await supabase
-    .from('news_articles')
-    .select('id')
-    .eq('wilaya', wilaya)
-    .gte('published_at', todayStart.toISOString())
-    .limit(1);
-  return data && data.length > 0;
+  todayStart.setHours(0, 0, 0, 0);
+  const byWilaya = await supabase.from('news_articles').select('id')
+    .eq('wilaya', wilaya).gte('published_at', todayStart.toISOString()).limit(1);
+  return byWilaya.data?.length > 0;
 }
 
 // ─── 6. الدالة الرئيسية ──────────────────────────────────────────────────
@@ -197,7 +204,7 @@ export async function autoPublishForecastNews(weatherData) {
     try {
       await adminCreateNews({
         title,
-        slug: slugify(title),
+        slug: makeDailySlug(wilaya),
         excerpt: title,
         content,
         category: hasStorm ? 'عواصف' : 'أمطار',
@@ -205,7 +212,7 @@ export async function autoPublishForecastNews(weatherData) {
         author: 'جاتكم اسحاب',
         is_published: true,
         tags: ['توقعات', 'ECMWF', wilaya, hasStorm ? 'عواصف' : 'أمطار'],
-        featured_image: '',
+        featured_image: getImageForAlert(hasStorm ? 'عواصف' : 'أمطار', title),
       });
       published++;
       results.push({ wilaya, title });

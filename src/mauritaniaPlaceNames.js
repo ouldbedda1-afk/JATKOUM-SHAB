@@ -223,7 +223,8 @@ export function normalizeMauritaniaWilayaName(value) {
     case 'نواكشوطالجنوبية':
       return 'نواكشوط الجنوبية';
     default:
-      return String(value || '').trim();
+      // إذا طُبِّق alias → نعيد القيمة من الـ alias (وإلا القيمة الأصلية)
+      return canonical !== normalized ? canonical : String(value || '').trim();
   }
 }
 

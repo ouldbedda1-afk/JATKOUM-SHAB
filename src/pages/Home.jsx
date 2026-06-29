@@ -91,7 +91,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 overflow-x-hidden" dir="rtl">
+    <div className="min-h-screen pb-20 overflow-x-hidden" style={{background:'linear-gradient(180deg, #f0f4ff 0%, #f8faff 40%, #f5f7ff 100%)'}} dir="rtl">
       <Navbar onCitySelect={setSelectedCity} />
       <NewsTicker />
       <LightningSoundAlert />

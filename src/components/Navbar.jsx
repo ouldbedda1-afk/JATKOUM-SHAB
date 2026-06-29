@@ -1,14 +1,12 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { Link, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
-import { FaFacebook } from 'react-icons/fa';
 import SafeIcon from '../common/SafeIcon';
 import { searchCities } from '../weatherApi';
 
-const { FiSearch, FiMenu, FiX, FiBell, FiUser } = FiIcons;
+const { FiSearch, FiMenu, FiX, FiBell } = FiIcons;
 
-// روابط التنقّل — to: مسار روتر | href: رابط خارجي
 const NAV_LINKS = [
   { icon: '🏠', label: 'الرئيسية',           to: '/'         },
   { icon: '📅', label: 'التوقعات الأسبوعية', to: '/forecast' },
@@ -17,24 +15,22 @@ const NAV_LINKS = [
 ];
 
 const Navbar = ({ onCitySelect }) => {
-  const [searchQuery, setSearchQuery] = useState('');
+  const location = useLocation();
+  const [searchQuery, setSearchQuery]   = useState('');
   const [searchResults, setSearchResults] = useState([]);
-  const [showResults, setShowResults] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showResults, setShowResults]   = useState(false);
+  const [isMenuOpen, setIsMenuOpen]     = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const handleSearch = async (e) => {
     const query = e.target.value;
     setSearchQuery(query);
-
     if (query.length > 0) {
       try {
         const results = await searchCities(query);
         setSearchResults(results);
         setShowResults(true);
-      } catch (error) {
-        console.error('خطأ في البحث:', error);
-      }
+      } catch {}
     } else {
       setSearchResults([]);
       setShowResults(false);
@@ -45,39 +41,43 @@ const Navbar = ({ onCitySelect }) => {
     setSearchQuery('');
     setShowResults(false);
     setIsSearchOpen(false);
-    if (onCitySelect) {
-      onCitySelect(city);
-    }
+    if (onCitySelect) onCitySelect(city);
   };
 
+  const isActive = (path) => location.pathname === path;
+
   return (
-    <nav className="bg-gradient-to-l from-[#0b2c5e] via-[#103a78] to-[#0b2c5e] text-white sticky top-0 z-50 shadow-lg shadow-blue-950/20" dir="rtl">
-      <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 md:py-4">
+    <nav
+      className="sticky top-0 z-50 text-white"
+      dir="rtl"
+      style={{ background: 'linear-gradient(135deg, #071e40 0%, #0b2c5e 50%, #0d3468 100%)', backdropFilter: 'blur(12px)', boxShadow: '0 4px 30px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.06) inset' }}
+    >
+      <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-3 px-4 md:px-6 py-3 md:py-3.5">
+
         {/* الشعار */}
-        <Link to="/" className="flex items-center gap-3 shrink-0">
-          <div className="relative w-12 h-12 md:w-14 md:h-14 overflow-hidden rounded-2xl shadow-md ring-1 ring-white/20 bg-white/95">
+        <Link to="/" className="flex items-center gap-3 shrink-0 group">
+          <div className="relative w-11 h-11 md:w-13 md:h-13 overflow-hidden rounded-2xl shadow-lg ring-2 ring-white/15 group-hover:ring-white/30 transition-all bg-white/95">
             <img
               src="https://graph.facebook.com/Beddetiii/picture?type=large"
               alt="شعار جاتكم اسحاب"
               className="w-full h-full object-contain p-0.5"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = 'https://images.unsplash.com/photo-1534088568595-a066f7104211?auto=format&fit=crop&q=80&w=100';
-              }}
+              onError={(e) => { e.target.onerror = null; e.target.src = '/logo.png'; }}
             />
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="text-xl md:text-2xl font-black text-white">جاتكم اسحاب</span>
-            <span className="hidden sm:block text-[11px] md:text-xs font-medium text-blue-200/90 mt-0.5">
-              رصد ومتابعة السحب والأمطار في موريتانيا
-            </span>
+            <span className="text-lg md:text-xl font-black text-white tracking-tight">جاتكم اسحاب</span>
+            <span className="hidden sm:block text-[10px] font-medium text-blue-200/70 mt-0.5">رصد الطقس والأمطار · موريتانيا</span>
           </div>
         </Link>
 
         {/* روابط سطح المكتب */}
-        <div className="hidden md:flex items-center gap-1.5 font-bold text-[13px]">
+        <div className="hidden md:flex items-center gap-1.5">
           {NAV_LINKS.map((l) => {
-            const cls = `flex items-center gap-2 px-4 py-2 rounded-xl border border-white/20 bg-white/10 text-white text-[15px] hover:bg-white hover:text-[#0b2c5e] transition-all duration-200 font-bold whitespace-nowrap`;
+            const active = isActive(l.to);
+            const base = `relative flex items-center gap-2 px-4 py-2 rounded-xl text-[14px] font-bold transition-all duration-200 whitespace-nowrap`;
+            const cls = active
+              ? `${base} bg-white text-[#0b2c5e] shadow-lg shadow-black/20`
+              : `${base} text-white/80 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/15`;
             return l.href ? (
               <a key={l.href} href={l.href} className={cls}>
                 <span>{l.icon}</span>{l.label}
@@ -85,13 +85,15 @@ const Navbar = ({ onCitySelect }) => {
             ) : (
               <Link key={l.label} to={l.to} className={cls}>
                 <span>{l.icon}</span>{l.label}
+                {active && <motion.span layoutId="nav-pill" className="absolute inset-0 rounded-xl" />}
               </Link>
             );
           })}
         </div>
 
-        {/* أدوات الجهة اليسرى */}
+        {/* أدوات اليسار */}
         <div className="flex items-center gap-2 relative">
+
           {/* بحث سطح المكتب */}
           <div className="relative hidden lg:block">
             <input
@@ -100,126 +102,125 @@ const Navbar = ({ onCitySelect }) => {
               value={searchQuery}
               onChange={handleSearch}
               onFocus={() => searchQuery && setShowResults(true)}
-              className="bg-white/15 text-white placeholder-blue-200/70 border border-white/15 rounded-full py-2 pr-10 pl-4 focus:bg-white/20 focus:ring-2 focus:ring-emerald-400/60 focus:outline-none w-56 transition-all"
+              onBlur={() => setTimeout(() => setShowResults(false), 200)}
+              className="bg-white/10 text-white placeholder-white/40 border border-white/15 rounded-full py-2 pr-10 pl-4 focus:bg-white/15 focus:border-white/30 focus:ring-2 focus:ring-white/20 focus:outline-none w-52 transition-all text-sm"
             />
-            <SafeIcon icon={FiSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-200" />
-
-            {showResults && searchResults.length > 0 && (
-              <div className="absolute top-full right-0 mt-2 w-full bg-white border border-gray-200 rounded-2xl shadow-2xl z-[60] overflow-hidden max-h-80 overflow-y-auto text-gray-800">
-                {searchResults.map((city, idx) => (
-                  <button
-                    key={idx}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      handleSelectCity(city);
-                    }}
-                    className="w-full text-right px-4 py-3 hover:bg-gray-50 border-b last:border-b-0 flex flex-col"
-                  >
-                    <span className="font-bold">{city.name}</span>
-                    {city.admin1 && <span className="text-[10px] text-gray-500">{city.admin1}</span>}
-                  </button>
-                ))}
-              </div>
-            )}
+            <SafeIcon icon={FiSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 text-sm" />
+            <AnimatePresence>
+              {showResults && searchResults.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                  className="absolute top-full right-0 mt-2 w-64 bg-white border border-gray-100 rounded-2xl shadow-2xl z-[60] overflow-hidden max-h-80 overflow-y-auto text-gray-800"
+                >
+                  {searchResults.slice(0, 8).map((city, idx) => (
+                    <button
+                      key={idx}
+                      onMouseDown={(e) => { e.preventDefault(); handleSelectCity(city); }}
+                      className="w-full text-right px-4 py-3 hover:bg-blue-50 border-b border-gray-50 last:border-b-0 flex flex-col transition-colors"
+                    >
+                      <span className="font-bold text-gray-900 text-sm">{city.name}</span>
+                      {city.wilaya && <span className="text-[10px] text-gray-400 mt-0.5">{city.wilaya}</span>}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
-          {/* جرس الإشعارات */}
-          <button
-            className="hidden sm:flex p-2 rounded-xl text-blue-100 hover:text-white hover:bg-white/10 transition-colors"
-            aria-label="الإشعارات"
-          >
+          {/* جرس */}
+          <button className="hidden sm:flex p-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-all border border-transparent hover:border-white/15" aria-label="الإشعارات">
             <SafeIcon icon={FiBell} className="text-lg" />
           </button>
 
-
-          {/* أدوات الجوال */}
-          <div className="flex items-center gap-1 md:hidden">
-            <Link to="/althala" className="bg-amber-500 text-white p-2 rounded-xl shadow">
-              <span className="text-lg">🐫</span>
+          {/* أزرار الجوال */}
+          <div className="flex items-center gap-1.5 md:hidden">
+            <Link to="/althala" className="flex items-center justify-center w-9 h-9 bg-amber-500/80 hover:bg-amber-500 rounded-xl shadow transition-all">
+              <span className="text-base">🐫</span>
             </Link>
             <button
               onClick={() => setIsSearchOpen(!isSearchOpen)}
-              className={`p-2 rounded-xl transition-colors ${isSearchOpen ? 'bg-white/20 text-white' : 'text-blue-100 hover:bg-white/10'}`}
+              className={`flex items-center justify-center w-9 h-9 rounded-xl transition-all ${isSearchOpen ? 'bg-white/20 text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
             >
-              <SafeIcon icon={FiSearch} className="text-xl" />
+              <SafeIcon icon={FiSearch} className="text-lg" />
             </button>
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="p-2 text-blue-100 hover:bg-white/10 rounded-xl"
+              className="flex items-center justify-center w-9 h-9 text-white/60 hover:bg-white/10 hover:text-white rounded-xl transition-all"
             >
-              <SafeIcon icon={isMenuOpen ? FiX : FiMenu} className="text-2xl" />
+              <SafeIcon icon={isMenuOpen ? FiX : FiMenu} className="text-xl" />
             </button>
           </div>
         </div>
+      </div>
 
-        {/* بحث الجوال */}
+      {/* بحث الجوال */}
+      <AnimatePresence>
         {isSearchOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="absolute top-full left-0 right-0 bg-white border-b border-gray-200 shadow-xl p-4 z-50 md:hidden text-gray-800"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden border-t border-white/10 md:hidden"
           >
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="اكتب اسم المدينة (مثل: النعمة)..."
-                autoFocus
-                value={searchQuery}
-                onChange={handleSearch}
-                className="w-full bg-gray-100 border-2 border-emerald-500 rounded-2xl py-3 px-12 focus:outline-none"
-              />
-              <SafeIcon icon={FiSearch} className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-600 text-xl" />
-              <button
-                onClick={() => {
-                  setSearchQuery('');
-                  setSearchResults([]);
-                  setIsSearchOpen(false);
-                }}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-              >
-                <SafeIcon icon={FiX} />
-              </button>
-            </div>
-
-            {searchResults.length > 0 && (
-              <div className="mt-4 bg-white rounded-2xl overflow-hidden border border-gray-100 max-h-64 overflow-y-auto shadow-inner">
-                {searchResults.map((city, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSelectCity(city)}
-                    className="w-full text-right px-5 py-4 hover:bg-emerald-50 border-b last:border-b-0 flex flex-col active:bg-emerald-100 transition-colors"
-                  >
-                    <span className="font-bold text-gray-900">{city.name}</span>
-                    <span className="text-xs text-gray-500">{city.admin1 || 'موريتانيا'}</span>
-                  </button>
-                ))}
+            <div className="p-4 bg-[#071e40]">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="اكتب اسم المدينة..."
+                  autoFocus
+                  value={searchQuery}
+                  onChange={handleSearch}
+                  className="w-full bg-white/10 border border-white/20 text-white placeholder-white/40 rounded-2xl py-3 px-12 focus:outline-none focus:border-white/40 text-sm"
+                />
+                <SafeIcon icon={FiSearch} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40" />
+                <button onClick={() => { setSearchQuery(''); setSearchResults([]); setIsSearchOpen(false); }} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white">
+                  <SafeIcon icon={FiX} />
+                </button>
               </div>
-            )}
+              {searchResults.length > 0 && (
+                <div className="mt-3 bg-white rounded-2xl overflow-hidden border border-gray-100 max-h-64 overflow-y-auto">
+                  {searchResults.slice(0, 8).map((city, idx) => (
+                    <button key={idx} onClick={() => handleSelectCity(city)} className="w-full text-right px-5 py-3.5 hover:bg-blue-50 border-b border-gray-50 last:border-b-0 flex flex-col transition-colors">
+                      <span className="font-bold text-gray-900 text-sm">{city.name}</span>
+                      <span className="text-xs text-gray-400 mt-0.5">{city.wilaya || 'موريتانيا'}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </motion.div>
         )}
+      </AnimatePresence>
 
-        {/* قائمة الجوال الجانبية */}
+      {/* قائمة الجوال */}
+      <AnimatePresence>
         {isMenuOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="absolute top-full left-0 right-0 bg-[#0b2c5e] border-b border-white/10 shadow-2xl p-4 grid grid-cols-2 gap-2 md:hidden z-40"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden border-t border-white/10 md:hidden"
           >
-            {NAV_LINKS.map((l) => {
-              const cls = `flex items-center gap-2 px-3 py-3 rounded-2xl border border-white/20 bg-white/10 text-white font-bold text-sm active:scale-95 active:bg-white active:text-[#0b2c5e] transition-all`;
-              return l.href ? (
-                <a key={l.href} href={l.href} onClick={() => setIsMenuOpen(false)} className={cls}>
-                  <span className="text-lg">{l.icon}</span>{l.label}
-                </a>
-              ) : (
-                <Link key={l.label} to={l.to} onClick={() => setIsMenuOpen(false)} className={cls}>
-                  <span className="text-lg">{l.icon}</span>{l.label}
-                </Link>
-              );
-            })}
+            <div className="p-4 grid grid-cols-2 gap-2 bg-[#071e40]">
+              {NAV_LINKS.map((l) => {
+                const active = isActive(l.to);
+                const cls = `flex items-center gap-2.5 px-4 py-3.5 rounded-2xl font-bold text-sm transition-all ${active ? 'bg-white text-[#0b2c5e] shadow' : 'bg-white/8 text-white/80 border border-white/10 hover:bg-white/15 hover:text-white active:scale-95'}`;
+                return l.href ? (
+                  <a key={l.href} href={l.href} onClick={() => setIsMenuOpen(false)} className={cls}>
+                    <span className="text-lg">{l.icon}</span>{l.label}
+                  </a>
+                ) : (
+                  <Link key={l.label} to={l.to} onClick={() => setIsMenuOpen(false)} className={cls}>
+                    <span className="text-lg">{l.icon}</span>{l.label}
+                  </Link>
+                );
+              })}
+            </div>
           </motion.div>
         )}
-      </div>
+      </AnimatePresence>
     </nav>
   );
 };

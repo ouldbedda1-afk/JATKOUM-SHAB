@@ -4,7 +4,7 @@ import { buildConvectiveWatch } from '../convection';
 import { buildLightningReport } from '../lightningBlitzortung';
 import { toArabicCommune } from '../mauritaniaCommuneNamesAr';
 import BreakingNowBox from './BreakingNowBox';
-import { requestNotificationPermission, sendLocalNotification } from '../pwa';
+import { requestNotificationPermission } from '../pwa';
 import {
   compareMauritaniaWilayaAdminOrder,
   normalizeMauritaniaWilayaName,
@@ -12,7 +12,9 @@ import {
 } from '../mauritaniaPlaceNames';
 import { adminCreateNews } from '../supabase';
 import { autoPublishForecastNews } from '../forecastToNews';
-import { useNavigate } from 'react-router-dom';
+import { getImageForAlert } from '../weatherImages';
+import { useNavigate, Link } from 'react-router-dom';
+import { wilayaToSlug } from '../wilayaUrlSlugs';
 
 /* ── تنسيق التواريخ والأوقات بالأحرف اللاتينية فقط ── */
 function fmtDate(dateStr) {
@@ -25,6 +27,9 @@ function fmtTime(dateStr) {
     hour: '2-digit', minute: '2-digit', hour12: false
   });
 }
+
+const SITE_URL   = 'https://www.jatkoumshab.com';
+const WORKER_URL = 'https://jatkoumshab-share.workers.dev';
 
 const DAYS_AR = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 function dayName(dateStr) {
@@ -356,6 +361,79 @@ function getWilayaForecastScore(forecast) {
 function isRainySeason(dateStr) {
   const m = new Date(dateStr).getMonth() + 1; // 1-12
   return m >= 6 && m <= 10;
+}
+
+/* ── رابط صفحة التوقع المستقلة: /forecast/{date}/{wilaya-slug} ── */
+function makeWilayaForecastPath(wilaya) {
+  const date = new Date().toISOString().slice(0, 10);
+  return `/forecast/${date}/${wilayaToSlug(wilaya)}`;
+}
+
+/* ── أزرار مشاركة بطاقة الولاية ── */
+function WilayaShareButtons({ wilaya, entries, compact = false }) {
+  const [copied, setCopied] = useState(false);
+  const forecastPath = makeWilayaForecastPath(wilaya);
+  const date         = new Date().toISOString().slice(0, 10);
+  const articleUrl   = `${SITE_URL}/#${forecastPath}`;
+  const fbUrl        = encodeURIComponent(`${WORKER_URL}/forecast/${date}/${wilayaToSlug(wilaya)}`);
+
+  const anyThunder = entries.some(e => e.forecast.thunder.length > 0);
+  const summary = anyThunder
+    ? `⛈️ تحذير: عواصف رعدية مع أمطار متوقعة في ولاية ${wilaya}`
+    : `🌧️ توقعات أمطار في ولاية ${wilaya}`;
+  const waText = encodeURIComponent(`${summary}\n\n📍 التفاصيل الكاملة:\n${articleUrl}\n\n— جاتكم اسحاب 🌦️`);
+
+  const copyLink = () => {
+    navigator.clipboard?.writeText(articleUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2 shrink-0">
+        <a href={`https://www.facebook.com/sharer/sharer.php?u=${fbUrl}`}
+          target="_blank" rel="noreferrer"
+          className="flex items-center justify-center w-9 h-9 bg-[#1877F2] text-white rounded-xl hover:bg-[#166FE5] transition-colors shadow-sm"
+          title="مشاركة على فيسبوك"
+        >
+          <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M24 12.07C24 5.41 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.04V9.41c0-3.02 1.8-4.7 4.54-4.7 1.31 0 2.68.24 2.68.24v2.97h-1.5c-1.5 0-1.96.93-1.96 1.89v2.26h3.32l-.53 3.5h-2.8V24C19.62 23.1 24 18.1 24 12.07z"/></svg>
+        </a>
+        <a href={`https://wa.me/?text=${waText}`}
+          target="_blank" rel="noreferrer"
+          className="flex items-center justify-center w-9 h-9 bg-[#25D366] text-white rounded-xl hover:bg-[#1ebe5d] transition-colors shadow-sm"
+          title="مشاركة على واتساب"
+        >
+          <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97s-.47-.15-.67.15-.77.97-.94 1.17-.35.22-.64.07a8.08 8.08 0 0 1-2.38-1.47 8.96 8.96 0 0 1-1.65-2.05c-.17-.3 0-.46.13-.6s.3-.35.44-.52a2 2 0 0 0 .3-.5.55.55 0 0 0 0-.52c-.07-.15-.67-1.62-.92-2.22s-.49-.5-.67-.5h-.57a1.1 1.1 0 0 0-.8.37 3.37 3.37 0 0 0-1.04 2.5 5.84 5.84 0 0 0 1.22 3.1c.15.2 2.1 3.2 5.08 4.49a17.2 17.2 0 0 0 1.7.63 4.1 4.1 0 0 0 1.87.12 3.1 3.1 0 0 0 2.03-1.43 2.5 2.5 0 0 0 .17-1.43c-.07-.13-.27-.2-.57-.35zM12 0A12 12 0 0 0 1.05 17.6L0 24l6.57-1.72A12 12 0 1 0 12 0zm0 21.82a9.82 9.82 0 0 1-5-1.37l-.36-.21-3.7.97.99-3.6-.23-.37A9.84 9.84 0 1 1 12 21.82z"/></svg>
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2 flex-wrap">
+      <span className="text-[11px] font-bold text-slate-500">شارك التوقع:</span>
+      <a href={`https://www.facebook.com/sharer/sharer.php?u=${fbUrl}`}
+        target="_blank" rel="noreferrer"
+        className="flex items-center gap-1.5 bg-[#1877F2] text-white px-3 py-1.5 rounded-xl text-xs font-black hover:bg-[#166FE5] transition-colors shadow-sm"
+      >
+        <svg className="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24"><path d="M24 12.07C24 5.41 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.04V9.41c0-3.02 1.8-4.7 4.54-4.7 1.31 0 2.68.24 2.68.24v2.97h-1.5c-1.5 0-1.96.93-1.96 1.89v2.26h3.32l-.53 3.5h-2.8V24C19.62 23.1 24 18.1 24 12.07z"/></svg>
+        Facebook
+      </a>
+      <a href={`https://wa.me/?text=${waText}`}
+        target="_blank" rel="noreferrer"
+        className="flex items-center gap-1.5 bg-[#25D366] text-white px-3 py-1.5 rounded-xl text-xs font-black hover:bg-[#1ebe5d] transition-colors shadow-sm"
+      >
+        <svg className="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24"><path d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97s-.47-.15-.67.15-.77.97-.94 1.17-.35.22-.64.07a8.08 8.08 0 0 1-2.38-1.47 8.96 8.96 0 0 1-1.65-2.05c-.17-.3 0-.46.13-.6s.3-.35.44-.52a2 2 0 0 0 .3-.5.55.55 0 0 0 0-.52c-.07-.15-.67-1.62-.92-2.22s-.49-.5-.67-.5h-.57a1.1 1.1 0 0 0-.8.37 3.37 3.37 0 0 0-1.04 2.5 5.84 5.84 0 0 0 1.22 3.1c.15.2 2.1 3.2 5.08 4.49a17.2 17.2 0 0 0 1.7.63 4.1 4.1 0 0 0 1.87.12 3.1 3.1 0 0 0 2.03-1.43 2.5 2.5 0 0 0 .17-1.43c-.07-.13-.27-.2-.57-.35zM12 0A12 12 0 0 0 1.05 17.6L0 24l6.57-1.72A12 12 0 1 0 12 0zm0 21.82a9.82 9.82 0 0 1-5-1.37l-.36-.21-3.7.97.99-3.6-.23-.37A9.84 9.84 0 1 1 12 21.82z"/></svg>
+        WhatsApp
+      </a>
+      <button onClick={copyLink}
+        className="flex items-center gap-1.5 bg-slate-100 text-slate-600 px-3 py-1.5 rounded-xl text-xs font-black hover:bg-slate-200 transition-colors shadow-sm"
+      >
+        {copied ? '✅ تم النسخ' : '🔗 نسخ الرابط'}
+      </button>
+    </div>
+  );
 }
 
 /* ══════════════════════════════════════════
@@ -690,21 +768,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       setIsTodayObservationFlashing(false);
     }, 15000);
 
-    // إشعار فوري للمؤكّد بالرادار فقط (live/archive). التنبؤات (model: نموذج/طاقة كامنة)
-    // تُعرض في البطاقة دون إرسال إشعار، تفادياً للتنبيهات غير الدقيقة.
-    const isRadarConfirmed = todayObservation.tone === 'live' || todayObservation.tone === 'archive';
-    if (!isRadarConfirmed) return;
-
-    requestNotificationPermission()
-      .then((granted) => {
-        if (!granted) return;
-        sendLocalNotification(`رصد اليوم: ${todayObservation.title}`, {
-          body: todayObservation.summary,
-          tag: 'today-observation',
-          renotify: true,
-        });
-      })
-      .catch(() => {});
+    // الإشعارات موقوفة
   }, [todayObservationKey, todayObservation]);
 
   const buildDaySections = (forecast) => {
@@ -887,14 +951,50 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
     return lines;
   };
 
+  // دالة مساعدة: بصمة التوقع (لتحديد هل يومان متطابقان)
+  const forecastFingerprint = (forecast) => {
+    const ar = (arr) => [...new Set((arr || []).map((x) => toArabicCommune(x.city)))].sort().join(',');
+    return [ar(forecast.thunder), ar(forecast.heavy), ar(forecast.moderate), ar(forecast.weak)].join('|');
+  };
+
+  // دمج الأيام ذات التوقع نفسه تحت نطاق تاريخي واحد (يُزيل مظهر التكرار)
+  const mergeEntries = (entries) => {
+    const groups = [];
+    entries.forEach((e) => {
+      const fp = forecastFingerprint(e.forecast);
+      const last = groups[groups.length - 1];
+      if (last && last.fp === fp) {
+        last.dates.push(e.day.dateStr);
+      } else {
+        groups.push({ fp, dates: [e.day.dateStr], forecast: e.forecast });
+      }
+    });
+    return groups;
+  };
+
   // بطاقة واحدة لكل ولاية تجمع أيامها (حتى 3 أيام قادمة)
   const renderWilayaCard = (wilaya, entries) => {
     const theme = getWilayaTheme(wilaya);
     const anyThunder = entries.some((e) => e.forecast.thunder.length > 0);
-    const introBase = 'تشير آخر التوقعات الجوية للأيام القادمة إلى فرص لهطول أمطار متفاوتة الشدة على عدة مناطق من الولاية';
-    const intro = anyThunder
-      ? `${introBase} مع توقع نشاط للعواصف الرعدية في بعض المناطق.`
-      : `${introBase}.`;
+
+    // ملخص قصير: أبرز المناطق المتأثرة
+    const topCities = [...new Set([
+      ...entries.flatMap(e => e.forecast.thunder.map(t => toArabicCommune(t.city))),
+      ...entries.flatMap(e => e.forecast.heavy.map(c => toArabicCommune(c.city))),
+      ...entries.flatMap(e => e.forecast.moderate.map(c => toArabicCommune(c.city))),
+    ])].filter(Boolean).slice(0, 3);
+
+    const daysLabel = [...new Set(entries.map(e => dayName(e.day.dateStr)))].join(' و');
+
+    const headline = anyThunder
+      ? `⛈️ عواصف رعدية مع أمطار — ${wilaya}`
+      : `🌧️ أمطار متوقعة — ${wilaya}`;
+
+    const shortSummary = topCities.length > 0
+      ? `${daysLabel} — أبرز المناطق: ${topCities.join('، ')}`
+      : daysLabel;
+
+    const forecastPath = makeWilayaForecastPath(wilaya);
 
     return (
       <article
@@ -903,20 +1003,41 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       >
         <div className={`h-1.5 w-full bg-gradient-to-l ${theme.bar}`} />
         <div className="px-5 py-4" dir="rtl">
-          <h3 className={`text-lg font-black ${theme.accent}`}>التوقعات الجوية لولاية {wilaya}</h3>
-          <p className="text-[15px] leading-8 text-slate-800 mt-1 mb-3">{intro}</p>
 
-          <div className="space-y-4">
-            {entries.map((e) => (
-              <div key={e.day.dateStr} className="border-r-4 border-sky-200 pr-3">
-                <p className="text-sm font-black text-sky-800 mb-1">📅 {arabicFullDate(e.day.dateStr)}</p>
-                <div className="space-y-1.5 text-[15px] leading-8">{narrativeLines(e.forecast)}</div>
-              </div>
-            ))}
+          {/* رأس البطاقة */}
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div>
+              <h3 className={`text-lg font-black ${theme.accent}`}>{headline}</h3>
+              <p className="text-xs text-slate-500 mt-0.5">{shortSummary}</p>
+            </div>
+            {anyThunder && (
+              <span className="shrink-0 flex items-center gap-1 bg-red-100 text-red-700 text-[10px] font-black px-2.5 py-1 rounded-full border border-red-200">
+                <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+                تحذير
+              </span>
+            )}
           </div>
 
-          <p className="mt-4 text-center text-[15px] font-black text-emerald-800">بإذن الله 🤲</p>
-          <p className="text-center text-sm font-bold text-emerald-700">اللهم اسقنا الغيث ولا تجعلنا من القانطين</p>
+          {/* ملخص سطر واحد فقط — النص الكامل في صفحة التفاصيل */}
+          <p className="text-sm text-slate-600 leading-7 line-clamp-2">
+            {anyThunder
+              ? `تشير التوقعات إلى عواصف رعدية مصحوبة بأمطار غزيرة على عدة مناطق من الولاية خلال الأيام القادمة، يُنصح بالحذر والابتعاد عن الأودية.`
+              : `تشير التوقعات إلى فرص لهطول أمطار متفاوتة الشدة على عدة مناطق من الولاية خلال الأيام القادمة.`
+            }
+          </p>
+
+          {/* زر "اقرأ التوقعات كاملة" */}
+          <div className="mt-4 flex items-center gap-3">
+            <Link
+              to={forecastPath}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-black transition-all shadow-sm bg-gradient-to-l ${theme.bar} text-white hover:opacity-90`}
+            >
+              عرض التفاصيل كاملة
+              <span className="text-base">←</span>
+            </Link>
+            <WilayaShareButtons wilaya={wilaya} entries={entries} compact />
+          </div>
+
         </div>
       </article>
     );
@@ -1187,8 +1308,9 @@ const WeatherAlerts = () => {
     if (localStorage.getItem(key)) return;
     forecastPublishDone.current = true;
     autoPublishForecastNews(citiesWeather)
-      .then(({ published }) => {
-        if (published > 0) localStorage.setItem(key, '1');
+      .then(() => {
+        // نحفظ المفتاح دائمًا بعد الاكتمال (حتى لو كانت المقالات موجودة مسبقًا)
+        localStorage.setItem(key, '1');
       })
       .catch(() => { forecastPublishDone.current = false; });
   }, [loading, citiesWeather]);
@@ -1199,15 +1321,7 @@ const WeatherAlerts = () => {
       const today = new Date().toISOString().slice(0, 10);
       weatherAlerts.forEach(async (alert) => {
         if (alert.id === 'same-day-archive-event') return;
-        const notifKey = `last_alert_${alert.id}`;
-        const key = alert.id + alert.title;
-        if (localStorage.getItem(notifKey) !== key) {
-          sendLocalNotification(`تنبيه جوي: ${alert.title}`, {
-            body: alert.message.substring(0, 100) + '...',
-            tag: 'weather-alert'
-          });
-          localStorage.setItem(notifKey, key);
-        }
+        // الإشعارات موقوفة
         // auto-publish للتحذيرات التي لها newsTitle (حر / رياح)
         if (!alert.newsTitle) return;
         const publishKey = `alert_published_${alert.id}_${today}`;
@@ -1224,7 +1338,7 @@ const WeatherAlerts = () => {
             author: 'جاتكم اسحاب',
             is_published: true,
             tags: ['تحذير', alert.newsCategory || 'طقس', today],
-            featured_image: '',
+            featured_image: getImageForAlert(alert.newsCategory || '', alert.newsTitle || ''),
           });
           localStorage.setItem(publishKey, '1');
         } catch (e) {
@@ -1246,7 +1360,7 @@ const WeatherAlerts = () => {
         author: 'جاتكم اسحاب',
         is_published: true,
         tags: ['تحذير', alert.newsCategory || 'طقس'],
-        featured_image: '',
+        featured_image: getImageForAlert(alert.newsCategory || '', alert.newsTitle || alert.title || ''),
       });
       if (article?.slug) navigate(`/news/${article.slug}`);
     } catch (e) {

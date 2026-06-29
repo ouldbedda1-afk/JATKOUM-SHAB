@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getPublishedNews, getLivestockReports } from '../supabase';
+import { getImageForAlert } from '../weatherImages';
 
 const BREAKING_CATEGORIES = ['عواصف', 'أمطار', 'فيضانات'];
 const BREAKING_MS = 2 * 60 * 60 * 1000; // 2 hours
@@ -31,19 +32,30 @@ function BreakingBadge() {
   );
 }
 
+function WeatherImg({ src, alt, className, fallbackIcon, breaking }) {
+  const [failed, setFailed] = React.useState(false);
+  if (!src || failed) {
+    return (
+      <div className={`${className} flex items-center justify-center text-7xl ${breaking ? 'bg-gradient-to-br from-red-700 to-rose-900' : 'bg-gradient-to-br from-blue-700 to-sky-900'}`}>
+        {fallbackIcon || (breaking ? '⚡' : '🌦️')}
+      </div>
+    );
+  }
+  return <img src={src} alt={alt || ''} className={className} onError={() => setFailed(true)} />;
+}
+
 function FeaturedCard({ article }) {
   const breaking = isBreaking(article);
+  const imgSrc = article.featured_image || getImageForAlert(article.category, article.title);
   return (
     <Link to={`/news/${article.slug}`}
       className="group relative rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-all block h-72 md:h-full">
-      {article.featured_image ? (
-        <img src={article.featured_image} alt={article.title}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-      ) : (
-        <div className={`w-full h-full flex items-center justify-center text-7xl ${breaking ? 'bg-gradient-to-br from-red-700 to-rose-900' : 'bg-gradient-to-br from-blue-700 to-sky-900'}`}>
-          {breaking ? '⚡' : '🌦️'}
-        </div>
-      )}
+      <WeatherImg
+        src={imgSrc}
+        alt={article.title}
+        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        breaking={breaking}
+      />
       {/* gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
 
@@ -70,17 +82,17 @@ function FeaturedCard({ article }) {
 
 function SmallCard({ article }) {
   const breaking = isBreaking(article);
+  const imgSrc = article.featured_image || getImageForAlert(article.category, article.title);
   return (
     <Link to={`/news/${article.slug}`}
       className="group flex gap-3 bg-white rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all overflow-hidden p-3">
-      {article.featured_image ? (
-        <img src={article.featured_image} alt="" loading="lazy"
-          className="w-20 h-16 object-cover rounded-lg shrink-0 group-hover:scale-105 transition-transform" />
-      ) : (
-        <div className={`w-20 h-16 rounded-lg shrink-0 flex items-center justify-center text-2xl ${breaking ? 'bg-red-50' : 'bg-blue-50'}`}>
-          {breaking ? '⚡' : '🌦️'}
-        </div>
-      )}
+      <WeatherImg
+        src={imgSrc}
+        alt=""
+        className="w-20 h-16 object-cover rounded-lg shrink-0 group-hover:scale-105 transition-transform"
+        breaking={breaking}
+        fallbackIcon={breaking ? '⚡' : '🌦️'}
+      />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 mb-1 flex-wrap">
           {breaking && <BreakingBadge />}
