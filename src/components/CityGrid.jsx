@@ -60,8 +60,6 @@ const CityGrid = () => {
     const wind   = Math.round(city.current.wind_speed_10m ?? 0);
     const rain   = city.hourly?.precipitation_probability?.[0] ?? 0;
     const theme  = getTempTheme(temp, isHot);
-    const medals = ['🥇', '🥈', '🥉'];
-
     return (
       <motion.div
         layout
@@ -78,7 +76,7 @@ const CityGrid = () => {
         {/* الرتبة + أيقونة الطقس */}
         <div className="flex items-center justify-between mb-3">
           <span className={`text-sm font-black px-2.5 py-1 rounded-xl ${theme.badge} ${theme.text} backdrop-blur-sm`}>
-            {medals[rank] ?? `#${rank + 1}`}
+            #{rank + 1}
           </span>
           <span className="text-3xl drop-shadow-md">{getWeatherIcon(code)}</span>
         </div>

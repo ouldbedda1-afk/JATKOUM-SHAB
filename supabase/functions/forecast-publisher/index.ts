@@ -200,7 +200,7 @@ Deno.serve(async () => {
         const w = CITIES.find((c) => c.city === city)?.wilaya || '';
         content += `يتوقع بإذن الله 🌧️ هطول أمطار ${intensity} على ${city}${w ? ` (${w})` : ''} يوم ${dayAr} ${dateAr}.\n\n`;
       });
-      content += `المصدر: Open-Meteo (ECMWF) — جاتكم اسحاب\nجعلها الله خيراً وبركة.`;
+      content += `جعلها الله خيراً وبركة.`;
 
       const slug = slugify(title);
       const { error } = await supabase.from('news_articles').insert([{
@@ -213,7 +213,7 @@ Deno.serve(async () => {
         author: 'جاتكم اسحاب',
         is_published: true,
         published_at: new Date().toISOString(),
-        tags: ['توقعات', 'ECMWF', category, 'أوتوماتيك'],
+        tags: ['توقعات', category, 'أوتوماتيك'],
         featured_image: '',
       }]);
 
@@ -221,6 +221,29 @@ Deno.serve(async () => {
         published++;
         await tg(`📰 *نُشر تلقائياً:*\n${title}\n\n🔗 ${Deno.env.get('SITE_URL') ?? 'https://www.jatkoumshab.com'}/#/news/${slug}`);
       }
+    }
+
+    // إرسال إشعار Push بعد نشر التوقعات
+    if (published > 0) {
+      const daysLabel = Object.keys(byDay).length;
+      const pushTitle = '📅 توقعات جديدة — جاتكم اسحاب';
+      const pushBody  = `نُشرت توقعات الأمطار للأيام الـ${daysLabel} القادمة في موريتانيا. اضغط للاطلاع على التفاصيل.`;
+      await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        },
+        body: JSON.stringify({
+          title: pushTitle,
+          body:  pushBody,
+          url:   '/',
+          tag:   'forecast-update',
+          dedupeKey: `forecast-${today}`,
+          signature: `forecast-${today}`,
+          windowMinutes: 1440,
+        }),
+      }).catch(() => {});
     }
 
     return new Response(JSON.stringify({ published, days: Object.keys(byDay).length }), {

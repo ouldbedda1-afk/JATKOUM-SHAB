@@ -3,7 +3,7 @@
 
 import { toArabicCommune } from './mauritaniaCommuneNamesAr';
 import { normalizeMauritaniaWilayaName } from './mauritaniaPlaceNames';
-import { adminCreateNews, supabase, saveWeatherSnapshot } from './supabase';
+import { adminCreateNews, supabase, saveWeatherSnapshot, broadcastPush } from './supabase';
 import { getImageForAlert } from './weatherImages';
 
 const DAYS_AR   = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
@@ -210,7 +210,7 @@ export async function autoPublishForecastNews(weatherData) {
         wilaya,
         author: 'جاتكم اسحاب',
         is_published: true,
-        tags: ['توقعات', 'ECMWF', wilaya, hasStorm ? 'عواصف' : 'أمطار'],
+        tags: ['توقعات', wilaya, hasStorm ? 'عواصف' : 'أمطار'],
         featured_image: getImageForAlert(hasStorm ? 'عواصف' : 'أمطار', title),
       });
       published++;
@@ -227,5 +227,192 @@ export async function autoPublishForecastNews(weatherData) {
     console.warn('تحذير: فشل حفظ snapshot:', e);
   }
 
+  // إشعار Push بعد نشر التوقعات (مرة واحدة في اليوم)
+  if (published > 0) {
+    const today = new Date().toISOString().slice(0, 10);
+    broadcastPush({
+      title: '📅 توقعات جديدة — جاتكم اسحاب',
+      body: `نُشرت توقعات الأمطار لـ ${published} ولاية. اضغط للاطلاع على التفاصيل.`,
+      url: '/',
+      tag: 'forecast-update',
+      dedupeKey: `forecast-${today}`,
+      signature: `forecast-${today}`,
+      windowMinutes: 1440,
+    }).catch(() => {});
+  }
+
   return { published, skipped, results };
+}
+
+// ─── 7. تحذيرات الرياح / الغبار / الحرارة / البرودة ─────────────────────────
+// تُستدعى مرة واحدة في اليوم بعد autoPublishForecastNews
+// تنشر تحذيراً لكل نوع × كل يوم متأثر في الـ 3 أيام القادمة
+
+const DUST_CODES = new Set([7, 8, 9, 30, 31, 32, 33, 34, 35]);
+
+function isDust(code) { return DUST_CODES.has(code); }
+
+async function alertSlugExists(slug) {
+  const { data } = await supabase.from('news_articles').select('id').eq('slug', slug).limit(1);
+  return data?.length > 0;
+}
+
+export async function autoPublishWeatherAlerts(weatherData) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  let published = 0;
+
+  // جمع البيانات اليومية لكل مدينة
+  // Map<dateStr, { wind: [{city,wilaya,speed}], heat: [{city,wilaya,temp}], cold: [{city,wilaya,temp}], dust: [{city,wilaya}] }>
+  const byDay = {};
+
+  (weatherData || []).forEach((city) => {
+    const dates    = city.daily?.time                || [];
+    const maxTemps = city.daily?.temperature_2m_max  || [];
+    const minTemps = city.daily?.temperature_2m_min  || [];
+    const maxWinds = city.daily?.wind_speed_10m_max  || [];
+    const codes    = city.daily?.weather_code        || [];
+    const wilaya   = normalizeMauritaniaWilayaName(city.wilaya) || '';
+    const cityAr   = toArabicCommune(city.city) || city.city;
+
+    for (let i = 0; i < dates.length; i++) {
+      const dateStr = dates[i];
+      if (!dateStr || dateStr <= todayStr) continue;
+
+      if (!byDay[dateStr]) byDay[dateStr] = { wind: [], heat: [], cold: [], dust: [] };
+      const d = byDay[dateStr];
+
+      const speed = maxWinds[i] ?? 0;
+      const tmax  = maxTemps[i] ?? 0;
+      const tmin  = minTemps[i] ?? 99;
+      const code  = codes[i]    ?? 0;
+
+      if (speed >= 50) d.wind.push({ city: cityAr, wilaya, speed: Math.round(speed) });
+      if (tmax  >= 45) d.heat.push({ city: cityAr, wilaya, temp: Math.round(tmax) });
+      if (tmin  <= 10) d.cold.push({ city: cityAr, wilaya, temp: Math.round(tmin) });
+      if (isDust(code) || speed >= 60) d.dust.push({ city: cityAr, wilaya });
+    }
+  });
+
+  for (const [dateStr, alerts] of Object.entries(byDay)) {
+    const dateObj = new Date(dateStr);
+    const dateAr  = arabicFullDate(dateStr);
+
+    // ── رياح قوية ──
+    if (alerts.wind.length > 0) {
+      const slug = `alert-wind-${dateStr}`;
+      if (!(await alertSlugExists(slug))) {
+        const topCities = [...new Set(alerts.wind.map(c => c.city))].slice(0, 5);
+        const maxSpeed  = Math.max(...alerts.wind.map(c => c.speed));
+        const lines     = dedup(alerts.wind, 'city')
+          .map(c => `${c.city}${c.wilaya ? ` (${c.wilaya})` : ''}: ${c.speed} كم/س`).join('\n');
+        const title = `⚠️ تحذير من رياح قوية — ${join(topCities)} — ${dateAr}`;
+        await publish({
+          title, slug,
+          category: 'طقس',
+          tags: ['رياح', 'تحذير', dateStr],
+          content:
+            `📅 ${dateAr}\n💨 تتوقع التوقعات الجوية رياحاً قوية تتجاوز 50 كم/س في المناطق التالية:\n\n${lines}\n\n` +
+            `⚠️ يُنصح بتأمين الأشياء غير الثابتة في الهواء الطلق، وتجنب الطرق الصحراوية.\n\nنسأل الله السلامة. 🤲`,
+          image: getImageForAlert('رياح', title),
+        });
+        published++;
+      }
+    }
+
+    // ── عواصف رملية / غبار ──
+    if (alerts.dust.length > 0) {
+      const slug = `alert-dust-${dateStr}`;
+      if (!(await alertSlugExists(slug))) {
+        const topCities = [...new Set(alerts.dust.map(c => c.city))].slice(0, 5);
+        const lines     = dedup(alerts.dust, 'city')
+          .map(c => `${c.city}${c.wilaya ? ` (${c.wilaya})` : ''}`).join('\n');
+        const title = `⚠️ تحذير من عواصف رملية وغبار — ${join(topCities)} — ${dateAr}`;
+        await publish({
+          title, slug,
+          category: 'طقس',
+          tags: ['غبار', 'رمال', 'تحذير', dateStr],
+          content:
+            `📅 ${dateAr}\n🌪️ يُتوقع تشكّل عواصف رملية وغبار في المناطق التالية:\n\n${lines}\n\n` +
+            `⚠️ يُنصح بالبقاء داخل المنازل وإغلاق النوافذ وارتداء أغطية الأنف والفم عند الخروج.\n\nنسأل الله السلامة. 🤲`,
+          image: getImageForAlert('رياح', title),
+        });
+        published++;
+      }
+    }
+
+    // ── موجة حر ──
+    if (alerts.heat.length > 0) {
+      const slug = `alert-heat-${dateStr}`;
+      if (!(await alertSlugExists(slug))) {
+        const topCities = [...new Set(alerts.heat.map(c => c.city))].slice(0, 5);
+        const maxTemp   = Math.max(...alerts.heat.map(c => c.temp));
+        const lines     = dedup(alerts.heat, 'city')
+          .map(c => `${c.city}${c.wilaya ? ` (${c.wilaya})` : ''}: ${c.temp}°م`).join('\n');
+        const title = `⚠️ تحذير من موجة حر — حتى ${maxTemp}°م — ${join(topCities)} — ${dateAr}`;
+        await publish({
+          title, slug,
+          category: 'طقس حار',
+          tags: ['موجة حر', 'تحذير', dateStr],
+          content:
+            `📅 ${dateAr}\n🌡️ يُتوقع ارتفاع درجات الحرارة إلى مستويات قصوى في المناطق التالية:\n\n${lines}\n\n` +
+            `⚠️ يُنصح بالإكثار من شرب السوائل، وتجنب التعرض المباشر لأشعة الشمس بين 12:00 و16:00، ` +
+            `وإيلاء العناية الخاصة للأطفال وكبار السن.\n\nنسأل الله السلامة. 🤲`,
+          image: getImageForAlert('حر', title),
+        });
+        published++;
+      }
+    }
+
+    // ── برودة شديدة ──
+    if (alerts.cold.length > 0) {
+      const slug = `alert-cold-${dateStr}`;
+      if (!(await alertSlugExists(slug))) {
+        const topCities = [...new Set(alerts.cold.map(c => c.city))].slice(0, 5);
+        const minTemp   = Math.min(...alerts.cold.map(c => c.temp));
+        const lines     = dedup(alerts.cold, 'city')
+          .map(c => `${c.city}${c.wilaya ? ` (${c.wilaya})` : ''}: ${c.temp}°م`).join('\n');
+        const title = `⚠️ تحذير من برودة شديدة — حتى ${minTemp}°م — ${join(topCities)} — ${dateAr}`;
+        await publish({
+          title, slug,
+          category: 'طقس',
+          tags: ['برودة', 'تحذير', dateStr],
+          content:
+            `📅 ${dateAr}\n🥶 يُتوقع انخفاض درجات الحرارة الليلية بشكل ملحوظ في المناطق التالية:\n\n${lines}\n\n` +
+            `⚠️ يُنصح بارتداء الملابس الدافئة، وتوفير التدفئة الكافية خاصة لكبار السن والأطفال.\n\nنسأل الله السلامة. 🤲`,
+          image: getImageForAlert('برودة', title),
+        });
+        published++;
+      }
+    }
+  }
+
+  return { published };
+}
+
+// دوال مساعدة داخلية
+function dedup(arr, key) {
+  const seen = new Set();
+  return arr.filter(item => {
+    if (seen.has(item[key])) return false;
+    seen.add(item[key]);
+    return true;
+  });
+}
+
+async function publish({ title, slug, category, tags, content, image }) {
+  try {
+    await adminCreateNews({
+      title, slug,
+      excerpt: title,
+      content,
+      category,
+      author: 'جاتكم اسحاب',
+      is_published: true,
+      tags,
+      featured_image: image || '',
+    });
+  } catch (e) {
+    // تجاهل خطأ التكرار (slug موجود مسبقاً)
+    if (!String(e).includes('duplicate') && !String(e).includes('unique')) throw e;
+  }
 }

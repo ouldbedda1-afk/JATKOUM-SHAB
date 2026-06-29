@@ -136,30 +136,9 @@ Deno.serve(async () => {
     const thunderCities = rainCitiesAll.filter((c) => thunderSet.has(c));
     const rainCities = rainCitiesAll.filter((c) => !thunderSet.has(c));
 
-    if (thunderCities.length === 0 && rainCities.length === 0) {
-      return json({ ok: true, detected: false });
-    }
-
-    const title = thunderCities.length > 0 ? '⚡ عاجل: عواصف رعدية الآن' : '🌧️ عاجل: أمطار مرصودة الآن';
-    const body = thunderCities.length > 0
-      ? `برق وعواصف رعدية في: ${thunderCities.join('، ')}. يرجى الحذر.`
-      : `غيوم ماطرة في: ${rainCities.join('، ')}. جعلها الله خيراً.`;
-    const signature = `T:${[...thunderCities].sort().join(',')}|R:${[...rainCities].sort().join(',')}`;
-
-    // استدعاء send-push (تتكفّل بمنع التكرار والبثّ)
-    const resp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-      },
-      body: JSON.stringify({
-        title, body, url: '/', tag: 'breaking-weather',
-        dedupeKey: 'breaking-weather', signature, windowMinutes: 30,
-      }),
-    });
-    const result = await resp.json();
-    return json({ ok: true, detected: true, signature, result });
+    // إشعارات العواصف موقوفة — الإشعارات مخصصة الآن للتوقعات فقط
+    const detected = thunderCities.length > 0 || rainCities.length > 0;
+    return json({ ok: true, detected, thunderCities, rainCities, pushed: false });
   } catch (err) {
     return json({ ok: false, error: String(err) }, 500);
   }

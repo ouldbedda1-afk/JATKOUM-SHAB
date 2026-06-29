@@ -11,7 +11,7 @@ import {
   OFFICIAL_MAURITANIA_WILAYA_ORDER,
 } from '../mauritaniaPlaceNames';
 import { adminCreateNews } from '../supabase';
-import { autoPublishForecastNews } from '../forecastToNews';
+import { autoPublishForecastNews, autoPublishWeatherAlerts } from '../forecastToNews';
 import { getImageForAlert } from '../weatherImages';
 import { useNavigate, Link } from 'react-router-dom';
 import { wilayaToSlug } from '../wilayaUrlSlugs';
@@ -1306,9 +1306,10 @@ const WeatherAlerts = () => {
     const key = `forecast_news_published_${today}`;
     if (localStorage.getItem(key)) return;
     forecastPublishDone.current = true;
-    autoPublishForecastNews(citiesWeather)
-      .then(() => {
-        // نحفظ المفتاح دائمًا بعد الاكتمال (حتى لو كانت المقالات موجودة مسبقًا)
+    Promise.all([
+      autoPublishForecastNews(citiesWeather),
+      autoPublishWeatherAlerts(citiesWeather),
+    ]).then(() => {
         localStorage.setItem(key, '1');
       })
       .catch(() => { forecastPublishDone.current = false; });
