@@ -46,59 +46,66 @@ export function useWeather(city = 'نواكشوط', coords = null, { forecastDay
   }, [city, coords?.lat, coords?.lon, forecastDays]);
 
   useEffect(() => {
-    if (forecastDays > 7) return; // يتكفّل به الـ effect المخصص أعلاه
-    if (fetchedRef.current) return;
+    if (forecastDays > 7) return;
 
-    // ✅ الحالة 1: البيانات موجودة في Context (لا إحداثيات مخصصة) وعدد الأيام لا يتجاوز 7
-    if (!coords && forecastDays <= 7 && context?.weatherData?.length > 0) {
+    const hasFreshData = fetchedRef.current === 'fresh';
+
+    // ✅ الحالة 1: البيانات موجودة في Context بدون إحداثيات — فقط إذا لم تكن fallback
+    if (!coords && context?.weatherData?.length > 0) {
       const cityData = context.weatherData.find(c => c.city === city);
-      if (cityData) {
+      if (cityData && !cityData.isFallback) {
         setData(cityData);
         setLoading(false);
-        fetchedRef.current = true;
+        fetchedRef.current = 'fresh';
         return;
       }
     }
 
-    // ✅ الحالة 2: Context لا يزال يحمّل — انتظر حتى يكتمل (إلا عند طلب توقعات موسّعة)
-    if (!coords && forecastDays <= 7 && context?.loading) {
-      return;
-    }
+    // ✅ الحالة 2: انتظر انتهاء Context قبل الجلب المستقل
+    if (context?.loading) return;
 
-    // ✅ الحالة 2.5: الموقع الجغرافي قريب جداً من مدينة معروفة
+    // ✅ الحالة 2.5: الموقع الجغرافي قريب من مدينة معروفة في Context
     if (coords && context?.weatherData?.length > 0) {
-      const nearest = context.weatherData.find(c => {
-        // Open-Meteo يرجع latitude و longitude في البيانات
-        const lat = c.latitude || c.lat; 
+      let nearest = null, bestDist = Infinity;
+      context.weatherData.forEach(c => {
+        const lat = c.latitude || c.lat;
         const lon = c.longitude || c.lon;
-        if (!lat || !lon) return false;
-
-        const latDiff = Math.abs(lat - coords.lat);
-        const lonDiff = Math.abs(lon - (coords.lon || coords.lng));
-        return latDiff < 0.15 && lonDiff < 0.15;
+        if (!lat || !lon) return;
+        const d = Math.abs(lat - coords.lat) + Math.abs(lon - (coords.lon || coords.lng));
+        if (d < bestDist) { bestDist = d; nearest = c; }
       });
-
-      if (nearest) {
-        console.log(`📍 الموقع الجغرافي قريب من ${nearest.city}، استخدام بيانات الـ Context.`);
+      if (nearest && bestDist < 0.5 && !nearest.isFallback) {
         setData(nearest);
         setLoading(false);
-        fetchedRef.current = true;
+        fetchedRef.current = 'fresh';
         return;
       }
     }
 
-    // ✅ الحالة 3: إحداثيات مخصصة، أو المدينة غير موجودة في Context بعد اكتمال تحميله
-    if (fetchedRef.current) return;
+    // ✅ الحالة 3: جلب مستقل — مرة واحدة فقط (منع إعادة الدخول)
+    if (hasFreshData || fetchedRef.current === true) return;
     fetchedRef.current = true;
 
     let isMounted = true;
     (async () => {
       try {
         setLoading(true);
-        const result = await getWeatherData(city, coords, { forecastDays });
-        if (isMounted) setData(result);
+        const result = await getWeatherData(city, coords, { forecastDays, bypassCircuit: true });
+        if (isMounted) {
+          setData(result);
+          if (!result?.isFallback) {
+            fetchedRef.current = 'fresh';
+          } else {
+            // إذا رجع fallback، اسمح بإعادة المحاولة لاحقاً
+            fetchedRef.current = false;
+          }
+        }
       } catch (err) {
-        if (isMounted) setError(err.message);
+        if (isMounted) {
+          setError(err.message);
+          // اسمح بإعادة المحاولة عند الخطأ
+          fetchedRef.current = false;
+        }
       } finally {
         if (isMounted) setLoading(false);
       }

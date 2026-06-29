@@ -9,7 +9,7 @@ import { useWeatherContext } from '../WeatherContext';
 const { FiWind, FiDroplet, FiSun, FiThermometer, FiClock } = FiIcons;
 
 const WeatherHero = ({ city, favCity, onFavCity }) => {
-  const { lastUpdated, weatherData: contextWeatherData } = useWeatherContext();
+  const { lastUpdated, weatherData: contextWeatherData, clearCache } = useWeatherContext();
   const cityName = typeof city === 'string' ? city : city?.name || 'نواكشوط';
   const coords   = typeof city === 'object' && city?.lat ? city : null;
   const { data: fetchedData, loading, error } = useWeather(cityName, coords);
@@ -29,7 +29,7 @@ const WeatherHero = ({ city, favCity, onFavCity }) => {
           const d = Math.abs(lat - coords.lat) + Math.abs(lon - coords.lon);
           if (d < bestDist) { bestDist = d; best = c; }
         });
-        if (best && bestDist < 3) return best;
+        if (best && bestDist < 3 && !best.isFallback) return best;
       }
       const match = contextWeatherData.find(c => c.city === cityName);
       if (match && !match.isFallback) return match;
@@ -61,14 +61,15 @@ const WeatherHero = ({ city, favCity, onFavCity }) => {
     );
   }
 
-  const temp = Math.round(weatherData.current?.temperature_2m ?? 0);
+  const isFallback = !!weatherData?.isFallback;
+  const temp = isFallback ? null : Math.round(weatherData.current?.temperature_2m ?? null);
   const weatherCode = weatherData.current?.weather_code ?? 0;
-  const condition = getWeatherDescription(weatherCode);
-  const icon = getWeatherIcon(weatherCode);
-  const wind = Math.round(weatherData.current?.wind_speed_10m ?? 0);
-  const humidity = weatherData.current?.relative_humidity_2m ?? 0;
-  const rainProb = weatherData.hourly?.precipitation_probability?.[0] ?? 0; // Current hour prob
-  const pressure = Math.round(weatherData.current?.pressure_msl ?? 0);
+  const condition = isFallback ? '' : getWeatherDescription(weatherCode);
+  const icon = isFallback ? '🌡️' : getWeatherIcon(weatherCode);
+  const wind = isFallback ? null : Math.round(weatherData.current?.wind_speed_10m ?? 0);
+  const humidity = isFallback ? null : (weatherData.current?.relative_humidity_2m ?? 0);
+  const rainProb = isFallback ? null : (weatherData.hourly?.precipitation_probability?.[0] ?? 0);
+  const pressure = isFallback ? null : Math.round(weatherData.current?.pressure_msl ?? 0);
 
   const shareOnWhatsApp = () => {
     const text = `حالة الطقس في ${cityName} الآن:
@@ -167,22 +168,22 @@ const WeatherHero = ({ city, favCity, onFavCity }) => {
             <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl flex flex-col items-center border border-white/10">
               <SafeIcon icon={FiDroplet} className="text-2xl mb-2 text-blue-300" />
               <span className="text-sm opacity-80">احتمال المطر</span>
-              <span className="font-bold">{rainProb}%</span>
+              <span className="font-bold">{rainProb !== null ? `${rainProb}%` : '--'}</span>
             </div>
             <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl flex flex-col items-center border border-white/10">
               <SafeIcon icon={FiWind} className="text-2xl mb-2 text-blue-300" />
               <span className="text-sm opacity-80">الرياح</span>
-              <span className="font-bold">{wind} كم/س</span>
+              <span className="font-bold">{wind !== null ? `${wind} كم/س` : '--'}</span>
             </div>
             <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl flex flex-col items-center border border-white/10">
               <SafeIcon icon={FiDroplet} className="text-2xl mb-2 text-blue-300" />
               <span className="text-sm opacity-80">الرطوبة</span>
-              <span className="font-bold">{humidity}%</span>
+              <span className="font-bold">{humidity !== null ? `${humidity}%` : '--'}</span>
             </div>
             <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl flex flex-col items-center border border-white/10">
               <SafeIcon icon={FiThermometer} className="text-2xl mb-2 text-blue-300" />
               <span className="text-sm opacity-80">الضغط</span>
-              <span className="font-bold">{pressure} hPa</span>
+              <span className="font-bold">{pressure !== null ? `${pressure} hPa` : '--'}</span>
             </div>
           </div>
         </div>
@@ -193,12 +194,24 @@ const WeatherHero = ({ city, favCity, onFavCity }) => {
           className="text-center"
         >
           <div className="text-[8rem] md:text-[10rem] font-bold leading-tight relative">
-            {temp}°
+            {temp !== null ? `${temp}°` : '--°'}
             <div className="absolute -top-4 -right-12">
                <span className="text-6xl">{icon}</span>
             </div>
           </div>
-          <p className="text-2xl font-medium tracking-wide uppercase">{condition}</p>
+          {isFallback ? (
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-sm font-medium opacity-70 bg-white/10 px-3 py-1 rounded-full">⚠️ البيانات غير متاحة مؤقتاً</p>
+              <button
+                onClick={() => clearCache()}
+                className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors"
+              >
+                إعادة المحاولة
+              </button>
+            </div>
+          ) : (
+            <p className="text-2xl font-medium tracking-wide uppercase">{condition}</p>
+          )}
         </motion.div>
       </div>
     </div>

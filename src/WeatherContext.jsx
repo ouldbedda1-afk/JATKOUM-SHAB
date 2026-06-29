@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
-import { getAllCitiesWeather, getActiveFires, getMarineWeather, clearWeatherCache, getModelRainingNow } from './weatherApi';
+import { getAllCitiesWeather, fetchExtraCommunesBatch, getActiveFires, getMarineWeather, clearWeatherCache, getModelRainingNow } from './weatherApi';
 import { getRecentRainReports, getRecentBawahReports, getUpcomingRainForecasts, getActiveAlerts, getApprovedNews, getWeatherBulletins, syncStormCells, getRemoteSuppressions, getStormCells, supabase as supabaseClient } from './supabase';
 import { getSatelliteVegetationStatus } from './satelliteVegetation';
 import { getRainingNowFromSatellite, getSameDayHeavyRainEventsFromSatellite, getRainingNowFromIMERG } from './satelliteRain';
@@ -90,6 +90,17 @@ export const WeatherProvider = ({ children }) => {
       setEcmwfBriefs(ecmwf || []);
       setApprovedNews(news || []);
       setWeatherBulletins(bulletins || []);
+
+      // جلب دفعة دوّارة من البلديات الإضافية في الخلفية (بعد تحميل البيانات الأساسية)
+      setTimeout(() => {
+        fetchExtraCommunesBatch((extraCities) => {
+          setWeatherData(prev => {
+            const prevNames = new Set(prev.map(c => c.city));
+            const newEntries = extraCities.filter(c => !prevNames.has(c.city));
+            return newEntries.length > 0 ? [...prev, ...newEntries] : prev;
+          });
+        });
+      }, 3000);
 
       // ☁️ الرصد الجديد فقط: قمم سحب Meteosat IR (EUMETSAT) — على البلديات (أسماء وولايات صحيحة)
       if (weather && weather.length > 0) {

@@ -24,16 +24,24 @@ function buildProxyTarget(sourceUrl) {
   return `${PROXY_URL}/proxy?url=${encodeURIComponent(sourceUrl)}`;
 }
 
+// --- تنظيف كاش v2 القديم وحظر اليوم عند كل تحميل ---
+try {
+  Object.keys(localStorage).filter(k => k.startsWith('wx_cache_v2_') || k === 'all_cities_weather_v2' || k.startsWith('all_cities_weather_v2')).forEach(k => { try { localStorage.removeItem(k); } catch {} });
+} catch {}
+
 // --- Cache في الذاكرة (يُمسح عند إعادة التحميل) ---
 const memoryCache = new Map();
 
 // --- Cache دائم في localStorage (يبقى بعد إعادة التحميل) ---
-const LS_PREFIX = 'wx_cache_v2_';
+const LS_PREFIX = 'wx_cache_v3_';
 const DAILY_LIMIT_KEY = `${LS_PREFIX}daily_limit_blocked`;
-const ALL_CITIES_CACHE_KEY = 'all_cities_weather_v2'; // v2: إبطال الكاش القديم بعد تصحيح إحداثيات (بومديد/كوبني)
+const ALL_CITIES_CACHE_KEY = 'all_cities_weather_v3';
 const ALL_CITIES_STALE_CACHE_KEY = `${ALL_CITIES_CACHE_KEY}_stale`;
 const ALL_CITIES_MERGED_CACHE_KEY = `${ALL_CITIES_CACHE_KEY}_merged`;
 const COVERAGE_BATCH_INDEX_KEY = `${LS_PREFIX}coverage_batch_index`;
+
+// --- تنظيف حظر اليوم عند كل تحميل (لا يستمر بين الجلسات) ---
+try { localStorage.removeItem(DAILY_LIMIT_KEY); } catch {}
 const CACHE_DURATION = 5 * 60 * 1000; // تقليل المدة إلى 5 دقائق لرصد العواصف والرياح فوراً
 const STALE_DURATION = 24 * 60 * 60 * 1000; // إمكانية استخدام بيانات قديمة لمدة يوم عند تعطل الـ API
 
@@ -251,10 +259,10 @@ function releaseSlot() {
   }
 }
 
-async function enqueueFetch(url, options) {
+async function enqueueFetch(url, options, { bypassCircuit = false } = {}) {
   await acquireSlot();
   try {
-    return await fetchWithRetry(url, options);
+    return await fetchWithRetry(url, options, 3, 3000, bypassCircuit);
   } finally {
     releaseSlot();
   }
@@ -263,8 +271,8 @@ async function enqueueFetch(url, options) {
 /**
  * fetch مع إعادة المحاولة التدريجية عند 429
  */
-async function fetchWithRetry(url, options = {}, retries = 3, backoff = 3000) {
-  if (!checkCircuit()) {
+async function fetchWithRetry(url, options = {}, retries = 3, backoff = 3000, bypassCircuit = false) {
+  if (!bypassCircuit && !checkCircuit()) {
     throw new Error('Too Many Requests (Circuit Open)');
   }
 
@@ -305,9 +313,9 @@ async function fetchWithRetry(url, options = {}, retries = 3, backoff = 3000) {
         const wait = backoff + Math.random() * 1000;
         console.warn(`⚠️ 429 — إعادة المحاولة بعد ${Math.round(wait)}ms (${retries} محاولات متبقية)`);
         await new Promise(r => setTimeout(r, wait));
-        return fetchWithRetry(url, options, retries - 1, backoff * 2);
+        return fetchWithRetry(url, options, retries - 1, backoff * 2, bypassCircuit);
       } else {
-        openCircuit();
+        if (!bypassCircuit) openCircuit();
         throw new Error('API error: Too Many Requests');
       }
     }
@@ -318,7 +326,7 @@ async function fetchWithRetry(url, options = {}, retries = 3, backoff = 3000) {
 
     if (retries > 0) {
       await new Promise(r => setTimeout(r, backoff));
-      return fetchWithRetry(url, options, retries - 1, backoff * 2);
+      return fetchWithRetry(url, options, retries - 1, backoff * 2, bypassCircuit);
     }
     throw error;
   }
@@ -853,22 +861,20 @@ export async function getActiveFires() {
   return promise;
 }
 
-export async function getWeatherData(city = 'نواكشوط', customCoords = null, { forecastDays = 7 } = {}) {
-  // تقريب الإحداثيات لمنع طلبات مكررة بسبب فروقات بسيطة جداً في الموقع
-  const lat = customCoords ? Math.round(customCoords.lat * 100) / 100 : null; // تقليل الدقة لزيادة فرصة الـ Cache
+export async function getWeatherData(city = 'نواكشوط', customCoords = null, { forecastDays = 7, bypassCircuit = false } = {}) {
+  const lat = customCoords ? Math.round(customCoords.lat * 100) / 100 : null;
   const lon = customCoords ? Math.round(customCoords.lon * 100) / 100 : null;
-  
-  // نُضمّن عدد الأيام في المفتاح حتى لا تُخلط بيانات 7 أيام مع 14 يوم
   const daysSuffix = forecastDays > 7 ? `_d${forecastDays}` : '';
   const cacheKey = (customCoords ? `coord_${lat}_${lon}` : `city_${city}`) + daysSuffix;
 
-  const allowStale = isCircuitOpen || isDailyLimitBlocked();
+  // طلبات المدينة الفردية لا تنتظر الـ circuit breaker الجماعي — تحاول مباشرة
+  const allowStale = !bypassCircuit && (isCircuitOpen || isDailyLimitBlocked());
   const cached = getCached(cacheKey, allowStale);
-  if (cached) return cached;
+  if (cached && !cached.isFallback) return cached;
 
-  if (allowStale) {
+  if (allowStale && !bypassCircuit) {
     const stale = getCached(cacheKey, true);
-    if (stale) return stale;
+    if (stale && !stale.isFallback) return stale;
     return buildFallbackWeather(city, customCoords || mauritanianCities[city] || { lat: null, lon: null, name: city, type: 'مدينة' });
   }
 
@@ -893,7 +899,7 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
 
       const sourceUrl = `${OPEN_METEO_API}?${params}`;
       const target = buildProxyTarget(sourceUrl);
-      const response = await enqueueFetch(target);
+      const response = await enqueueFetch(target, undefined, { bypassCircuit });
       if (!response.ok) throw new Error(`API error: ${response.status} ${response.statusText || ''}`);
 
       const data = await response.json();
@@ -905,7 +911,7 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
         ...data,
       };
 
-      if (result && result.current) {
+      if (result && result.current && !result.isFallback) {
         setCached(cacheKey, result);
       }
       return result;
@@ -953,14 +959,16 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
 }
 
 export async function getAllCitiesWeather() {
-  const trackedCities = ALL_TRACKED_CITIES;
-  const cacheKey = `${ALL_CITIES_CACHE_KEY}_all`;
+  // المرحلة الأولى فقط: المدن الأساسية (طلب واحد ~40 مدينة)
+  // البلديات الإضافية تُجلب بشكل دوّار في الخلفية بعد تحميل الصفحة
+  const trackedCities = coreMauritanianCities.filter(c => mauritanianCities[c]);
+  const cacheKey = `${ALL_CITIES_CACHE_KEY}_core`;
   const mergedCache = getCached(ALL_CITIES_MERGED_CACHE_KEY, true) || lsGet(ALL_CITIES_MERGED_CACHE_KEY, true) || [];
 
   // Cache أولاً (يشمل localStorage لمنع إعادة الجلب بعد تحديث الصفحة)
   const cached = getCached(cacheKey, isCircuitOpen);
   if (cached) {
-    console.log('✅ بيانات المدن من الـ cache');
+    console.log('✅ بيانات المدن الأساسية من الـ cache');
     return mergeTrackedWeatherResults(cached, mergedCache, trackedCities);
   }
 
@@ -974,7 +982,7 @@ export async function getAllCitiesWeather() {
 
   const promise = (async () => {
     try {
-      // رصد كل بلديات موريتانيا — نقسّم الطلب إلى دفعات (≤100) لتفادي طلب ضخم يفشل
+      // طلب واحد فقط للمدن الأساسية (≤50 مدينة)
       const dataItems = [];
       for (let start = 0; start < trackedCities.length; start += COVERAGE_CHUNK_SIZE) {
         const chunk = trackedCities.slice(start, start + COVERAGE_CHUNK_SIZE);
@@ -1086,6 +1094,52 @@ export async function getAllCitiesWeather() {
 
   pendingRequests.set(cacheKey, promise);
   return promise;
+}
+
+// جلب بلدية دوّار في الخلفية بعد تحميل البيانات الأساسية (بدون تأثير على الواجهة)
+export async function fetchExtraCommunesBatch(onBatchReady) {
+  if (isCircuitOpen || isDailyLimitBlocked()) return;
+  const batchIndex = getNextCoverageBatchIndex();
+  const batch = rotatingCommuneCoverageBatches[batchIndex] || [];
+  if (batch.length === 0) return;
+
+  const batchCacheKey = `${ALL_CITIES_CACHE_KEY}_extra_${batchIndex}`;
+  const cached = getCached(batchCacheKey);
+  if (cached) { if (onBatchReady) onBatchReady(cached); return; }
+
+  if (pendingRequests.has(batchCacheKey)) return;
+
+  const promise = (async () => {
+    try {
+      const lats = batch.map(c => mauritanianCities[c].lat).join(',');
+      const lons = batch.map(c => mauritanianCities[c].lon).join(',');
+      const params = new URLSearchParams({
+        latitude: lats, longitude: lons,
+        current: 'temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,precipitation',
+        daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum',
+        timezone: 'Africa/Nouakchott', forecast_days: 3,
+      });
+      const sourceUrl = `${OPEN_METEO_API}?${params}`;
+      const target = buildProxyTarget(sourceUrl);
+      const response = await enqueueFetch(target);
+      if (!response.ok) return;
+      const data = await response.json();
+      const items = Array.isArray(data) ? data : [data];
+      if (items.length !== batch.length) return;
+      const results = items.map((item, i) => {
+        const cityName = batch[i];
+        const coords = mauritanianCities[cityName];
+        return { city: cityName, cityEn: coords.name, cityType: coords.type || 'مقاطعة', ...getAdministrativeContext(coords), ...item };
+      });
+      setCached(batchCacheKey, results);
+      if (onBatchReady) onBatchReady(results);
+    } catch {
+      // صامت — البلديات الإضافية ليست حرجة
+    } finally {
+      pendingRequests.delete(batchCacheKey);
+    }
+  })();
+  pendingRequests.set(batchCacheKey, promise);
 }
 
 export async function getMarineWeather() {

@@ -28,8 +28,9 @@ export default function LightningSoundAlert() {
   useEffect(() => {
     const count = lightningStrikes?.length || 0;
 
-    // أول تحميل: لا نُصدر صوتاً للضربات الموجودة سابقاً
+    // انتظر أول دفعة حقيقية من البيانات قبل التهيئة
     if (!initializedRef.current) {
+      if (lightningStrikes == null) return; // لا تزال تُحمَّل
       initializedRef.current = true;
       prevCountRef.current = count;
       return;

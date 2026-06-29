@@ -70,11 +70,12 @@ const NewsTicker = () => {
     const forecastAlerts = [];
     const generalAlerts = [];
 
-    // ── نشرات إدارية من تيليجرام (أعلى الأولويات) ──
+    // ── نشرات إدارية من تيليجرام (أعلى الأولويات) — فقط آخر 12 ساعة ──
     if (weatherBulletins && weatherBulletins.length > 0) {
-      weatherBulletins.forEach((b) => {
-        urgentAlerts.unshift(`${b.icon} ${b.text}`);
-      });
+      const cutoff = Date.now() - 12 * 60 * 60 * 1000;
+      weatherBulletins
+        .filter(b => !b.created_at || new Date(b.created_at).getTime() > cutoff)
+        .forEach((b) => { urgentAlerts.unshift(`${b.icon} ${b.text}`); });
     }
 
     const now = new Date();

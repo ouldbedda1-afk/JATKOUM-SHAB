@@ -21,17 +21,20 @@ export default defineConfig({
 
   build: {
     outDir: 'dist',
-    sourcemap: true,
-    chunkSizeWarningLimit: 900,
+    sourcemap: false,
+    chunkSizeWarningLimit: 600,
+    minify: 'terser',
+    terserOptions: {
+      compress: { drop_console: true, drop_debugger: true },
+    },
     rollupOptions: {
       output: {
-        // تقسيم المكتبات الثقيلة إلى حِزم منفصلة تُحمَّل عند الحاجة فقط
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-charts': ['echarts', 'echarts-for-react'],
-          'vendor-motion': ['framer-motion'],
-          'vendor-icons': ['react-icons'],
-          'vendor-supabase': ['@supabase/supabase-js'],
+        manualChunks(id) {
+          if (id.includes('echarts')) return 'vendor-charts';
+          if (id.includes('framer-motion')) return 'vendor-motion';
+          if (id.includes('@supabase')) return 'vendor-supabase';
+          if (id.includes('react-icons')) return 'vendor-icons';
+          if (id.includes('react-dom') || id.includes('react-router') || id.includes('node_modules/react/')) return 'vendor-react';
         },
       },
     },
