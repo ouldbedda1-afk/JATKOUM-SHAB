@@ -73,11 +73,8 @@ const CityGrid = () => {
         <div className="absolute -top-6 -right-6 w-24 h-24 bg-white/10 rounded-full blur-xl pointer-events-none" />
         <div className="absolute -bottom-4 -left-4 w-20 h-20 bg-black/10 rounded-full blur-xl pointer-events-none" />
 
-        {/* الرتبة + أيقونة الطقس */}
-        <div className="flex items-center justify-between mb-3">
-          <span className={`text-sm font-black px-2.5 py-1 rounded-xl ${theme.badge} ${theme.text} backdrop-blur-sm`}>
-            #{rank + 1}
-          </span>
+        {/* أيقونة الطقس */}
+        <div className="flex items-center justify-end mb-3">
           <span className="text-3xl drop-shadow-md">{getWeatherIcon(code)}</span>
         </div>
 

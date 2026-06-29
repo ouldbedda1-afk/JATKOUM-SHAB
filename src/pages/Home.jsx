@@ -1,18 +1,22 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import NewsTicker from '../components/NewsTicker';
 import WeatherHero from '../components/WeatherHero';
 import WeeklyForecast from '../components/WeeklyForecast';
 import CityGrid from '../components/CityGrid';
-import WeatherAlerts from '../components/WeatherAlerts';
-import PrayerTimes from '../components/PrayerTimes';
-import CloudTracker from '../components/CloudTracker';
 import StormAlertBanner from '../components/StormAlertBanner';
-import LivestockHomePreview from '../components/LivestockHomePreview';
-import NewsSection from '../components/NewsSection';
-import LightningSoundAlert from '../components/LightningSoundAlert';
-import FloatingAIAgent from '../components/FloatingAIAgent';
+
+// مكونات ثقيلة — تُحمَّل عند الحاجة فقط
+const WeatherAlerts       = lazy(() => import('../components/WeatherAlerts'));
+const PrayerTimes         = lazy(() => import('../components/PrayerTimes'));
+const CloudTracker        = lazy(() => import('../components/CloudTracker'));
+const LivestockHomePreview = lazy(() => import('../components/LivestockHomePreview'));
+const NewsSection         = lazy(() => import('../components/NewsSection'));
+const LightningSoundAlert = lazy(() => import('../components/LightningSoundAlert'));
+const FloatingAIAgent     = lazy(() => import('../components/FloatingAIAgent'));
+
+const LazyFallback = () => <div className="h-32 bg-gray-50 rounded-2xl animate-pulse" />;
 
 
 export default function Home() {
@@ -94,7 +98,7 @@ export default function Home() {
     <div className="min-h-screen pb-20 overflow-x-hidden" style={{background:'linear-gradient(180deg, #f0f4ff 0%, #f8faff 40%, #f5f7ff 100%)'}} dir="rtl">
       <Navbar onCitySelect={setSelectedCity} />
       <NewsTicker />
-      <LightningSoundAlert />
+      <Suspense fallback={null}><LightningSoundAlert /></Suspense>
 
       {/* شريط دعوة لتحديد الموقع عند نسيانه/رفضه */}
       {showLocBanner && (
@@ -130,16 +134,16 @@ export default function Home() {
           {/* Main Content */}
           <div className="lg:col-span-8 space-y-6 md:space-y-8">
             <WeatherHero city={selectedCity} favCity={favCity} onFavCity={saveFavCity} />
-            <WeatherAlerts />
-            <NewsSection />
-            <LivestockHomePreview />
-            <CloudTracker />
+            <Suspense fallback={<LazyFallback />}><WeatherAlerts /></Suspense>
+            <Suspense fallback={<LazyFallback />}><NewsSection /></Suspense>
+            <Suspense fallback={<LazyFallback />}><LivestockHomePreview /></Suspense>
+            <Suspense fallback={<LazyFallback />}><CloudTracker /></Suspense>
             <CityGrid />
           </div>
 
           {/* Sidebar / Extra Info */}
           <div className="lg:col-span-4 space-y-6 md:space-y-8 lg:sticky lg:top-4 lg:self-start">
-            <PrayerTimes city={selectedCity} />
+            <Suspense fallback={<LazyFallback />}><PrayerTimes city={selectedCity} /></Suspense>
             <WeeklyForecast city={selectedCity} />
 
             <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-gray-100">
@@ -232,7 +236,7 @@ export default function Home() {
         </div>
       </footer>
 
-      <FloatingAIAgent onCitySelect={setSelectedCity} />
+      <Suspense fallback={null}><FloatingAIAgent onCitySelect={setSelectedCity} /></Suspense>
     </div>
   );
 }

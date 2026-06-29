@@ -25,7 +25,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 600,
     minify: 'terser',
     terserOptions: {
-      compress: { drop_console: true, drop_debugger: true },
+      compress: { drop_console: true, drop_debugger: true, passes: 2 },
     },
     rollupOptions: {
       output: {
@@ -35,6 +35,11 @@ export default defineConfig({
           if (id.includes('@supabase')) return 'vendor-supabase';
           if (id.includes('react-icons')) return 'vendor-icons';
           if (id.includes('react-dom') || id.includes('react-router') || id.includes('node_modules/react/')) return 'vendor-react';
+          // مكونات ثقيلة → chunks منفصلة تُحمَّل عند الطلب فقط
+          if (id.includes('FloatingAIAgent')) return 'comp-ai';
+          if (id.includes('CloudTracker'))   return 'comp-cloud';
+          if (id.includes('WeatherAlerts') || id.includes('forecastToNews') || id.includes('convection')) return 'comp-alerts';
+          if (id.includes('weatherApi'))     return 'weather-api';
         },
       },
     },
