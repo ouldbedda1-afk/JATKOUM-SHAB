@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jatkoum-shab-v3'; // تحديث النسخة لإجبار المتصفح على تجاوز الكاش القديم
+const CACHE_NAME = 'jatkoum-shab-v4'; // تحديث النسخة لإجبار المتصفح على تجاوز الكاش القديم
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -79,6 +79,11 @@ function isHashedAsset(url) {
   return /\/assets\/[^/]+-[A-Za-z0-9_-]{8,}\.(js|css)(\?.*)?$/.test(url);
 }
 
+// صور ثابتة لا تحمل hash لكنها نادراً ما تتغير (شعار الموقع، صور التحذيرات الجوية)
+function isStaticImage(url) {
+  return /\/(logo\.png|weather\/[^/]+\.(jpg|jpeg|png|webp))(\?.*)?$/.test(url);
+}
+
 self.addEventListener('fetch', (event) => {
   const url = event.request.url;
 
@@ -113,7 +118,25 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // ── Network First لملفات HTML والصور ──
+  // ── Cache First للصور الثابتة (الشعار وصور التحذيرات الجوية) ──
+  // نادراً ما تتغير → نخدمها من الكاش فوراً، ونحدّث الكاش في الخلفية دون انتظار
+  if (isStaticImage(url)) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        const networkFetch = fetch(event.request).then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        }).catch(() => cached);
+        return cached || networkFetch;
+      })
+    );
+    return;
+  }
+
+  // ── Network First لملفات HTML وباقي الصور ──
   event.respondWith(
     fetch(event.request)
       .then((response) => {
