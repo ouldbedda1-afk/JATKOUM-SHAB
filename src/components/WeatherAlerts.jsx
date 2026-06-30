@@ -10,7 +10,7 @@ import {
   normalizeMauritaniaWilayaName,
   OFFICIAL_MAURITANIA_WILAYA_ORDER,
 } from '../mauritaniaPlaceNames';
-import { adminCreateNews } from '../supabase';
+import { adminCreateNews, supabase } from '../supabase';
 import { autoPublishForecastNews, autoPublishWeatherAlerts } from '../forecastToNews';
 import { getImageForAlert } from '../weatherImages';
 import { useNavigate, Link } from 'react-router-dom';
@@ -1297,6 +1297,8 @@ const WeatherAlerts = () => {
   /* إشعارات المتصفح */
   const navigate = useNavigate();
   const [publishingAlert, setPublishingAlert] = useState(null);
+  // عرض أول تنبيهين فقط افتراضياً — التفاصيل الكاملة متوفرة كأخبار في نشرة الأخبار الجوية أسفل الصفحة
+  const [showAllAlerts, setShowAllAlerts] = useState(false);
   const publishingInFlight = useRef(new Set());
   // نشر أوتوماتيكي للتوقعات — مرة واحدة في اليوم عند تحميل البيانات
   const forecastPublishDone = useRef(false);
@@ -1329,9 +1331,14 @@ const WeatherAlerts = () => {
         if (localStorage.getItem(publishKey)) return;
         if (publishingInFlight.current.has(publishKey)) return;
         publishingInFlight.current.add(publishKey); // احجز الموضع فوراً
+        // slug حتمي (وليس مبني على وقت النشر) — يمنع تكرار نفس الخبر من زوار مختلفين
+        const slug = `alert-${alert.id}-${today}`;
         try {
+          const { data: existing } = await supabase.from('news_articles').select('id').eq('slug', slug).limit(1);
+          if (existing?.length > 0) { localStorage.setItem(publishKey, '1'); return; }
           await adminCreateNews({
             title: alert.newsTitle,
+            slug,
             excerpt: alert.newsTitle,
             content: alert.newsContent || alert.message,
             category: alert.newsCategory || 'طقس',
@@ -1342,8 +1349,13 @@ const WeatherAlerts = () => {
           });
           localStorage.setItem(publishKey, '1');
         } catch (e) {
-          publishingInFlight.current.delete(publishKey); // أعد المحاولة لاحقاً
-          console.warn('تعذّر نشر التحذير كخبر:', e);
+          // تجاهل خطأ التكرار (slug موجود مسبقاً بفعل زائر آخر) — لا داعي لإعادة المحاولة
+          if (String(e).includes('duplicate') || String(e).includes('unique')) {
+            localStorage.setItem(publishKey, '1');
+          } else {
+            publishingInFlight.current.delete(publishKey); // أعد المحاولة لاحقاً
+            console.warn('تعذّر نشر التحذير كخبر:', e);
+          }
         }
       });
     }
@@ -1377,8 +1389,8 @@ const WeatherAlerts = () => {
   return (
     <div className="space-y-4" dir="rtl">
 
-      {/* تنبيهات فورية */}
-      {weatherAlerts.map(alert => (
+      {/* تنبيهات فورية — أول تنبيهين فقط افتراضياً لتفادي تكرار المحتوى مع نشرة الأخبار الجوية أسفل الصفحة */}
+      {(showAllAlerts ? weatherAlerts : weatherAlerts.slice(0, 2)).map(alert => (
         <div key={alert.id}
           className={`${alert.color} text-white p-6 rounded-[2rem] shadow-xl relative overflow-hidden border-4 border-white/10`}>
           <div className="relative z-10">
@@ -1414,6 +1426,15 @@ const WeatherAlerts = () => {
           </div>
         </div>
       ))}
+
+      {weatherAlerts.length > 2 && (
+        <button
+          onClick={() => setShowAllAlerts(v => !v)}
+          className="w-full py-2.5 bg-white border border-gray-200 rounded-2xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors"
+        >
+          {showAllAlerts ? '▲ عرض أقل' : `▼ عرض ${weatherAlerts.length - 2} تنبيهات إضافية`}
+        </button>
+      )}
 
       {/* ═══ النشرة الجوية (3 أيام) ═══ */}
       <WeatherBulletin

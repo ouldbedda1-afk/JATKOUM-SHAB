@@ -101,14 +101,10 @@ const InstallPWA = () => {
           <div className="relative z-10 flex flex-col gap-4">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg border border-gray-100 flex-shrink-0 bg-white">
-                <img 
-                  src="./logo.png" 
-                  alt="شعار جاتكم اسحاب" 
+                <img
+                  src="./logo.png"
+                  alt="شعار جاتكم اسحاب"
                   className="w-full h-full object-contain p-1"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = "https://graph.facebook.com/Beddetiii/picture?type=large";
-                  }}
                 />
               </div>
               <div>

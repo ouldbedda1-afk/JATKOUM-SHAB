@@ -140,7 +140,7 @@ export default function NewsAdmin() {
   }
 
   async function handleCleanupDuplicates() {
-    if (!window.confirm('سيتم حذف التكرارات (نفس الولاية + نفس اليوم) — المتابعة؟')) return;
+    if (!window.confirm('سيتم حذف التكرارات (نفس الولاية أو نفس العنوان + نفس اليوم) — المتابعة؟')) return;
     setCleanupStatus('⏳ جارٍ...');
     try {
       const { deleted, kept } = await cleanupDuplicateNews();

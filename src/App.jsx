@@ -17,6 +17,7 @@ const NewsPage              = lazy(() => import('./pages/NewsPage'));
 const NewsArticlePage       = lazy(() => import('./pages/NewsArticlePage'));
 const LivestockReportPage   = lazy(() => import('./pages/LivestockReportPage'));
 const WilayaForecastPage    = lazy(() => import('./pages/WilayaForecastPage'));
+const ForecastArchivePage   = lazy(() => import('./pages/ForecastArchivePage'));
 
 function PageFallback() {
   return (
@@ -39,6 +40,7 @@ function App() {
               <Route path="/" element={<Home />} />
               <Route path="/forecast" element={<WeeklyForecastPage />} />
               <Route path="/forecast/:date/:wilayaSlug" element={<WilayaForecastPage />} />
+              <Route path="/forecast-archive" element={<ForecastArchivePage />} />
               <Route path="/althala" element={<AlThalaPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/bloggers" element={<BloggersPage />} />

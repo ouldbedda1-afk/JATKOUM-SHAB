@@ -6,6 +6,7 @@ import WeatherHero from '../components/WeatherHero';
 import WeeklyForecast from '../components/WeeklyForecast';
 import CityGrid from '../components/CityGrid';
 import StormAlertBanner from '../components/StormAlertBanner';
+import TodaySummaryStrip from '../components/TodaySummaryStrip';
 
 // مكونات ثقيلة — تُحمَّل عند الحاجة فقط
 const WeatherAlerts       = lazy(() => import('../components/WeatherAlerts'));
@@ -128,6 +129,7 @@ export default function Home() {
       )}
 
       <main className="max-w-[1600px] mx-auto px-4 md:px-6 mt-4 md:mt-8">
+        <TodaySummaryStrip />
         <StormAlertBanner />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 mt-6">
@@ -145,21 +147,6 @@ export default function Home() {
           <div className="lg:col-span-4 space-y-6 md:space-y-8 lg:sticky lg:top-4 lg:self-start">
             <Suspense fallback={<LazyFallback />}><PrayerTimes city={selectedCity} /></Suspense>
             <WeeklyForecast city={selectedCity} />
-
-            <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-gray-100">
-              <h3 className="text-lg font-bold text-gray-800 mb-4">تابعنا على فيسبوك</h3>
-              <p className="text-sm text-gray-600 leading-relaxed mb-4">
-                انضم لأكثر من 111 ألف متابع على صفحتنا الرسمية للحصول على آخر التحديثات الجوية المباشرة.
-              </p>
-              <a
-                href="https://www.facebook.com/Beddetiii/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full py-3 bg-[#1877F2] text-white rounded-xl font-bold text-center hover:bg-[#166fe5] transition-colors shadow-lg shadow-blue-100"
-              >
-                انتقل إلى صفحة فيسبوك
-              </a>
-            </div>
           </div>
         </div>
 
@@ -174,10 +161,9 @@ export default function Home() {
               <div className="flex items-center justify-center md:justify-start gap-3">
                 <div className="w-11 h-11 rounded-xl overflow-hidden ring-1 ring-white/20 bg-white/95">
                   <img
-                    src="https://graph.facebook.com/Beddetiii/picture?type=large"
+                    src="/logo.png"
                     alt="جاتكم اسحاب"
                     className="w-full h-full object-contain p-0.5"
-                    onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
                   />
                 </div>
                 <div>

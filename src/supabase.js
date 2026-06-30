@@ -814,6 +814,28 @@ export async function getPublishedNews({ limit = 20, offset = 0, wilaya = null, 
   } catch (e) { console.warn('getPublishedNews:', e); return { data: [], count: 0 }; }
 }
 
+// تصنيفات أخبار التوقعات/التحذيرات الجوية (يُنشئها autoPublishForecastNews / autoPublishWeatherAlerts)
+export const FORECAST_CATEGORIES = ['أمطار', 'عواصف', 'طقس', 'طقس حار'];
+
+/** جلب أرشيف أخبار التوقعات/التحذيرات الجوية فقط (وليس كل الأخبار) */
+export async function getForecastArchive({ limit = 20, offset = 0, wilaya = null, category = null, search = null } = {}) {
+  if (!isSupabaseConfigured) return { data: [], count: 0 };
+  try {
+    let q = supabase
+      .from('news_articles')
+      .select('id,title,slug,excerpt,featured_image,category,wilaya,author,published_at,views', { count: 'exact' })
+      .eq('is_published', true)
+      .in('category', category ? [category] : FORECAST_CATEGORIES)
+      .order('published_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (wilaya) q = q.eq('wilaya', wilaya);
+    if (search) q = q.ilike('title', `%${search}%`);
+    const { data, count, error } = await q;
+    if (error) throw error;
+    return { data: data || [], count: count || 0 };
+  } catch (e) { console.warn('getForecastArchive:', e); return { data: [], count: 0 }; }
+}
+
 /** جلب خبر واحد بالـ slug مع زيادة عداد المشاهدات */
 export async function getNewsBySlug(slug) {
   if (!isSupabaseConfigured) return null;
@@ -954,12 +976,11 @@ export async function cleanupDuplicateNews() {
   if (error) throw new Error(error.message);
   if (!data?.length) return { deleted: 0, kept: 0 };
 
-  // تجميع حسب (ولاية + يوم)
+  // تجميع حسب (ولاية + يوم)، أو حسب (العنوان + يوم) للأخبار التي لا تحمل ولاية (تحذيرات الرياح/الحر)
   const groups = {};
   data.forEach((a) => {
-    if (!a.wilaya) return;
     const day = a.published_at?.slice(0, 10) || 'unknown';
-    const key = `${a.wilaya}__${day}`;
+    const key = a.wilaya ? `${a.wilaya}__${day}` : `title__${a.title}__${day}`;
     if (!groups[key]) groups[key] = [];
     groups[key].push(a);
   });

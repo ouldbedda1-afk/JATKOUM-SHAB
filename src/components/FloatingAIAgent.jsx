@@ -947,9 +947,8 @@ export default function FloatingAIAgent({ onCitySelect }) {
             <div className="bg-gradient-to-l from-[#0b2c5e] to-[#103a78] text-white px-5 py-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full overflow-hidden bg-white/15 flex items-center justify-center text-xl shrink-0">
-                  <img src="https://graph.facebook.com/Beddetiii/picture?type=large" alt="جاتكم اسحاب"
-                    className="w-full h-full object-cover"
-                    onError={(e) => { e.currentTarget.style.display='none'; e.currentTarget.parentElement.textContent='🌦️'; }} />
+                  <img src="/logo.png" alt="جاتكم اسحاب"
+                    className="w-full h-full object-cover" />
                 </div>
                 <div>
                   <p className="font-black text-base leading-none">جاتكم اسحاب</p>
@@ -1048,9 +1047,8 @@ export default function FloatingAIAgent({ onCitySelect }) {
       >
         {open
           ? <SafeIcon icon={FiX} className="text-xl" />
-          : <img src="https://graph.facebook.com/Beddetiii/picture?type=large" alt="جاتكم اسحاب"
-              className="w-10 h-10 rounded-full object-cover"
-              onError={(e) => { e.currentTarget.style.display='none'; e.currentTarget.parentElement.textContent='🌦️'; }} />
+          : <img src="/logo.png" alt="جاتكم اسحاب"
+              className="w-10 h-10 rounded-full object-cover" />
         }
       </motion.button>
     </div>

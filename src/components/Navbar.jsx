@@ -10,6 +10,7 @@ const { FiSearch, FiMenu, FiX, FiBell } = FiIcons;
 const NAV_LINKS = [
   { icon: '🏠', label: 'الرئيسية',           to: '/'         },
   { icon: '📅', label: 'التوقعات الأسبوعية', to: '/forecast' },
+  { icon: '📦', label: 'أرشيف التوقعات',     to: '/forecast-archive' },
   { icon: '🐫', label: 'الظالة',             to: '/althala'  },
   { icon: '✍️', label: 'مدوّنو الطقس',       to: '/bloggers' },
 ];
@@ -58,10 +59,9 @@ const Navbar = ({ onCitySelect }) => {
         <Link to="/" className="flex items-center gap-3 shrink-0 group">
           <div className="relative w-11 h-11 md:w-13 md:h-13 overflow-hidden rounded-2xl shadow-lg ring-2 ring-white/15 group-hover:ring-white/30 transition-all bg-white/95">
             <img
-              src="https://graph.facebook.com/Beddetiii/picture?type=large"
+              src="/logo.png"
               alt="شعار جاتكم اسحاب"
               className="w-full h-full object-contain p-0.5"
-              onError={(e) => { e.target.onerror = null; e.target.src = '/logo.png'; }}
             />
           </div>
           <div className="flex flex-col leading-tight">

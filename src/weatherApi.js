@@ -1116,7 +1116,7 @@ export async function fetchExtraCommunesBatch(onBatchReady) {
       const params = new URLSearchParams({
         latitude: lats, longitude: lons,
         current: 'temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,precipitation',
-        daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum',
+        daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max',
         timezone: 'Africa/Nouakchott', forecast_days: 3,
       });
       const sourceUrl = `${OPEN_METEO_API}?${params}`;
