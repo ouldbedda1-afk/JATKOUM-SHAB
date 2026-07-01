@@ -58,3 +58,6 @@ Thumbs.db
 out
 # Supabase CLI temp
 supabase/.temp/
+
+.vercel
+.env*
