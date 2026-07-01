@@ -138,7 +138,13 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const body = await req.json();
+    const rawText = await req.text();
+    // تسجيل تشخيصي مؤقت: نحفظ أي طلب POST يصل من فيسبوك مهما كان محتواه، لتأكيد وصول الويب-هوك أصلاً
+    supabase.from('fb_pending_replies').insert([{
+      post_id: 'debug', comment_id: `__raw__${Date.now()}`,
+      comment_text: rawText.slice(0, 2000), proposed_reply: 'debug-capture',
+    }]).then(() => {}, () => {});
+    const body = JSON.parse(rawText);
     if (body.object !== 'page') return new Response('ok');
 
     for (const entry of body.entry || []) {

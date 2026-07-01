@@ -2,6 +2,8 @@
 // يُستدعى كل يوم الساعة 6 صباحاً عبر pg_cron
 // يجلب توقعات Open-Meteo لأهم مدن موريتانيا
 // وينشر تلقائياً أخبار التوقعات إذا وُجدت أمطار أو عواصف خلال 72 ساعة
+// كما ينشر نفس الخبر فوراً على صفحة فيسبوك (بلا مراجعة) — يتطلب الأسرار:
+// FB_PAGE_ID, FB_PAGE_ACCESS_TOKEN (بصلاحية pages_manage_posts)
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -12,6 +14,24 @@ const supabase = createClient(
 
 const TOKEN    = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
 const ADMIN_ID = Deno.env.get('TELEGRAM_CHAT_ID') ?? '';
+const FB_PAGE_ID           = Deno.env.get('FB_PAGE_ID') ?? '';
+const FB_PAGE_ACCESS_TOKEN = Deno.env.get('FB_PAGE_ACCESS_TOKEN') ?? '';
+
+// ينشر منشوراً مباشراً على صفحة فيسبوك — بلا مراجعة، بنفس لحظة نشر التوقع على الموقع
+async function postToFacebookPage(title: string, content: string, link: string) {
+  if (!FB_PAGE_ID || !FB_PAGE_ACCESS_TOKEN) return;
+  const message = `${title}\n\n${content}\n\n${link}`;
+  try {
+    const res = await fetch(`https://graph.facebook.com/v19.0/${FB_PAGE_ID}/feed`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message, access_token: FB_PAGE_ACCESS_TOKEN }),
+    });
+    if (!res.ok) console.error('FB post failed:', res.status, await res.text());
+  } catch (e) {
+    console.error('FB post error:', e);
+  }
+}
 
 // أهم مدن موريتانيا مع إحداثياتها وولاياتها
 const CITIES = [
@@ -219,7 +239,9 @@ Deno.serve(async () => {
 
       if (!error) {
         published++;
-        await tg(`📰 *نُشر تلقائياً:*\n${title}\n\n🔗 ${Deno.env.get('SITE_URL') ?? 'https://www.jatkoumshab.com'}/#/news/${slug}`);
+        const link = `${Deno.env.get('SITE_URL') ?? 'https://www.jatkoumshab.com'}/#/news/${slug}`;
+        await tg(`📰 *نُشر تلقائياً:*\n${title}\n\n🔗 ${link}`);
+        await postToFacebookPage(title, content, link);
       }
     }
 
