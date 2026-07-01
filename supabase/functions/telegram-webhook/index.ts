@@ -10,12 +10,13 @@
 //
 // النشر:  supabase functions deploy telegram-webhook --no-verify-jwt
 // الربط:  https://api.telegram.org/bot<token>/setWebhook?url=<function-url>
-// الأسرار: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+// الأسرار: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, FB_PAGE_ACCESS_TOKEN (لنشر ردود فيسبوك المُوافَق عليها)
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const TOKEN    = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
 const ADMIN_CHAT = String(Deno.env.get('TELEGRAM_CHAT_ID') ?? '');
+const FB_PAGE_ACCESS_TOKEN = Deno.env.get('FB_PAGE_ACCESS_TOKEN') ?? '';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -192,6 +193,59 @@ Deno.serve(async (req) => {
       }
 
       const [action, kind, id] = data.split(':');
+
+      // ── معالجة الموافقة/الرفض على ردود تعليقات فيسبوك المقترحة ──
+      if (kind === 'fbreply') {
+        const { data: pending } = await supabase
+          .from('fb_pending_replies')
+          .select('comment_id, proposed_reply, status')
+          .eq('id', id)
+          .single();
+
+        if (!pending || pending.status !== 'pending') {
+          await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'تمت معالجة هذا الطلب مسبقاً' });
+          return new Response('ok');
+        }
+
+        if (action === 'approve') {
+          let posted = false;
+          let errMsg = '';
+          try {
+            const res = await fetch(`https://graph.facebook.com/v19.0/${pending.comment_id}/comments`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ message: pending.proposed_reply, access_token: FB_PAGE_ACCESS_TOKEN }),
+            });
+            posted = res.ok;
+            if (!posted) errMsg = await res.text();
+          } catch (e) {
+            errMsg = String(e);
+          }
+
+          await supabase.from('fb_pending_replies').update({ status: posted ? 'approved' : 'pending' }).eq('id', id);
+
+          const resultText = posted ? '✅ نُشر الرد على فيسبوك' : `⚠️ فشل النشر: ${errMsg.slice(0, 150)}`;
+          await tg('answerCallbackQuery', { callback_query_id: cq.id, text: resultText, show_alert: !posted });
+          if (chatId && msgId && posted) {
+            await tg('editMessageText', {
+              chat_id: chatId, message_id: msgId,
+              text: (cq.message.text || '') + '\n\n✅ <b>نُشر الرد على فيسبوك</b>',
+              parse_mode: 'HTML',
+            });
+          }
+        } else {
+          await supabase.from('fb_pending_replies').update({ status: 'rejected' }).eq('id', id);
+          await tg('answerCallbackQuery', { callback_query_id: cq.id, text: '❌ تم تجاهل الرد' });
+          if (chatId && msgId) {
+            await tg('editMessageText', {
+              chat_id: chatId, message_id: msgId,
+              text: (cq.message.text || '') + '\n\n❌ <b>تم التجاهل</b>',
+              parse_mode: 'HTML',
+            });
+          }
+        }
+        return new Response('ok');
+      }
 
       // ── معالجة أزرار خلايا العواصف ──
       if (action === 'storm') {
