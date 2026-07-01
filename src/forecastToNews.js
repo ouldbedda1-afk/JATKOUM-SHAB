@@ -14,6 +14,10 @@ function arabicFullDate(dateStr) {
   const d = new Date(dateStr);
   return `${DAYS_AR[d.getDay()]} ${d.getDate()} ${MONTHS_AR[d.getMonth()]}`;
 }
+function arabicFullDateWithYear(dateStr) {
+  const d = new Date(dateStr);
+  return `${DAYS_AR[d.getDay()]} ${d.getDate()} ${MONTHS_AR[d.getMonth()]} ${d.getFullYear()}`;
+}
 function isRainySeason(dateStr) { const m = new Date(dateStr).getMonth()+1; return m>=6 && m<=10; }
 
 function rainLevel(mm) {
@@ -98,28 +102,29 @@ function groupByWilaya(days) {
 function buildWilayaContent(wilaya, entries) {
   const anyThunder = entries.some((e) => e.forecast.thunder.length > 0);
   const intro = anyThunder
-    ? `تشير آخر التوقعات الجوية للأيام القادمة إلى فرص لهطول أمطار متفاوتة الشدة على عدة مناطق من الولاية مع توقع نشاط للعواصف الرعدية في بعض المناطق.`
-    : `تشير آخر التوقعات الجوية للأيام القادمة إلى فرص لهطول أمطار متفاوتة الشدة على عدة مناطق من الولاية.`;
+    ? `تشير آخر التوقعات الجوية، بمشيئة الله، إلى فرص لهطول أمطار متفاوتة الشدة على عدة مناطق من الولاية، مع توقع نشاط للعواصف الرعدية في بعض المناطق.`
+    : `تشير آخر التوقعات الجوية، بمشيئة الله، إلى فرص لهطول أمطار متفاوتة الشدة على عدة مناطق من الولاية.`;
 
-  let content = `${intro}\n\n`;
+  let content = `ولاية ${wilaya}\n${arabicFullDateWithYear(new Date().toISOString().slice(0, 10))}\nجاتكم اسحاب\n\n${intro}\n\n`;
 
   entries.forEach(({ day, forecast }) => {
-    content += `📅 ${arabicFullDate(day.dateStr)}\n`;
+    content += `${arabicFullDate(day.dateStr)}\n`;
 
     const thunder  = [...new Set(forecast.thunder.map((t) => t.city))];
     const heavy    = [...new Set(forecast.heavy)];
     const moderate = [...new Set(forecast.moderate)];
     const weak     = [...new Set(forecast.weak)];
 
-    if (thunder.length)  content += `⛈️ عواصف رعدية مصحوبة بأمطار، بعضها غزير: ${join(thunder)}.\n`;
-    if (heavy.length)    content += `🌧️ أمطار غزيرة متوقعة في ${join(heavy)}.\n`;
-    if (moderate.length) content += `🌦️ أمطار متوسطة متوقعة في ${join(moderate)}.\n`;
-    if (weak.length)     content += `🌂 أمطار ضعيفة متوقعة في ${join(weak)}.\n`;
+    if (thunder.length)  content += `⛈️ عواصف رعدية مصحوبة بأمطار، قد تكون غزيرة أحياناً: ${join(thunder)}.\n`;
+    if (heavy.length)    content += `🌧️ أمطار غزيرة متوقعة على ${join(heavy)}.\n`;
+    if (moderate.length) content += `🌦️ أمطار متوسطة متوقعة على ${join(moderate)}.\n`;
+    if (weak.length)     content += `🌂 أمطار خفيفة متوقعة على ${join(weak)}.\n`;
 
     content += `\n`;
   });
 
-  content += `بإذن الله 🤲\nاللهم اسقنا الغيث ولا تجعلنا من القانطين`;
+  const hashtag = `#${wilaya.replace(/\s+/g, '_')}`;
+  content += `بإذن الله\n\nاللهم اسقنا الغيث ولا تجعلنا من القانطين.\n\n${hashtag} #موريتانيا #الأمطار #جاتكم_اسحاب`;
   return content;
 }
 
