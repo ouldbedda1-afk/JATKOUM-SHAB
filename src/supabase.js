@@ -897,6 +897,14 @@ export async function adminCreateNews(article) {
   };
   const { data, error } = await supabase.from('news_articles').insert([row]).select().single();
   if (error) throw new Error(error.message);
+  // كل خبر يُنشر على الموقع يُنشر أيضاً تلقائياً على صفحة فيسبوك (fire-and-forget، لا يعطّل النشر على الموقع)
+  if (data?.is_published) {
+    fetch(`${supabaseUrl}/functions/v1/fb-post-article`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: data.title, content: data.content, slug: data.slug }),
+    }).catch(() => {});
+  }
   return data;
 }
 
