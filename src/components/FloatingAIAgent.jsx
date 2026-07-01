@@ -670,7 +670,7 @@ function buildAnswer(q, allData, ctx = {}) {
     }
     pendingForecastCity = detected;
     lastCity = null;
-    return ok(forecastPeriodMenu(detected.city, detected));
+    return ok(forecastPeriodMenu(detected.city, detected), detected);
   }
 
   // 10. متابعة واضحة للبلدية أو الولاية السابقة
@@ -701,7 +701,7 @@ function buildAnswer(q, allData, ctx = {}) {
       }
       pendingForecastCity = candidates[0];
       lastCity = null;
-      return ok(forecastPeriodMenu(candidates[0].city, candidates[0]));
+      return ok(forecastPeriodMenu(candidates[0].city, candidates[0]), candidates[0]);
     }
     if (candidates.length > 1) {
       pendingCity = candidates[0];
