@@ -761,6 +761,34 @@ function buildAnswer(q, allData, ctx = {}) {
   return ok('اذكر اسم **البلدية أو الولاية** للطقس، أو اسألني عن أي قسم في الموقع وسأوجّهك 🇲🇷');
 }
 
+// ─── تحديد عدد الردود عن أي بلدية بمرتين فقط كل 12 ساعة ────────
+const COMMUNE_LOCK_KEY = 'jatkoum_agent_commune_lock';
+const COMMUNE_LOCK_MAX = 2;
+const COMMUNE_LOCK_WINDOW_MS = 12 * 60 * 60 * 1000;
+
+function checkCommuneRateLimit() {
+  let lock;
+  try { lock = JSON.parse(localStorage.getItem(COMMUNE_LOCK_KEY) || 'null'); } catch { lock = null; }
+
+  const now = Date.now();
+  if (!lock || now - lock.firstAskAt > COMMUNE_LOCK_WINDOW_MS) {
+    lock = { count: 0, firstAskAt: now };
+  }
+
+  if (lock.count >= COMMUNE_LOCK_MAX) {
+    const remainingMs = COMMUNE_LOCK_WINDOW_MS - (now - lock.firstAskAt);
+    const remainingHours = Math.max(1, Math.ceil(remainingMs / 3600000));
+    return {
+      allowed: false,
+      message: `⏳ انتهت هذه الجلسة — يمكنني الإجابة عن استفسارات البلديات مرتين فقط كل 12 ساعة. عد بعد حوالي ${remainingHours} ساعة، أو تصفّح الطقس مباشرة من الصفحة الرئيسية.`,
+    };
+  }
+
+  lock.count += 1;
+  localStorage.setItem(COMMUNE_LOCK_KEY, JSON.stringify(lock));
+  return { allowed: true };
+}
+
 // ─── المكوّن ─────────────────────────────────────────────────
 
 export default function FloatingAIAgent({ onCitySelect }) {
@@ -859,6 +887,16 @@ export default function FloatingAIAgent({ onCitySelect }) {
     await new Promise((r) => setTimeout(r, 700));
 
     const result = buildAnswer(q, allData, ctx);
+
+    // استفسارات البلديات محدودة بمرتين كل 12 ساعة
+    if (result.cityData || result.text === '__FETCH_COMMUNE__') {
+      const rate = checkCommuneRateLimit();
+      if (!rate.allowed) {
+        setMessages((prev) => [...prev, { from: 'bot', text: rate.message }]);
+        setTyping(false);
+        return;
+      }
+    }
 
     if (result.text === '__GEO__') {
       setTyping(false);
