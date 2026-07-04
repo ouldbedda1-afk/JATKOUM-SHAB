@@ -1285,15 +1285,17 @@ const WeatherAlerts = () => {
       if (heatNow.length > 0) {
         const now = new Date();
         const dateStr = fmtDate(now);
-        const citiesBullets = heatNow.map(c => `• ${toArabicCommune(c.city) || c.city}: **${Math.round(c.current.temperature_2m)}°م**`).join('\n');
-        const topCities = heatNow.slice(0, 3).map(c => toArabicCommune(c.city) || c.city).join('، ');
+        const heatTop5 = [...heatNow].sort((a, b) => b.current.temperature_2m - a.current.temperature_2m).slice(0, 5);
+        const citiesBullets = heatTop5.map(c => `• **${toArabicCommune(c.city) || c.city}: ${Math.round(c.current.temperature_2m)}°م**`).join('\n');
+        const topCities = heatTop5.slice(0, 3).map(c => toArabicCommune(c.city) || c.city).join('، ');
         const heatHeader = `🌡️ **درجات حرارة مرتفعة اليوم – ${dayName(now)} ${dateStr}**`;
+        const heatBody = `${heatHeader}\n\nسُجّلت حتى الآن درجات حرارة بلغت **45°م فأكثر** في المدن التالية:\n\n${citiesBullets}\n\n⚠️ **تنبيه:** يُنصح بالإكثار من شرب السوائل، وتجنب التعرض المباشر لأشعة الشمس، خاصة خلال ساعات الذروة **(12:00–16:00)**\n\n🤲 **نسأل الله السلامة والعافية للجميع.**\n\nجاتكم اسحاب`;
         result.push({
           id: 'heat-now',
           title: 'تحذير من موجة حر شديدة',
-          message: `${heatHeader}\n\nسُجّلت حتى الآن درجات حرارة بلغت **45°م فأكثر** في المدن التالية:\n\n${citiesBullets}\n\n⚠️ **تنبيه:** يُنصح بالإكثار من شرب السوائل، وتجنب التعرض المباشر لأشعة الشمس، خاصة خلال ساعات الظهيرة، مع الحرص على عدم ترك الأطفال أو كبار السن داخل المركبات المغلقة.\n\nنسأل الله السلامة والعافية للجميع. 🤲`,
+          message: heatBody,
           newsTitle: `تحذير من موجة حر شديدة — ${topCities}`,
-          newsContent: `${heatHeader}\n\nسُجّلت حتى الآن درجات حرارة بلغت **45°م فأكثر** في عدة مناطق موريتانية:\n\n${citiesBullets}\n\n⚠️ **تنبيه:** يُنصح بالإكثار من شرب السوائل، وتجنب التعرض المباشر لأشعة الشمس خاصة خلال ساعات الظهيرة (12:00 — 16:00)، مع الحرص على عدم ترك الأطفال أو كبار السن داخل المركبات المغلقة.\n\nنسأل الله السلامة والعافية للجميع. 🤲\n\nالمصدر: Open-Meteo — جاتكم اسحاب`,
+          newsContent: heatBody,
           newsCategory: 'طقس حار',
           icon: '🔥',
           color: 'bg-orange-600',
