@@ -99,32 +99,39 @@ function groupByWilaya(days) {
 }
 
 // ─── 3. بناء محتوى الخبر بنفس تنسيق بطاقة الولاية ────────────────────────
+function bulletList(list) {
+  return list.map((c) => `• ${c}`).join('\n');
+}
+
 function buildWilayaContent(wilaya, entries) {
   const anyThunder = entries.some((e) => e.forecast.thunder.length > 0);
   const intro = anyThunder
-    ? `تشير آخر التوقعات الجوية، بمشيئة الله، إلى فرص لهطول أمطار متفاوتة الشدة على عدة مناطق من الولاية، مع توقع نشاط للعواصف الرعدية في بعض المناطق.`
-    : `تشير آخر التوقعات الجوية، بمشيئة الله، إلى فرص لهطول أمطار متفاوتة الشدة على عدة مناطق من الولاية.`;
+    ? `تشير آخر التوقعات الجوية، **بمشيئة الله**، إلى فرص لهطول أمطار متفاوتة الشدة على عدد من مناطق ولاية ${wilaya}، مع توقع نشاط للعواصف الرعدية في بعض المناطق.`
+    : `تشير آخر التوقعات الجوية، **بمشيئة الله**، إلى فرص لهطول أمطار متفاوتة الشدة على عدد من مناطق ولاية ${wilaya}.`;
 
-  let content = `ولاية ${wilaya}\n${arabicFullDateWithYear(new Date().toISOString().slice(0, 10))}\nجاتكم اسحاب\n\n${intro}\n\n`;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  let content = `🌦️ **التوقعات الجوية – ولاية ${wilaya}**\n**${arabicFullDateWithYear(todayStr)}**\n**جاتكم اسحاب**\n\n${intro}\n\n`;
 
   entries.forEach(({ day, forecast }) => {
-    content += `${arabicFullDate(day.dateStr)}\n`;
+    content += `**${arabicFullDate(day.dateStr)}**\n`;
 
     const thunder  = [...new Set(forecast.thunder.map((t) => t.city))];
     const heavy    = [...new Set(forecast.heavy)];
     const moderate = [...new Set(forecast.moderate)];
     const weak     = [...new Set(forecast.weak)];
 
-    if (thunder.length)  content += `⛈️ عواصف رعدية مصحوبة بأمطار، قد تكون غزيرة أحياناً: ${join(thunder)}.\n`;
-    if (heavy.length)    content += `🌧️ أمطار غزيرة متوقعة على ${join(heavy)}.\n`;
-    if (moderate.length) content += `🌦️ أمطار متوسطة متوقعة على ${join(moderate)}.\n`;
-    if (weak.length)     content += `🌂 أمطار خفيفة متوقعة على ${join(weak)}.\n`;
+    if (thunder.length)  content += `⛈️ **عواصف رعدية مصحوبة بأمطار**، قد تكون غزيرة أحياناً، على:\n${bulletList(thunder)}\n`;
+    if (heavy.length)    content += `🌧️ **أمطار غزيرة متوقعة** على:\n${bulletList(heavy)}\n`;
+    if (moderate.length) content += `🌦️ **أمطار متوسطة متوقعة** على:\n${bulletList(moderate)}\n`;
+    if (weak.length)     content += `🌦️ **أمطار خفيفة متوقعة** على:\n${bulletList(weak)}\n`;
 
     content += `\n`;
   });
 
+  content += `⚠️ **تنبيه:** تمثل هذه التوقعات أفضل قراءة للنماذج الجوية في الوقت الحالي، وهي قابلة للتحديث مع صدور بيانات جديدة.\n\n`;
+  content += `🤲 **اللهم اسقنا الغيث، ولا تجعلنا من القانطين.**\n\n`;
   const hashtag = `#${wilaya.replace(/\s+/g, '_')}`;
-  content += `بإذن الله\n\nاللهم اسقنا الغيث ولا تجعلنا من القانطين.\n\n${hashtag} #موريتانيا #الأمطار #جاتكم_اسحاب`;
+  content += `${hashtag} #موريتانيا #الأمطار #جاتكم_اسحاب`;
   return content;
 }
 
