@@ -7,6 +7,7 @@ import WeeklyForecast from '../components/WeeklyForecast';
 import CityGrid from '../components/CityGrid';
 import StormAlertBanner from '../components/StormAlertBanner';
 import TodaySummaryStrip from '../components/TodaySummaryStrip';
+import { getFbStats } from '../supabase';
 
 // مكونات ثقيلة — تُحمَّل عند الحاجة فقط
 const WeatherAlerts       = lazy(() => import('../components/WeatherAlerts'));
@@ -33,6 +34,9 @@ export default function Home() {
     localStorage.setItem('jatkoum_fav_city', JSON.stringify(val));
     setFavCity(val);
   };
+  const [fbFollowers, setFbFollowers] = useState(null);
+  useEffect(() => { getFbStats([]).then(({ followers }) => setFbFollowers(followers)); }, []);
+
   const [showLocBanner, setShowLocBanner] = useState(false);
   const [locLoading, setLocLoading] = useState(false);
 
@@ -171,6 +175,17 @@ export default function Home() {
                   <p className="text-[11px] text-blue-200/90 mt-1">رصد ومتابعة السحب والأمطار في موريتانيا</p>
                 </div>
               </div>
+              {fbFollowers != null && (
+                <a
+                  href="https://www.facebook.com/Beddetiii/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/15 transition-colors border border-white/15 rounded-full px-3 py-1.5 text-[11px] font-bold"
+                >
+                  <span className="text-blue-200">f</span>
+                  {fbFollowers.toLocaleString('ar')} متابع على فيسبوك
+                </a>
+              )}
               <p className="text-[11px] text-blue-200/70 leading-relaxed">
                 بيانات: المركز الأوروبي للتنبؤات (ECMWF) · Open-Meteo · EUMETSAT · Blitzortung.
               </p>

@@ -898,12 +898,20 @@ export async function adminCreateNews(article) {
   const { data, error } = await supabase.from('news_articles').insert([row]).select().single();
   if (error) throw new Error(error.message);
   // كل خبر يُنشر على الموقع يُنشر أيضاً تلقائياً على صفحة فيسبوك (fire-and-forget، لا يعطّل النشر على الموقع)
+  // نحفظ معرّف منشور فيسبوك الناتج في نفس السجل لعرض عدد مشاهداته لاحقاً
   if (data?.is_published) {
     fetch(`${supabaseUrl}/functions/v1/fb-post-article`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ title: data.title, content: data.content, slug: data.slug }),
-    }).catch(() => {});
+    })
+      .then((r) => r.json())
+      .then((r) => {
+        if (r?.ok && r.id) {
+          return supabase.from('news_articles').update({ fb_post_id: r.id }).eq('id', data.id);
+        }
+      })
+      .catch(() => {});
   }
   return data;
 }
@@ -1050,4 +1058,39 @@ export async function uploadNewsImage(file) {
   if (error) throw new Error(error.message);
   const { data: { publicUrl } } = supabase.storage.from('news-images').getPublicUrl(name);
   return publicUrl;
+}
+
+/** إحصائيات صفحة فيسبوك: عدد المتابعين، ومؤشر تفاعل (إعجاب+تعليق+مشاركة) لمنشورات مُحدَّدة */
+export async function getFbStats(postIds = []) {
+  if (!isSupabaseConfigured) return { followers: null, engagement: {} };
+  try {
+    const res = await fetch(`${supabaseUrl}/functions/v1/fb-stats`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ postIds }),
+    });
+    if (!res.ok) return { followers: null, engagement: {} };
+    return await res.json();
+  } catch { return { followers: null, engagement: {} }; }
+}
+
+/** أكثر الأخبار المنشورة تفاعلاً على فيسبوك (من بين آخر الأخبار المنشورة فقط) */
+export async function getTopEngagedNews(limit = 5) {
+  if (!isSupabaseConfigured) return [];
+  try {
+    const { data, error } = await supabase
+      .from('news_articles')
+      .select('id,title,slug,featured_image,category,wilaya,published_at,fb_post_id')
+      .eq('is_published', true)
+      .not('fb_post_id', 'is', null)
+      .order('published_at', { ascending: false })
+      .limit(20);
+    if (error || !data?.length) return [];
+
+    const { engagement } = await getFbStats(data.map((a) => a.fb_post_id));
+    return data
+      .map((a) => ({ ...a, engagement: engagement?.[a.fb_post_id] ?? 0 }))
+      .sort((a, b) => b.engagement - a.engagement)
+      .slice(0, limit);
+  } catch { return []; }
 }

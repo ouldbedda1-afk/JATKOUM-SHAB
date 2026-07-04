@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getNewsBySlug, getSimilarNews } from '../supabase';
+import { getNewsBySlug, getSimilarNews, getFbStats } from '../supabase';
 import Navbar from '../components/Navbar';
 
 const SITE_URL   = 'https://www.jatkoumshab.com';
@@ -88,14 +88,19 @@ export default function NewsArticlePage() {
   const [similar,  setSimilar]  = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [fbEngagement, setFbEngagement] = useState(null);
 
   useEffect(() => {
     setLoading(true);
     setNotFound(false);
+    setFbEngagement(null);
     getNewsBySlug(slug).then((a) => {
       if (!a) { setNotFound(true); setLoading(false); return; }
       setArticle(a);
       getSimilarNews(a.id, a.category, a.wilaya, 3).then(setSimilar);
+      if (a.fb_post_id) {
+        getFbStats([a.fb_post_id]).then(({ engagement }) => setFbEngagement(engagement?.[a.fb_post_id] ?? null));
+      }
       setLoading(false);
       // Dynamic meta tags
       document.title = `${a.title} | جاتكم اسحاب`;
@@ -194,6 +199,12 @@ export default function NewsArticlePage() {
               <span>📅 {fmtDate(article.published_at)}</span>
               <span>·</span>
               <span>👁️ {article.views} مشاهدة</span>
+              {fbEngagement != null && (
+                <>
+                  <span>·</span>
+                  <span>📘 {fbEngagement} تفاعل على فيسبوك</span>
+                </>
+              )}
             </div>
 
             {/* Excerpt */}
