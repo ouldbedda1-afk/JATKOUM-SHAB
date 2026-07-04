@@ -66,6 +66,15 @@ function SimilarCard({ article }) {
 }
 
 // Render content with basic formatting (newlines → paragraphs)
+// يحوّل **نص** إلى عنصر بارز — دعم بسيط للتشديد داخل نصوص الأخبار
+function BoldText({ text }) {
+  const parts = String(text ?? '').split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    const m = part.match(/^\*\*([^*]+)\*\*$/);
+    return m ? <b key={i}>{m[1]}</b> : <React.Fragment key={i}>{part}</React.Fragment>;
+  });
+}
+
 function ArticleContent({ content }) {
   if (!content) return null;
   const paragraphs = content.split(/\n\n+/).filter(Boolean);
@@ -74,7 +83,7 @@ function ArticleContent({ content }) {
       {paragraphs.map((p, i) => (
         <p key={i} className="mb-4 text-base leading-8">
           {p.split('\n').map((line, j) => (
-            <React.Fragment key={j}>{line}{j < p.split('\n').length - 1 && <br />}</React.Fragment>
+            <React.Fragment key={j}><BoldText text={line} />{j < p.split('\n').length - 1 && <br />}</React.Fragment>
           ))}
         </p>
       ))}

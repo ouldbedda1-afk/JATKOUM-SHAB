@@ -26,7 +26,8 @@ Deno.serve(async (req) => {
 
   try {
     const { content, title, slug } = await req.json();
-    const body = (content || title || '').trim();
+    // فيسبوك لا يدعم صيغة **تشديد** — نزيلها هنا فقط، تبقى محفوظة في نص الموقع نفسه
+    const body = (content || title || '').replace(/\*\*([^*]+)\*\*/g, '$1').trim();
     if (!body) return new Response(JSON.stringify({ skipped: true, reason: 'empty content' }), { headers: { ...cors, 'content-type': 'application/json' } });
 
     const link = slug ? `\n\n${SITE}/#/news/${slug}` : '';

@@ -36,6 +36,15 @@ function dayName(dateStr) {
   return DAYS_AR[new Date(dateStr).getDay()];
 }
 
+// يحوّل **نص** إلى عنصر بارز — دعم بسيط للتشديد داخل نصوص التنبيهات
+function BoldText({ text }) {
+  const parts = String(text ?? '').split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    const m = part.match(/^\*\*([^*]+)\*\*$/);
+    return m ? <b key={i}>{m[1]}</b> : <React.Fragment key={i}>{part}</React.Fragment>;
+  });
+}
+
 const MONTHS_AR = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 function arabicFullDate(dateStr) {
   const d = new Date(dateStr);
@@ -1274,15 +1283,17 @@ const WeatherAlerts = () => {
       /* ── 6. موجة حر ── */
       const heatNow = cities.filter(c => (c.current?.temperature_2m ?? 0) >= 45);
       if (heatNow.length > 0) {
-        const dateStr = fmtDate(new Date());
-        const citiesList = heatNow.map(c => `${toArabicCommune(c.city) || c.city}: ${Math.round(c.current.temperature_2m)}°م`).join('\n');
+        const now = new Date();
+        const dateStr = fmtDate(now);
+        const citiesBullets = heatNow.map(c => `• ${toArabicCommune(c.city) || c.city}: **${Math.round(c.current.temperature_2m)}°م**`).join('\n');
         const topCities = heatNow.slice(0, 3).map(c => toArabicCommune(c.city) || c.city).join('، ');
+        const heatHeader = `🌡️ **درجات حرارة مرتفعة اليوم – ${dayName(now)} ${dateStr}**`;
         result.push({
           id: 'heat-now',
           title: 'تحذير من موجة حر شديدة',
-          message: `📅 اليوم ${dateStr} (الآن)\n🌡️ سُجّلت حالياً درجات حرارة تتجاوز 45°م في:\n\n${citiesList}\n\n⚠️ يُنصح بالإكثار من شرب السوائل، وتجنب التعرض المباشر لأشعة الشمس، خاصة خلال ساعات الظهيرة.\n\nنسأل الله السلامة للجميع. 🤲`,
+          message: `${heatHeader}\n\nسُجّلت حتى الآن درجات حرارة بلغت **45°م فأكثر** في المدن التالية:\n\n${citiesBullets}\n\n⚠️ **تنبيه:** يُنصح بالإكثار من شرب السوائل، وتجنب التعرض المباشر لأشعة الشمس، خاصة خلال ساعات الظهيرة، مع الحرص على عدم ترك الأطفال أو كبار السن داخل المركبات المغلقة.\n\nنسأل الله السلامة والعافية للجميع. 🤲`,
           newsTitle: `تحذير من موجة حر شديدة — ${topCities}`,
-          newsContent: `📅 اليوم ${dateStr} (الآن)\n🌡️ سُجّلت حالياً درجات حرارة تتجاوز 45 درجة مئوية في عدة مناطق موريتانية:\n\n${citiesList}\n\n⚠️ يُنصح بالإكثار من شرب السوائل، وتجنب التعرض المباشر لأشعة الشمس خاصة خلال ساعات الظهيرة (12:00 — 16:00)، وإيلاء الاهتمام الخاص للأطفال وكبار السن.\n\nنسأل الله السلامة للجميع. 🤲\n\nالمصدر: Open-Meteo — جاتكم اسحاب`,
+          newsContent: `${heatHeader}\n\nسُجّلت حتى الآن درجات حرارة بلغت **45°م فأكثر** في عدة مناطق موريتانية:\n\n${citiesBullets}\n\n⚠️ **تنبيه:** يُنصح بالإكثار من شرب السوائل، وتجنب التعرض المباشر لأشعة الشمس خاصة خلال ساعات الظهيرة (12:00 — 16:00)، مع الحرص على عدم ترك الأطفال أو كبار السن داخل المركبات المغلقة.\n\nنسأل الله السلامة والعافية للجميع. 🤲\n\nالمصدر: Open-Meteo — جاتكم اسحاب`,
           newsCategory: 'طقس حار',
           icon: '🔥',
           color: 'bg-orange-600',
@@ -1399,7 +1410,7 @@ const WeatherAlerts = () => {
               <h3 className="text-xl font-black">{alert.title}</h3>
             </div>
             <div className="text-sm font-bold leading-relaxed whitespace-pre-wrap">
-              {alert.message}
+              <BoldText text={alert.message} />
             </div>
             {alert.tags?.length > 0 && (
               <div className="mt-4 flex flex-wrap gap-2">
