@@ -1,4 +1,5 @@
 import { mauritaniaCommunesList } from './mauritaniaCommunes';
+import { COMMUNE_NAMES_AR } from './mauritaniaCommuneNamesAr';
 import {
   getCanonicalMauritaniaPlaceKey,
   normalizeMauritaniaMoughataaName,
@@ -451,7 +452,8 @@ const filteredMauritaniaCommunes = Object.fromEntries(
     {
       lat: commune.lat,
       lon: commune.lon,
-      name: commune.name,
+      name: COMMUNE_NAMES_AR[commune.city] || commune.name,
+      nameEn: commune.name,
       type: commune.type,
       ...getAdministrativeContext(commune),
       id: commune.id,
