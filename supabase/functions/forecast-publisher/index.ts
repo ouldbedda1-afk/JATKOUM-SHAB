@@ -3,8 +3,12 @@
 // يجلب توقعات Open-Meteo لأهم مدن موريتانيا
 // وينشر تلقائياً أخبار التوقعات إذا وُجدت أمطار أو عواصف خلال 72 ساعة
 // كما ينشر نفس الخبر فوراً على صفحة فيسبوك عبر fb-post-article (بلا مراجعة، عند أول نشر فقط)
-// كل مقال يومي له slug ثابت (forecast-daily-YYYY-MM-DD)؛ إذا تغيّرت التوقعات بين
-// الجولتين يُحدَّث نفس المقال بدل تكراره، وإن لم تتغيّر لا يُنشر شيء جديد
+//
+// كل جولة (AM يعتمد ECMWF 00Z، PM يعتمد ECMWF 12Z) مستقلة تماماً عن الأخرى:
+// لكل (يوم × جولة) slug خاص به (forecast-daily-YYYY-MM-DD-AM أو ...-PM)، فينتج
+// عن ذلك مقالان مستقلان كحد أقصى لكل يوم — تحديث الجولة المسائية لا يمحو أو
+// يستبدل مقال الجولة الصباحية. التحديث فوق نفس المقال يحدث فقط إذا استُدعيت
+// نفس الجولة أكثر من مرة (تشغيل مكرر غير متوقع) وتغيّر المحتوى.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -98,6 +102,12 @@ Deno.serve(async () => {
     const now   = new Date();
     const today = isoDate(now);
 
+    // جولة النشر: صباحية (تشغيلة ECMWF 00Z، تُستدعى ~9:00 UTC) أو مسائية
+    // (تشغيلة ECMWF 12Z، تُستدعى ~21:00 UTC). كل جولة تُنتج مقالها المستقل
+    // بدل الكتابة فوق مقال الجولة الأخرى لنفس اليوم.
+    const run        = now.getUTCHours() < 12 ? 'AM' : 'PM';
+    const modelCycle = run === 'AM' ? '00Z' : '12Z';
+
     // ── 1. جلب توقعات Open-Meteo لجميع المدن دفعة واحدة ──
     const lats = CITIES.map((c) => c.lat).join(',');
     const lons = CITIES.map((c) => c.lon).join(',');
@@ -168,11 +178,10 @@ Deno.serve(async () => {
 
     let published = 0;
 
-    // ── 3. نشر مقال لكل يوم متأثر (أو تحديثه إذا تغيّرت التوقعات) ──
+    // ── 3. نشر مقال مستقل لكل (يوم × جولة) — AM وPM لا يكتب أحدهما فوق الآخر ──
     for (const [dateStr, entry] of Object.entries(byDay)) {
-      // slug حتمي لكل يوم توقّع (وليس لكل تشغيلة) — يسمح بتحديث نفس المقال
-      // في جولة المساء بدل تجاهله أو تكراره
-      const slug = `forecast-daily-${dateStr}`;
+      // slug حتمي لكل يوم توقّع × جولة نشر — بحد أقصى مقالان لكل يوم (AM/PM)
+      const slug = `forecast-daily-${dateStr}-${run}`;
 
       const { data: existingRows } = await supabase
         .from('news_articles')
@@ -191,12 +200,13 @@ Deno.serve(async () => {
       const category   = hasStorm ? 'عواصف' : 'أمطار';
       const wilaya     = [...entry.stormWilaya, ...entry.rainWilaya][0] || '';
 
-      // ── العنوان بالصيغة المطلوبة ──
+      // ── العنوان بالصيغة المطلوبة (الجولة المسائية تُعلَّم كتحديث) ──
+      const updateTag = run === 'PM' ? ' — تحديث مسائي' : '';
       let title: string;
       if (hasStorm) {
-        title = `يتوقع بإذن الله هطول أمطار ${intensity} على ${cityNames} يوم ${dayAr} ${dateAr} مصحوبة بعواصف رعدية`;
+        title = `يتوقع بإذن الله هطول أمطار ${intensity} على ${cityNames} يوم ${dayAr} ${dateAr} مصحوبة بعواصف رعدية${updateTag}`;
       } else {
-        title = `يتوقع بإذن الله هطول أمطار ${intensity} على ${cityNames} يوم ${dayAr} ${dateAr}`;
+        title = `يتوقع بإذن الله هطول أمطار ${intensity} على ${cityNames} يوم ${dayAr} ${dateAr}${updateTag}`;
       }
 
       // ── المحتوى التفصيلي ──
@@ -209,48 +219,40 @@ Deno.serve(async () => {
         const w = CITIES.find((c) => c.city === city)?.wilaya || '';
         content += `يتوقع بإذن الله 🌧️ هطول أمطار ${intensity} على ${city}${w ? ` (${w})` : ''} يوم ${dayAr} ${dateAr}.\n\n`;
       });
-      content += `جعلها الله خيراً وبركة.`;
+      content += `جعلها الله خيراً وبركة.\n\n`;
+      content += `— مبني على تشغيلة ECMWF ${modelCycle}`;
 
-      // إذا كان المقال موجوداً وبنفس المحتوى تماماً — لا تغيير حقيقي في التوقعات، تجاهل
+      // إذا نودي بنفس الجولة مرتين (تكرار تشغيل غير متوقع) وبنفس المحتوى تماماً — تجاهل
       if (existing && existing.content === content) continue;
 
       const link = `${Deno.env.get('SITE_URL') ?? 'https://www.jatkoumshab.com'}/#/news/${slug}`;
+      const tags = ['توقعات', category, 'أوتوماتيك', run, modelCycle];
 
       if (existing) {
-        // التوقعات تغيّرت منذ آخر نشر لنفس اليوم — حدّث المقال بدل تكراره
+        // نفس الجولة استُدعيت مرتين وتغيّر المحتوى — حدّث بدل تكرار مقال لنفس الجولة
         const { error } = await supabase.from('news_articles').update({
-          title,
-          excerpt: title,
-          content,
-          category,
-          wilaya,
-          published_at: new Date().toISOString(),
-          tags: ['توقعات', category, 'أوتوماتيك'],
+          title, excerpt: title, content, category, wilaya,
+          published_at: new Date().toISOString(), tags,
         }).eq('id', existing.id);
 
         if (!error) {
           published++;
-          await tg(`🔄 *تحديث توقعات:*\n${title}\n\n🔗 ${link}`);
-          // لا يُعاد النشر على فيسبوك لتفادي تكرار نفس اليوم على الصفحة
+          await tg(`🔄 *تحديث ضمن نفس الجولة (${run}):*\n${title}\n\n🔗 ${link}`);
         }
       } else {
         const { error } = await supabase.from('news_articles').insert([{
-          title,
-          slug,
-          excerpt: title,
-          content,
-          category,
-          wilaya,
+          title, slug, excerpt: title, content, category, wilaya,
           author: 'جاتكم اسحاب',
           is_published: true,
           published_at: new Date().toISOString(),
-          tags: ['توقعات', category, 'أوتوماتيك'],
+          tags,
           featured_image: '',
         }]);
 
         if (!error) {
           published++;
-          await tg(`📰 *نُشر تلقائياً:*\n${title}\n\n🔗 ${link}`);
+          const roundLabel = run === 'AM' ? 'الجولة الصباحية' : 'الجولة المسائية';
+          await tg(`📰 *نُشر تلقائياً (${roundLabel} — ${modelCycle}):*\n${title}\n\n🔗 ${link}`);
           await postToFacebookPage(title, content, slug);
         }
       }
@@ -272,9 +274,9 @@ Deno.serve(async () => {
           body:  pushBody,
           url:   '/',
           tag:   'forecast-update',
-          dedupeKey: `forecast-${today}`,
-          signature: `forecast-${today}`,
-          windowMinutes: 1440,
+          dedupeKey: `forecast-${today}-${run}`,
+          signature: `forecast-${today}-${run}`,
+          windowMinutes: 600, // أقل من الفارق بين الجولتين حتى لا تُخمَد جولة PM بنافذة AM
         }),
       }).catch(() => {});
     }
