@@ -40,6 +40,7 @@ export function extractForecastDays(weatherData) {
   const map = {};
 
   (weatherData || []).forEach((city) => {
+    if (city?.isFallback) return; // بيانات احتياطية وهمية (صفرية) — لا تُستخدم لتوليد أخبار
     const dates = city.daily?.time               || [];
     const codes = city.daily?.weather_code       || [];
     const rains = city.daily?.precipitation_sum  || [];
@@ -278,6 +279,7 @@ export async function autoPublishWeatherAlerts(weatherData) {
   const byDay = {};
 
   (weatherData || []).forEach((city) => {
+    if (city?.isFallback) return; // بيانات احتياطية وهمية (صفرية) — لا تُستخدم لإصدار تحذيرات
     const dates    = city.daily?.time                || [];
     const maxTemps = city.daily?.temperature_2m_max  || [];
     const minTemps = city.daily?.temperature_2m_min  || [];
