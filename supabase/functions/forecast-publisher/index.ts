@@ -5,9 +5,13 @@
 // كما ينشر نفس الخبر فوراً على صفحة فيسبوك عبر fb-post-article (بلا مراجعة، عند أول نشر فقط)
 //
 // كل جولة (AM يعتمد ECMWF 00Z، PM يعتمد ECMWF 12Z) مستقلة تماماً عن الأخرى:
-// لكل (يوم × جولة) slug خاص به (forecast-daily-YYYY-MM-DD-AM أو ...-PM)، فينتج
-// عن ذلك مقالان مستقلان كحد أقصى لكل يوم — تحديث الجولة المسائية لا يمحو أو
-// يستبدل مقال الجولة الصباحية. التحديث فوق نفس المقال يحدث فقط إذا استُدعيت
+// لكل (يوم × جولة) slug خاص به (forecast-daily-YYYY-MM-DD-AM أو ...-PM).
+// كل مقال يذكر بوضوح وقتين منفصلين: وقت صدور تشغيلة النموذج ووقت نشر الخبر.
+//
+// الجولة المسائية (PM) تقارن جوهر توقعاتها (بمعزل عن التوقيت) بجوهر خبر الصباح
+// لنفس اليوم قبل النشر: إن كانت متطابقة، لا يُنشأ مقال PM منفصل — تُضاف فقط
+// ملاحظة تأكيد قصيرة على مقال الصباح. إن اختلفت جوهرياً، يُنشر مقال PM مستقل
+// (لا يمحو أو يستبدل مقال AM). التحديث فوق نفس المقال يحدث فقط إذا استُدعيت
 // نفس الجولة أكثر من مرة (تشغيل مكرر غير متوقع) وتغيّر المحتوى.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -178,7 +182,17 @@ Deno.serve(async () => {
 
     let published = 0;
 
-    // ── 3. نشر مقال مستقل لكل (يوم × جولة) — AM وPM لا يكتب أحدهما فوق الآخر ──
+    // وقت صدور تشغيلة النموذج (ثابت للجولة كلها) ووقت النشر الفعلي — يُعرضان منفصلَين.
+    // META_SPLIT هو بداية سطر معلومات النموذج نفسه (وليس فاصلاً مصطنعاً) — يُستخدم
+    // فقط لاستخراج "جسم" الخبر من محتوى مقال سابق عند المقارنة، ولا يظهر للقارئ.
+    const META_SPLIT = '\n\n🛰️';
+    const modelRunUTC = new Date(`${today}T${run === 'AM' ? '00:00:00' : '12:00:00'}Z`);
+    const fmtUTCTime = (d: Date) =>
+      d.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' }) + ' UTC';
+    const issuedTimeStr    = fmtUTCTime(modelRunUTC);
+    const publishedTimeStr = fmtUTCTime(now);
+
+    // ── 3. نشر مقال مستقل لكل (يوم × جولة) — إلا إذا لم تتغيّر التوقعات جوهرياً ──
     for (const [dateStr, entry] of Object.entries(byDay)) {
       // slug حتمي لكل يوم توقّع × جولة نشر — بحد أقصى مقالان لكل يوم (AM/PM)
       const slug = `forecast-daily-${dateStr}-${run}`;
@@ -200,7 +214,6 @@ Deno.serve(async () => {
       const category   = hasStorm ? 'عواصف' : 'أمطار';
       const wilaya     = [...entry.stormWilaya, ...entry.rainWilaya][0] || '';
 
-      // ── العنوان بالصيغة المطلوبة (الجولة المسائية تُعلَّم كتحديث) ──
       const updateTag = run === 'PM' ? ' — تحديث مسائي' : '';
       let title: string;
       if (hasStorm) {
@@ -209,27 +222,31 @@ Deno.serve(async () => {
         title = `يتوقع بإذن الله هطول أمطار ${intensity} على ${cityNames} يوم ${dayAr} ${dateAr}${updateTag}`;
       }
 
-      // ── المحتوى التفصيلي ──
-      let content = '';
+      // ── جسم الخبر (الجزء الجوهري القابل للمقارنة بين الجولتين) ──
+      let body = '';
       entry.storm.forEach((city) => {
         const w = CITIES.find((c) => c.city === city)?.wilaya || '';
-        content += `يتوقع بإذن الله ${icon} هطول أمطار ${intensity} على ${city}${w ? ` (${w})` : ''} يوم ${dayAr} ${dateAr} مصحوبة بعواصف رعدية.\n\n`;
+        body += `يتوقع بإذن الله ${icon} هطول أمطار ${intensity} على ${city}${w ? ` (${w})` : ''} يوم ${dayAr} ${dateAr} مصحوبة بعواصف رعدية.\n\n`;
       });
       entry.rain.forEach((city) => {
         const w = CITIES.find((c) => c.city === city)?.wilaya || '';
-        content += `يتوقع بإذن الله 🌧️ هطول أمطار ${intensity} على ${city}${w ? ` (${w})` : ''} يوم ${dayAr} ${dateAr}.\n\n`;
+        body += `يتوقع بإذن الله 🌧️ هطول أمطار ${intensity} على ${city}${w ? ` (${w})` : ''} يوم ${dayAr} ${dateAr}.\n\n`;
       });
-      content += `جعلها الله خيراً وبركة.\n\n`;
-      content += `— مبني على تشغيلة ECMWF ${modelCycle}`;
+      body += `جعلها الله خيراً وبركة.`;
 
-      // إذا نودي بنفس الجولة مرتين (تكرار تشغيل غير متوقع) وبنفس المحتوى تماماً — تجاهل
-      if (existing && existing.content === content) continue;
-
+      // ── وقت صدور بيانات النموذج ووقت نشر الخبر، منفصلان بوضوح ──
+      const meta =
+        `🛰️ صدرت بيانات النموذج (ECMWF ${modelCycle}) الساعة ${issuedTimeStr}\n` +
+        `🕓 نُشر هذا الخبر الساعة ${publishedTimeStr}`;
+      const content = `${body}\n\n${meta}`;
       const link = `${Deno.env.get('SITE_URL') ?? 'https://www.jatkoumshab.com'}/#/news/${slug}`;
       const tags = ['توقعات', category, 'أوتوماتيك', run, modelCycle];
 
       if (existing) {
-        // نفس الجولة استُدعيت مرتين وتغيّر المحتوى — حدّث بدل تكرار مقال لنفس الجولة
+        // نفس الجولة استُدعيت مرتين — حدّث فقط إذا تغيّر الجسم فعلياً، وإلا تجاهل
+        const existingBody = (existing.content || '').split(META_SPLIT)[0].trimEnd();
+        if (existingBody === body) continue;
+
         const { error } = await supabase.from('news_articles').update({
           title, excerpt: title, content, category, wilaya,
           published_at: new Date().toISOString(), tags,
@@ -239,22 +256,52 @@ Deno.serve(async () => {
           published++;
           await tg(`🔄 *تحديث ضمن نفس الجولة (${run}):*\n${title}\n\n🔗 ${link}`);
         }
-      } else {
-        const { error } = await supabase.from('news_articles').insert([{
-          title, slug, excerpt: title, content, category, wilaya,
-          author: 'جاتكم اسحاب',
-          is_published: true,
-          published_at: new Date().toISOString(),
-          tags,
-          featured_image: '',
-        }]);
+        continue;
+      }
 
-        if (!error) {
-          published++;
-          const roundLabel = run === 'AM' ? 'الجولة الصباحية' : 'الجولة المسائية';
-          await tg(`📰 *نُشر تلقائياً (${roundLabel} — ${modelCycle}):*\n${title}\n\n🔗 ${link}`);
-          await postToFacebookPage(title, content, slug);
+      // ── الجولة المسائية فقط: قارن بجوهر خبر الصباح لنفس اليوم قبل نشر مقال جديد ──
+      if (run === 'PM') {
+        const amSlug = `forecast-daily-${dateStr}-AM`;
+        const { data: amRows } = await supabase
+          .from('news_articles')
+          .select('id, content')
+          .eq('slug', amSlug)
+          .limit(1);
+        const amArticle = amRows?.[0] || null;
+
+        if (amArticle) {
+          const amBody = (amArticle.content || '').split(META_SPLIT)[0].trimEnd();
+          if (amBody === body) {
+            // لا تغيير جوهري — أضف ملاحظة تأكيد على خبر الصباح بدل نشر مقال مكرر
+            const noChangeNote =
+              `\n\n🔄 **تحديث مسائي (${modelCycle} — ${publishedTimeStr}):** لا توجد تغييرات جوهرية ` +
+              `مقارنة بالنشرة الصباحية.`;
+            if (!(amArticle.content || '').includes('تحديث مسائي (')) {
+              await supabase.from('news_articles')
+                .update({ content: amArticle.content + noChangeNote })
+                .eq('id', amArticle.id);
+              await tg(`✅ *لا تغيير جوهري (PM — ${modelCycle}):* ${dateStr} — أُضيفت ملاحظة تأكيد بدل مقال جديد.`);
+            }
+            continue; // لا يُنشأ مقال PM منفصل
+          }
         }
+      }
+
+      // ── نشر جديد (أول ظهور لهذا اليوم، أو تغيّر جوهري في الجولة المسائية) ──
+      const { error } = await supabase.from('news_articles').insert([{
+        title, slug, excerpt: title, content, category, wilaya,
+        author: 'جاتكم اسحاب',
+        is_published: true,
+        published_at: new Date().toISOString(),
+        tags,
+        featured_image: '',
+      }]);
+
+      if (!error) {
+        published++;
+        const roundLabel = run === 'AM' ? 'الجولة الصباحية' : 'الجولة المسائية';
+        await tg(`📰 *نُشر تلقائياً (${roundLabel} — ${modelCycle}):*\n${title}\n\n🔗 ${link}`);
+        await postToFacebookPage(title, content, slug);
       }
     }
 
