@@ -30,7 +30,7 @@ const CityGrid = () => {
   const sorted = useMemo(() => {
     if (!cities?.length) return { hot: [], cold: [] };
     const valid = cities
-      .filter(c => c?.current?.temperature_2m != null && !c.isFallback)
+      .filter(c => c?.current?.temperature_2m != null && !c.isFallback && c.cityType !== 'قرية')
       .sort((a, b) => b.current.temperature_2m - a.current.temperature_2m);
     return { hot: valid, cold: [...valid].reverse() };
   }, [cities]);
