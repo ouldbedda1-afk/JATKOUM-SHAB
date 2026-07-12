@@ -76,7 +76,7 @@ async function buildReply(commentText: string): Promise<string | null> {
     const { data } = await q.maybeSingle();
 
     if (data) {
-      const link = `${SITE}/#/news/${data.slug}`;
+      const link = `${SITE}/news/${data.slug}`;
       return wilaya
         ? `مرحباً 🌦️ آخر توقعاتنا لـ${wilaya}:\n"${data.title}"\n${link}`
         : `مرحباً 🌦️ آخر تحديث لدينا:\n"${data.title}"\n${link}`;

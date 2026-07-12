@@ -34,7 +34,7 @@ function ArticleContent({ content }) {
 function ShareRow({ wilaya, date, title, image }) {
   const [copied, setCopied] = useState(false);
   const slug       = wilayaToSlug(wilaya);
-  const pageUrl    = `${SITE_URL}/#/forecast/${date}/${slug}`;
+  const pageUrl    = `${SITE_URL}/forecast/${date}/${slug}`;
   const fbUrl      = encodeURIComponent(`${WORKER_URL}/forecast/${date}/${slug}`);
   const waText     = encodeURIComponent(`${title}\n\n📍 التفاصيل الكاملة:\n${pageUrl}\n\n— جاتكم اسحاب 🌦️`);
 

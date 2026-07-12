@@ -33,8 +33,8 @@ if (error) { console.error('[rss] error:', error.message); process.exit(1); }
 const items = (articles || []).map((a) => `
   <item>
     <title>${esc(a.title)}</title>
-    <link>${SITE_URL}/#/news/${esc(a.slug)}</link>
-    <guid isPermaLink="false">${SITE_URL}/#/news/${esc(a.slug)}</guid>
+    <link>${SITE_URL}/news/${esc(a.slug)}</link>
+    <guid isPermaLink="false">${SITE_URL}/news/${esc(a.slug)}</guid>
     <description>${esc(a.excerpt || a.title)}</description>
     <pubDate>${new Date(a.published_at).toUTCString()}</pubDate>
     <author>${esc(a.author || 'جاتكم اسحاب')}</author>

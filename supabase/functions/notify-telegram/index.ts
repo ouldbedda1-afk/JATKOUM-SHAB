@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
     const kind = KIND[table] ?? 'unknown';
     const id = r.id;
 
-    const caption = buildCaption(table, r) + `\n🔎 المراجعة عبر الموقع: ${SITE}/#/admin`;
+    const caption = buildCaption(table, r) + `\n🔎 المراجعة عبر الموقع: ${SITE}/admin`;
     const image = r.image_url as string | undefined;
 
     // أزرار النشر/الرفض (إن توفّر معرّف)

@@ -439,7 +439,7 @@ export default function NewsAdmin() {
                   className={`p-2 rounded-lg text-sm transition-all ${a.is_published ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
                   <SafeIcon icon={a.is_published ? FiEye : FiEyeOff} />
                 </button>
-                <a href={`/#/news/${a.slug}`} target="_blank" rel="noreferrer" title="فتح الخبر"
+                <a href={`/news/${a.slug}`} target="_blank" rel="noreferrer" title="فتح الخبر"
                   className="p-2 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200">
                   <SafeIcon icon={FiExternalLink} />
                 </a>

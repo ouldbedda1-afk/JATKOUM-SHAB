@@ -118,7 +118,7 @@ export default function NewsArticlePage() {
     return () => { document.title = 'جاتكم اسحاب | الطقس في موريتانيا'; };
   }, [slug]);
 
-  const articleUrl = `${SITE_URL}/#/news/${slug}`;
+  const articleUrl = `${SITE_URL}/news/${slug}`;
 
   if (loading) return (
     <div className="min-h-screen bg-gray-50" dir="rtl">

@@ -19,9 +19,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
 
 const staticPages = [
   { loc: '/', changefreq: 'daily', priority: '1.0' },
-  { loc: '/#/news', changefreq: 'hourly', priority: '0.9' },
-  { loc: '/#/forecast', changefreq: 'daily', priority: '0.7' },
-  { loc: '/#/althala', changefreq: 'weekly', priority: '0.6' },
+  { loc: '/news', changefreq: 'hourly', priority: '0.9' },
+  { loc: '/forecast', changefreq: 'daily', priority: '0.7' },
+  { loc: '/althala', changefreq: 'weekly', priority: '0.6' },
 ];
 
 const { data: articles, error } = await supabase
@@ -33,7 +33,7 @@ const { data: articles, error } = await supabase
 if (error) { console.error('[sitemap] error:', error.message); process.exit(1); }
 
 const articleUrls = (articles || []).map((a) => ({
-  loc: `/#/news/${a.slug}`,
+  loc: `/news/${a.slug}`,
   changefreq: 'weekly',
   priority: '0.8',
   lastmod: (a.updated_at || a.published_at || '').split('T')[0],

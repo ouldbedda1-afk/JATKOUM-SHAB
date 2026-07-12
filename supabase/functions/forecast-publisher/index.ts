@@ -292,7 +292,7 @@ Deno.serve(async () => {
         `🛰️ صدرت بيانات النموذج (ECMWF ${modelCycle}) الساعة ${issuedTimeStr}\n` +
         `🕓 نُشر هذا الخبر الساعة ${publishedTimeStr}`;
       const content = `${body}\n\n${meta}`;
-      const link = `${Deno.env.get('SITE_URL') ?? 'https://www.jatkoumshab.com'}/#/news/${slug}`;
+      const link = `${Deno.env.get('SITE_URL') ?? 'https://www.jatkoumshab.com'}/news/${slug}`;
       const tags = ['توقعات', category, 'أوتوماتيك', run, modelCycle];
 
       if (existing) {

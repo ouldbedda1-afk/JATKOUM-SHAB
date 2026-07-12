@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
       wilaya:        a.wilaya  || '',
       published_at:  a.published_at,
       image:         a.featured_image || '',
-      url:           `${SITE}/#/news/${a.slug}`,
+      url:           `${SITE}/news/${a.slug}`,
     }));
 
     return new Response(JSON.stringify({ source: 'jatkoumshab', articles }), {

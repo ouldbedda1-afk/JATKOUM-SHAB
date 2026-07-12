@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
     const body = (content || title || '').replace(/\*\*([^*]+)\*\*/g, '$1').trim();
     if (!body) return new Response(JSON.stringify({ skipped: true, reason: 'empty content' }), { headers: { ...cors, 'content-type': 'application/json' } });
 
-    const link = slug ? `\n\n${SITE}/#/news/${slug}` : '';
+    const link = slug ? `\n\n${SITE}/news/${slug}` : '';
     const message = `${body}${link}`;
 
     const res = await fetch(`https://graph.facebook.com/v19.0/${FB_PAGE_ID}/feed`, {

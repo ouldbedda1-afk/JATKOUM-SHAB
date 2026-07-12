@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
           || (isLost ? `الرجاء التواصل إذا وجدتم ${data.animal_type}` : `تم العثور على ${data.animal_type}، تواصل للمطالبة`)
           + (data.contact_phone ? ` — ${data.contact_phone}` : '');
         if (data.image_url) image = data.image_url;
-        pageUrl = `${SITE}/#/althala/${id}`;
+        pageUrl = `${SITE}/althala/${id}`;
       }
     } else if (type === 'news') {
       const { data } = await supabase
@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
         title       = data.title;
         description = data.excerpt || data.title;
         if (data.featured_image) image = data.featured_image;
-        pageUrl = `${SITE}/#/news/${data.slug}`;
+        pageUrl = `${SITE}/news/${data.slug}`;
       }
     }
 

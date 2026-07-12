@@ -255,7 +255,7 @@ export default function ForecastPublisher() {
           <p>{autoResult}</p>
           {autoPreview.map((r) => (
             <p key={r.wilaya} className="text-xs font-normal text-green-700">
-              · {r.wilaya} — <a href="/#/news" className="underline">افتح الأخبار</a>
+              · {r.wilaya} — <a href="/news" className="underline">افتح الأخبار</a>
             </p>
           ))}
         </div>
