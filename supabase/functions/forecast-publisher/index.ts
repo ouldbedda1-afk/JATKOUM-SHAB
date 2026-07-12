@@ -1,8 +1,10 @@
 // Supabase Edge Function: forecast-publisher
-// يُستدعى كل يوم الساعة 6 صباحاً عبر pg_cron
+// يُستدعى مرتين يومياً عبر pg_cron (9:00 و21:00 UTC — بعد توفر تشغيلتي ECMWF)
 // يجلب توقعات Open-Meteo لأهم مدن موريتانيا
 // وينشر تلقائياً أخبار التوقعات إذا وُجدت أمطار أو عواصف خلال 72 ساعة
-// كما ينشر نفس الخبر فوراً على صفحة فيسبوك عبر fb-post-article (بلا مراجعة)
+// كما ينشر نفس الخبر فوراً على صفحة فيسبوك عبر fb-post-article (بلا مراجعة، عند أول نشر فقط)
+// كل مقال يومي له slug ثابت (forecast-daily-YYYY-MM-DD)؛ إذا تغيّرت التوقعات بين
+// الجولتين يُحدَّث نفس المقال بدل تكراره، وإن لم تتغيّر لا يُنشر شيء جديد
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -80,14 +82,6 @@ function arabicDate(d: Date): string {
 }
 function isoDate(d: Date): string {
   return d.toISOString().split('T')[0];
-}
-
-// slug بسيط
-function slugify(text: string): string {
-  const clean = text
-    .replace(/[أإآا]/g, 'a').replace(/[ى]/g, 'y').replace(/[ة]/g, 'h')
-    .replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').toLowerCase();
-  return `${clean}-${Date.now()}`.slice(0, 80);
 }
 
 async function tg(text: string) {
@@ -174,17 +168,18 @@ Deno.serve(async () => {
 
     let published = 0;
 
-    // ── 3. نشر مقال لكل يوم متأثر ──
+    // ── 3. نشر مقال لكل يوم متأثر (أو تحديثه إذا تغيّرت التوقعات) ──
     for (const [dateStr, entry] of Object.entries(byDay)) {
-      // تجنب التكرار: هل نُشر مقال لهذا اليوم اليوم؟
-      const { data: existing } = await supabase
-        .from('news_articles')
-        .select('id')
-        .ilike('title', `%${arabicDate(entry.date)}%`)
-        .eq('is_published', true)
-        .limit(1);
+      // slug حتمي لكل يوم توقّع (وليس لكل تشغيلة) — يسمح بتحديث نفس المقال
+      // في جولة المساء بدل تجاهله أو تكراره
+      const slug = `forecast-daily-${dateStr}`;
 
-      if (existing && existing.length > 0) continue; // مقال موجود مسبقاً
+      const { data: existingRows } = await supabase
+        .from('news_articles')
+        .select('id, content')
+        .eq('slug', slug)
+        .limit(1);
+      const existing = existingRows?.[0] || null;
 
       const allCities  = [...entry.storm, ...entry.rain];
       const hasStorm   = entry.storm.length > 0;
@@ -216,26 +211,48 @@ Deno.serve(async () => {
       });
       content += `جعلها الله خيراً وبركة.`;
 
-      const slug = slugify(title);
-      const { error } = await supabase.from('news_articles').insert([{
-        title,
-        slug,
-        excerpt: title,
-        content,
-        category,
-        wilaya,
-        author: 'جاتكم اسحاب',
-        is_published: true,
-        published_at: new Date().toISOString(),
-        tags: ['توقعات', category, 'أوتوماتيك'],
-        featured_image: '',
-      }]);
+      // إذا كان المقال موجوداً وبنفس المحتوى تماماً — لا تغيير حقيقي في التوقعات، تجاهل
+      if (existing && existing.content === content) continue;
 
-      if (!error) {
-        published++;
-        const link = `${Deno.env.get('SITE_URL') ?? 'https://www.jatkoumshab.com'}/#/news/${slug}`;
-        await tg(`📰 *نُشر تلقائياً:*\n${title}\n\n🔗 ${link}`);
-        await postToFacebookPage(title, content, slug);
+      const link = `${Deno.env.get('SITE_URL') ?? 'https://www.jatkoumshab.com'}/#/news/${slug}`;
+
+      if (existing) {
+        // التوقعات تغيّرت منذ آخر نشر لنفس اليوم — حدّث المقال بدل تكراره
+        const { error } = await supabase.from('news_articles').update({
+          title,
+          excerpt: title,
+          content,
+          category,
+          wilaya,
+          published_at: new Date().toISOString(),
+          tags: ['توقعات', category, 'أوتوماتيك'],
+        }).eq('id', existing.id);
+
+        if (!error) {
+          published++;
+          await tg(`🔄 *تحديث توقعات:*\n${title}\n\n🔗 ${link}`);
+          // لا يُعاد النشر على فيسبوك لتفادي تكرار نفس اليوم على الصفحة
+        }
+      } else {
+        const { error } = await supabase.from('news_articles').insert([{
+          title,
+          slug,
+          excerpt: title,
+          content,
+          category,
+          wilaya,
+          author: 'جاتكم اسحاب',
+          is_published: true,
+          published_at: new Date().toISOString(),
+          tags: ['توقعات', category, 'أوتوماتيك'],
+          featured_image: '',
+        }]);
+
+        if (!error) {
+          published++;
+          await tg(`📰 *نُشر تلقائياً:*\n${title}\n\n🔗 ${link}`);
+          await postToFacebookPage(title, content, slug);
+        }
       }
     }
 
