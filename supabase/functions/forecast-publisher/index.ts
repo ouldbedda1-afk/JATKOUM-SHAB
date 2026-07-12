@@ -9,12 +9,15 @@
 // كل مقال يذكر بوضوح وقتين منفصلين: وقت صدور تشغيلة النموذج ووقت نشر الخبر.
 //
 // الجولة المسائية (PM) تقارن قبل النشر توقيعاً مبنياً على البيانات الخام لنفس اليوم
-// (المدن المتأثرة بالعواصف/الأمطار، تصنيف الشدة، كمية الأمطار القصوى) — وليس نص
-// المقال المُولَّد — ويُخزَّن هذا التوقيع في عمود forecast_signature (مخفي، غير
-// معروض في أي واجهة). إن تطابق التوقيعان، لا يُنشأ مقال PM منفصل — تُضاف فقط
-// ملاحظة تأكيد قصيرة على مقال الصباح. إن اختلفا، يُنشر مقال PM مستقل (لا يمحو أو
-// يستبدل مقال AM). ملاحظة: هذه الدالة لا تجلب حرارة أو رياحاً حالياً (فقط
-// weathercode/precipitation)، فالتوقيع مبني على ما هو متاح فعلياً من بيانات.
+// (المدن/الولايات المتأثرة بالعواصف والأمطار، تصنيف الشدة، كمية الأمطار القصوى)
+// — وليس نص المقال المُولَّد. يُخزَّن التوقيع الكامل في forecast_signature (JSONB،
+// مخفي وغير معروض في أي واجهة) للمراجعة ولإتاحة توليد ملخص "ما الذي تغيّر" لاحقاً،
+// وتُخزَّن بصمة SHA-256 له بعد تطبيعه (ترتيب المفاتيح أبجدياً) في
+// forecast_signature_hash لمقارنة سريعة دون الحاجة لمقارنة الـ JSONB كاملاً.
+// إن تطابقت البصمتان، لا يُنشأ مقال PM منفصل — تُضاف فقط ملاحظة تأكيد قصيرة على
+// مقال الصباح. إن اختلفتا، يُنشر مقال PM مستقل (لا يمحو أو يستبدل مقال AM).
+// ملاحظة: هذه الدالة لا تجلب حرارة أو رياحاً حالياً (فقط weathercode/
+// precipitation)، فالتوقيع مبني على ما هو متاح فعلياً من بيانات.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -81,6 +84,25 @@ function intensityFromMm(mm: number): string {
   if (mm >= 15) return 'غزيرة';
   if (mm >= 5)  return 'متوسطة';
   return 'خفيفة';
+}
+
+// ترتيب مفاتيح أي كائن JSON أبجدياً بشكل تكراري (Canonical JSON) — يضمن أن
+// نفس البيانات تنتج نفس الـ hash دائماً بغض النظر عن ترتيب بناء الكائن
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === 'object') {
+    const sorted: Record<string, unknown> = {};
+    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+      sorted[key] = canonicalize((value as Record<string, unknown>)[key]);
+    }
+    return sorted;
+  }
+  return value;
+}
+
+async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 // تحويل تاريخ إلى أسماء عربية
@@ -198,7 +220,7 @@ Deno.serve(async () => {
 
       const { data: existingRows } = await supabase
         .from('news_articles')
-        .select('id, content, forecast_signature')
+        .select('id, content, forecast_signature_hash')
         .eq('slug', slug)
         .limit(1);
       const existing = existingRows?.[0] || null;
@@ -234,15 +256,22 @@ Deno.serve(async () => {
       body += `جعلها الله خيراً وبركة.`;
 
       // ── توقيع البيانات الخام (وليس النص) — أساس كل مقارنة "هل تغيّرت التوقعات؟" ──
-      // مبني على القيم الفعلية: المدن المتأثرة بالعواصف والأمطار (مرتّبة أبجدياً
-      // لثبات الترتيب)، تصنيف الشدة، وكمية الأمطار القصوى (مقرّبة لأقرب مم لتفادي
-      // ضجيج الفاصلة العائمة). لا يعتمد على صياغة الجملة أو ترتيب ظهورها في النص.
-      const signature = JSON.stringify({
-        storm: [...entry.storm].sort(),
-        rain: [...entry.rain].sort(),
+      // مبني على القيم الفعلية: المدن/الولايات المتأثرة بالعواصف والأمطار (مرتّبة
+      // أبجدياً لثبات الترتيب)، تصنيف الشدة، وكمية الأمطار القصوى (مقرّبة لأقرب مم
+      // لتفادي ضجيج الفاصلة العائمة). يُخزَّن كاملاً كـJSONB، وتُحسَب بصمة SHA-256
+      // لنسخته المُطبَّعة (canonicalize) لمقارنة سريعة لا تعتمد على ترتيب المفاتيح.
+      // ملاحظة: لا تُدرَج run/date داخل الكائن المُوقَّع نفسه — الهدف هو مقارنة
+      // جوهر التوقعات بمعزل عن الجولة أو التوقيت، فيبقى التوقيع قابلاً للمطابقة
+      // بين AM وPM لنفس اليوم. date/run محفوظان في news_articles.slug أصلاً.
+      const signatureData = {
+        storm_cities: [...entry.storm].sort(),
+        rain_cities: [...entry.rain].sort(),
+        storm_wilayas: [...entry.stormWilaya].sort(),
+        rain_wilayas: [...entry.rainWilaya].sort(),
         intensity,
-        maxMmRounded: Math.round(entry.maxMm),
-      });
+        max_precip_mm: Math.round(entry.maxMm),
+      };
+      const signatureHash = await sha256Hex(JSON.stringify(canonicalize(signatureData)));
 
       // ── وقت صدور بيانات النموذج ووقت نشر الخبر، منفصلان بوضوح ──
       const meta =
@@ -253,13 +282,14 @@ Deno.serve(async () => {
       const tags = ['توقعات', category, 'أوتوماتيك', run, modelCycle];
 
       if (existing) {
-        // نفس الجولة استُدعيت مرتين — حدّث فقط إذا تغيّرت البيانات الخام فعلياً، وإلا تجاهل
-        if (existing.forecast_signature === signature) continue;
+        // نفس الجولة استُدعيت مرتين — حدّث فقط إذا تغيّرت البيانات الخام فعلياً (بصمة مختلفة)، وإلا تجاهل
+        if (existing.forecast_signature_hash === signatureHash) continue;
 
         const { error } = await supabase.from('news_articles').update({
           title, excerpt: title, content, category, wilaya,
           published_at: new Date().toISOString(), tags,
-          forecast_signature: signature,
+          forecast_signature: signatureData,
+          forecast_signature_hash: signatureHash,
         }).eq('id', existing.id);
 
         if (!error) {
@@ -269,18 +299,18 @@ Deno.serve(async () => {
         continue;
       }
 
-      // ── الجولة المسائية فقط: قارن توقيع بيانات الصباح الخام قبل نشر مقال جديد ──
+      // ── الجولة المسائية فقط: قارن بصمة بيانات الصباح قبل نشر مقال جديد ──
       if (run === 'PM') {
         const amSlug = `forecast-daily-${dateStr}-AM`;
         const { data: amRows } = await supabase
           .from('news_articles')
-          .select('id, content, forecast_signature')
+          .select('id, content, forecast_signature_hash')
           .eq('slug', amSlug)
           .limit(1);
         const amArticle = amRows?.[0] || null;
 
-        if (amArticle && amArticle.forecast_signature === signature) {
-          // لا تغيير جوهري في البيانات الخام — أضف ملاحظة تأكيد بدل نشر مقال مكرر
+        if (amArticle && amArticle.forecast_signature_hash === signatureHash) {
+          // بصمتان متطابقتان = لا تغيير جوهري في البيانات الخام — أضف ملاحظة تأكيد بدل نشر مقال مكرر
           const noChangeNote =
             `\n\n🔄 **تحديث مسائي (${modelCycle} — ${publishedTimeStr}):** لا توجد تغييرات جوهرية ` +
             `مقارنة بالنشرة الصباحية.`;
@@ -301,7 +331,8 @@ Deno.serve(async () => {
         is_published: true,
         published_at: new Date().toISOString(),
         tags,
-        forecast_signature: signature,
+        forecast_signature: signatureData,
+        forecast_signature_hash: signatureHash,
         featured_image: '',
       }]);
 
