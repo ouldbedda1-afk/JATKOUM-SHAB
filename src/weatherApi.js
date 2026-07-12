@@ -480,6 +480,10 @@ const coreMauritanianCities = [
   'سيلبابي', 'ولد ينج', 'غابو', 'ونبو', 'لعبلي',
   // لعصابه
   'كيفة', 'باركيول', 'كرو', 'بومديد', 'تناها', 'هامد',
+  'Kankoussa', 'Gueller', 'Lebheir', 'Laweissi', 'Daghveg', 'El Ghabra',
+  "R'Dheidhie", 'Bou Lahrath', 'Hseiy Tin', 'Lavtah', 'Oudeiy Jrid',
+  'El Ghaira', 'Kamour', 'Sani', 'Blajmil', 'Nouamlein', 'Aghorat',
+  'El Melgue', 'Kouroudjel', 'Legrane',
   // الحوض الغربي
   'لعيون', 'كنكوصة', 'تمشكط', 'كوبني', 'الطينطان',
   // الحوض الشرقي
