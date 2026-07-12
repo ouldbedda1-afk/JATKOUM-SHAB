@@ -8,11 +8,13 @@
 // لكل (يوم × جولة) slug خاص به (forecast-daily-YYYY-MM-DD-AM أو ...-PM).
 // كل مقال يذكر بوضوح وقتين منفصلين: وقت صدور تشغيلة النموذج ووقت نشر الخبر.
 //
-// الجولة المسائية (PM) تقارن جوهر توقعاتها (بمعزل عن التوقيت) بجوهر خبر الصباح
-// لنفس اليوم قبل النشر: إن كانت متطابقة، لا يُنشأ مقال PM منفصل — تُضاف فقط
-// ملاحظة تأكيد قصيرة على مقال الصباح. إن اختلفت جوهرياً، يُنشر مقال PM مستقل
-// (لا يمحو أو يستبدل مقال AM). التحديث فوق نفس المقال يحدث فقط إذا استُدعيت
-// نفس الجولة أكثر من مرة (تشغيل مكرر غير متوقع) وتغيّر المحتوى.
+// الجولة المسائية (PM) تقارن قبل النشر توقيعاً مبنياً على البيانات الخام لنفس اليوم
+// (المدن المتأثرة بالعواصف/الأمطار، تصنيف الشدة، كمية الأمطار القصوى) — وليس نص
+// المقال المُولَّد — ويُخزَّن هذا التوقيع في عمود forecast_signature (مخفي، غير
+// معروض في أي واجهة). إن تطابق التوقيعان، لا يُنشأ مقال PM منفصل — تُضاف فقط
+// ملاحظة تأكيد قصيرة على مقال الصباح. إن اختلفا، يُنشر مقال PM مستقل (لا يمحو أو
+// يستبدل مقال AM). ملاحظة: هذه الدالة لا تجلب حرارة أو رياحاً حالياً (فقط
+// weathercode/precipitation)، فالتوقيع مبني على ما هو متاح فعلياً من بيانات.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -183,9 +185,6 @@ Deno.serve(async () => {
     let published = 0;
 
     // وقت صدور تشغيلة النموذج (ثابت للجولة كلها) ووقت النشر الفعلي — يُعرضان منفصلَين.
-    // META_SPLIT هو بداية سطر معلومات النموذج نفسه (وليس فاصلاً مصطنعاً) — يُستخدم
-    // فقط لاستخراج "جسم" الخبر من محتوى مقال سابق عند المقارنة، ولا يظهر للقارئ.
-    const META_SPLIT = '\n\n🛰️';
     const modelRunUTC = new Date(`${today}T${run === 'AM' ? '00:00:00' : '12:00:00'}Z`);
     const fmtUTCTime = (d: Date) =>
       d.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' }) + ' UTC';
@@ -199,7 +198,7 @@ Deno.serve(async () => {
 
       const { data: existingRows } = await supabase
         .from('news_articles')
-        .select('id, content')
+        .select('id, content, forecast_signature')
         .eq('slug', slug)
         .limit(1);
       const existing = existingRows?.[0] || null;
@@ -234,6 +233,17 @@ Deno.serve(async () => {
       });
       body += `جعلها الله خيراً وبركة.`;
 
+      // ── توقيع البيانات الخام (وليس النص) — أساس كل مقارنة "هل تغيّرت التوقعات؟" ──
+      // مبني على القيم الفعلية: المدن المتأثرة بالعواصف والأمطار (مرتّبة أبجدياً
+      // لثبات الترتيب)، تصنيف الشدة، وكمية الأمطار القصوى (مقرّبة لأقرب مم لتفادي
+      // ضجيج الفاصلة العائمة). لا يعتمد على صياغة الجملة أو ترتيب ظهورها في النص.
+      const signature = JSON.stringify({
+        storm: [...entry.storm].sort(),
+        rain: [...entry.rain].sort(),
+        intensity,
+        maxMmRounded: Math.round(entry.maxMm),
+      });
+
       // ── وقت صدور بيانات النموذج ووقت نشر الخبر، منفصلان بوضوح ──
       const meta =
         `🛰️ صدرت بيانات النموذج (ECMWF ${modelCycle}) الساعة ${issuedTimeStr}\n` +
@@ -243,13 +253,13 @@ Deno.serve(async () => {
       const tags = ['توقعات', category, 'أوتوماتيك', run, modelCycle];
 
       if (existing) {
-        // نفس الجولة استُدعيت مرتين — حدّث فقط إذا تغيّر الجسم فعلياً، وإلا تجاهل
-        const existingBody = (existing.content || '').split(META_SPLIT)[0].trimEnd();
-        if (existingBody === body) continue;
+        // نفس الجولة استُدعيت مرتين — حدّث فقط إذا تغيّرت البيانات الخام فعلياً، وإلا تجاهل
+        if (existing.forecast_signature === signature) continue;
 
         const { error } = await supabase.from('news_articles').update({
           title, excerpt: title, content, category, wilaya,
           published_at: new Date().toISOString(), tags,
+          forecast_signature: signature,
         }).eq('id', existing.id);
 
         if (!error) {
@@ -259,31 +269,28 @@ Deno.serve(async () => {
         continue;
       }
 
-      // ── الجولة المسائية فقط: قارن بجوهر خبر الصباح لنفس اليوم قبل نشر مقال جديد ──
+      // ── الجولة المسائية فقط: قارن توقيع بيانات الصباح الخام قبل نشر مقال جديد ──
       if (run === 'PM') {
         const amSlug = `forecast-daily-${dateStr}-AM`;
         const { data: amRows } = await supabase
           .from('news_articles')
-          .select('id, content')
+          .select('id, content, forecast_signature')
           .eq('slug', amSlug)
           .limit(1);
         const amArticle = amRows?.[0] || null;
 
-        if (amArticle) {
-          const amBody = (amArticle.content || '').split(META_SPLIT)[0].trimEnd();
-          if (amBody === body) {
-            // لا تغيير جوهري — أضف ملاحظة تأكيد على خبر الصباح بدل نشر مقال مكرر
-            const noChangeNote =
-              `\n\n🔄 **تحديث مسائي (${modelCycle} — ${publishedTimeStr}):** لا توجد تغييرات جوهرية ` +
-              `مقارنة بالنشرة الصباحية.`;
-            if (!(amArticle.content || '').includes('تحديث مسائي (')) {
-              await supabase.from('news_articles')
-                .update({ content: amArticle.content + noChangeNote })
-                .eq('id', amArticle.id);
-              await tg(`✅ *لا تغيير جوهري (PM — ${modelCycle}):* ${dateStr} — أُضيفت ملاحظة تأكيد بدل مقال جديد.`);
-            }
-            continue; // لا يُنشأ مقال PM منفصل
+        if (amArticle && amArticle.forecast_signature === signature) {
+          // لا تغيير جوهري في البيانات الخام — أضف ملاحظة تأكيد بدل نشر مقال مكرر
+          const noChangeNote =
+            `\n\n🔄 **تحديث مسائي (${modelCycle} — ${publishedTimeStr}):** لا توجد تغييرات جوهرية ` +
+            `مقارنة بالنشرة الصباحية.`;
+          if (!(amArticle.content || '').includes('تحديث مسائي (')) {
+            await supabase.from('news_articles')
+              .update({ content: amArticle.content + noChangeNote })
+              .eq('id', amArticle.id);
+            await tg(`✅ *لا تغيير جوهري (PM — ${modelCycle}):* ${dateStr} — أُضيفت ملاحظة تأكيد بدل مقال جديد.`);
           }
+          continue; // لا يُنشأ مقال PM منفصل
         }
       }
 
@@ -294,6 +301,7 @@ Deno.serve(async () => {
         is_published: true,
         published_at: new Date().toISOString(),
         tags,
+        forecast_signature: signature,
         featured_image: '',
       }]);
 
