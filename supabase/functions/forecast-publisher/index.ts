@@ -225,6 +225,19 @@ Deno.serve(async () => {
         .limit(1);
       const existing = existingRows?.[0] || null;
 
+      // الجولة المسائية فقط: هل يوجد أصلاً خبر صباحي لنفس اليوم؟ يُحدَّد هذا
+      // العنوان ("تحديث مسائي") والمقارنة اللاحقة معاً بدل تكرار الاستعلام
+      let amArticle: { id: string; content: string; forecast_signature_hash: string | null } | null = null;
+      if (run === 'PM') {
+        const amSlug = `forecast-daily-${dateStr}-AM`;
+        const { data: amRows } = await supabase
+          .from('news_articles')
+          .select('id, content, forecast_signature_hash')
+          .eq('slug', amSlug)
+          .limit(1);
+        amArticle = amRows?.[0] || null;
+      }
+
       const allCities  = [...entry.storm, ...entry.rain];
       const hasStorm   = entry.storm.length > 0;
       const intensity  = intensityFromMm(entry.maxMm);
@@ -235,7 +248,8 @@ Deno.serve(async () => {
       const category   = hasStorm ? 'عواصف' : 'أمطار';
       const wilaya     = [...entry.stormWilaya, ...entry.rainWilaya][0] || '';
 
-      const updateTag = run === 'PM' ? ' — تحديث مسائي' : '';
+      // "تحديث مسائي" له معنى فقط إن وُجد أصلاً خبر صباحي لنفس اليوم يُحدَّث عليه
+      const updateTag = amArticle ? ' — تحديث مسائي' : '';
       let title: string;
       if (hasStorm) {
         title = `يتوقع بإذن الله هطول أمطار ${intensity} على ${cityNames} يوم ${dayAr} ${dateAr} مصحوبة بعواصف رعدية${updateTag}`;
@@ -299,29 +313,18 @@ Deno.serve(async () => {
         continue;
       }
 
-      // ── الجولة المسائية فقط: قارن بصمة بيانات الصباح قبل نشر مقال جديد ──
-      if (run === 'PM') {
-        const amSlug = `forecast-daily-${dateStr}-AM`;
-        const { data: amRows } = await supabase
-          .from('news_articles')
-          .select('id, content, forecast_signature_hash')
-          .eq('slug', amSlug)
-          .limit(1);
-        const amArticle = amRows?.[0] || null;
-
-        if (amArticle && amArticle.forecast_signature_hash === signatureHash) {
-          // بصمتان متطابقتان = لا تغيير جوهري في البيانات الخام — أضف ملاحظة تأكيد بدل نشر مقال مكرر
-          const noChangeNote =
-            `\n\n🔄 **تحديث مسائي (${modelCycle} — ${publishedTimeStr}):** لا توجد تغييرات جوهرية ` +
-            `مقارنة بالنشرة الصباحية.`;
-          if (!(amArticle.content || '').includes('تحديث مسائي (')) {
-            await supabase.from('news_articles')
-              .update({ content: amArticle.content + noChangeNote })
-              .eq('id', amArticle.id);
-            await tg(`✅ *لا تغيير جوهري (PM — ${modelCycle}):* ${dateStr} — أُضيفت ملاحظة تأكيد بدل مقال جديد.`);
-          }
-          continue; // لا يُنشأ مقال PM منفصل
+      // بصمتان متطابقتان مع خبر الصباح = لا تغيير جوهري — أضف ملاحظة تأكيد بدل نشر مقال مكرر
+      if (amArticle && amArticle.forecast_signature_hash === signatureHash) {
+        const noChangeNote =
+          `\n\n🔄 **تحديث مسائي (${modelCycle} — ${publishedTimeStr}):** لا توجد تغييرات جوهرية ` +
+          `مقارنة بالنشرة الصباحية.`;
+        if (!(amArticle.content || '').includes('تحديث مسائي (')) {
+          await supabase.from('news_articles')
+            .update({ content: amArticle.content + noChangeNote })
+            .eq('id', amArticle.id);
+          await tg(`✅ *لا تغيير جوهري (PM — ${modelCycle}):* ${dateStr} — أُضيفت ملاحظة تأكيد بدل مقال جديد.`);
         }
+        continue; // لا يُنشأ مقال PM منفصل
       }
 
       // ── نشر جديد (أول ظهور لهذا اليوم، أو تغيّر جوهري في الجولة المسائية) ──
