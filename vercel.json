@@ -1,6 +1,6 @@
 {
   "framework": "vite",
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run predeploy",
   "outputDirectory": "dist",
   "devCommand": "npm run dev",
   "installCommand": "npm install",
