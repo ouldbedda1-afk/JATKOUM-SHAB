@@ -477,6 +477,12 @@ const coreMauritanianCities = [
   'ألاك', 'بابابى', 'بوكي', 'مقاطع لحجار', 'امباني', 'صنكرافه',
   // كوركول
   'كيهيدي', 'امبود', 'مقامة', 'مونغل',
+  'Néré Walo', 'Djewol', 'Toghomadi', 'Tifondé Civé', 'Doo', 'Dolol Civé',
+  'Beilouguet Litame', 'Vrea Litame', 'Toulel', 'Sagné', 'Wali Djantang',
+  'Tikobra', 'Terenguel Ehel Moulaye Ely', "N'Djadjbenni Gandéga",
+  'Edebaye Ehel Guelaye', 'Voum Legleite', 'Chelkhet Tiyab', 'Lahrach',
+  'Souve', 'Bathet Moït', 'Bokhol', 'Melzem Teichet', 'Azgueilem Tiyab',
+  'Lexeiba 1', 'Betengal', 'Talhaye', 'Ganki',
   // كيدماغا
   'سيلبابي', 'ولد ينج', 'غابو', 'ونبو', 'لعبلي',
   'Tektake', 'Davoue', 'Bouanz', 'Lehraj', 'Leaweinat', "Ould M'Bonny",
