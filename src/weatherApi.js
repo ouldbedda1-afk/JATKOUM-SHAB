@@ -479,6 +479,9 @@ const coreMauritanianCities = [
   'كيهيدي', 'امبود', 'مقامة', 'مونغل',
   // كيدماغا
   'سيلبابي', 'ولد ينج', 'غابو', 'ونبو', 'لعبلي',
+  'Tektake', 'Davoue', 'Bouanz', 'Lehraj', 'Leaweinat', "Ould M'Bonny",
+  'Tachout', 'Hassi Chegar', 'Chleikha', 'Diogountou', 'Bayediam',
+  'Gouraye', 'Soufi', 'Agoueinitt', 'Ejar', 'Sagne Dieri', 'Arr',
   // لعصابه
   'كيفة', 'باركيول', 'كرو', 'بومديد', 'تناها', 'هامد',
   'Kankoussa', 'Gueller', 'Lebheir', 'Laweissi', 'Daghveg', 'El Ghabra',
