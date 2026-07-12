@@ -471,33 +471,14 @@ const mauritanianCities = {
 const coreMauritanianCities = [
   // نواكشوط
   'نواكشوط',
-  'Ksar', 'Tefragh Zeina', 'Sebkha', 'Teyaret', 'Dar Naim', 'Toujounine',
-  'El Mina', 'Arafat', 'Riyad',
   // الترارزة
   'روصو', 'بوتلميت', 'كرمسين', 'المذرذرة', 'واد الناقة', 'اركيز', 'انتيكان',
-  'Elb Adress', 'Ajoueir', "N'Teichet", 'Nebaghiye', 'Tenghadej', 'El Mouyessar',
-  "N'Diago", "M'Balal", 'Beir Taouress', 'Taguilalet', 'El Khat',
-  'Tiguent (El Jedide)', 'Aouleiygat', 'El Ariye', 'Boutalhaye', 'Bareine',
-  'Jedrel Mouhguen', 'Teikane', 'Chemame', 'Teichteyat', 'Lexelbe 2',
   // البراكنة
   'ألاك', 'بابابى', 'بوكي', 'مقاطع لحجار', 'امباني', 'صنكرافه',
-  'Chegar', 'Bouhdida', 'Aghchourguit', 'El Verae', "Aéré M'Bar",
-  'Dar El Aviye', 'Dar El Barke', 'Ould Biram', 'Djonabe', 'Ouad Emmour',
-  'Niabina', 'Edebaye El Hejjaj', 'Bagodine', 'Maal', 'Roumed',
-  'Elwad Lebiadh', 'Bourat', 'Djelwar',
   // كوركول
   'كيهيدي', 'امبود', 'مقامة', 'مونغل',
-  'Néré Walo', 'Djewol', 'Toghomadi', 'Tifondé Civé', 'Doo', 'Dolol Civé',
-  'Beilouguet Litame', 'Vrea Litame', 'Toulel', 'Sagné', 'Wali Djantang',
-  'Tikobra', 'Terenguel Ehel Moulaye Ely', "N'Djadjbenni Gandéga",
-  'Edebaye Ehel Guelaye', 'Voum Legleite', 'Chelkhet Tiyab', 'Lahrach',
-  'Souve', 'Bathet Moït', 'Bokhol', 'Melzem Teichet', 'Azgueilem Tiyab',
-  'Lexeiba 1', 'Betengal', 'Talhaye', 'Ganki',
   // كيدماغا
   'سيلبابي', 'ولد ينج', 'غابو', 'ونبو', 'لعبلي',
-  'Tektake', 'Davoue', 'Bouanz', 'Lehraj', 'Leaweinat', "Ould M'Bonny",
-  'Tachout', 'Hassi Chegar', 'Chleikha', 'Diogountou', 'Bayediam',
-  'Gouraye', 'Soufi', 'Agoueinitt', 'Ejar', 'Sagne Dieri', 'Arr',
   // لعصابه
   'كيفة', 'باركيول', 'كرو', 'بومديد', 'تناها', 'هامد',
   'Kankoussa', 'Gueller', 'Lebheir', 'Laweissi', 'Daghveg', 'El Ghabra',
@@ -506,52 +487,38 @@ const coreMauritanianCities = [
   'El Melgue', 'Kouroudjel', 'Legrane',
   // الحوض الغربي
   'لعيون', 'كنكوصة', 'تمشكط', 'كوبني', 'الطينطان',
-  "N'Savenni", 'Doueirare', 'Ten Hamadi', 'Beneamane', 'Egjert',
-  'Oum Lahyadh', 'Hassi Ehel Ahmed Bechne', 'Timzine', 'Leghlig',
-  'Gougui Zemmal', 'Modibougou', 'Voullaniya', 'El Mabrouk 3', 'Radhi',
-  'Guetae-Teidoume', 'Sava', 'Hassi Abdallah', 'Aweinat Thalle',
-  'Aïn Varbe', 'Egharghar', 'Dev-a', 'Touil 2', 'Baghdad', 'Sett', 'Lehreijat',
   // الحوض الشرقي
   'النعمة', 'تمبدغة', 'باسكنو', 'جيكني', 'امرج', 'ولاته',
   'فصاله', 'عدل بكرو', 'انبيكت لحواش', 'افيرني', 'اعوينات ازبل', 'بوسطيله',
-  'Bougadoum', 'Djigui', 'Legdour', 'Oum Echeich', 'El Megve', 'Vessale',
-  'Dhar', 'El Mabrouk 1', 'Feirenni', 'Ghlig Ehel Beye', 'Kasr El Barke',
-  'Achemime', 'Jreif', 'Bangou', 'Hassi Etile', 'Oum Avnadech',
-  'El Mabrouk 2', 'Beribavat', 'Noual', 'Agoueinit', 'Elbatene', 'Touil 1',
-  'Koumbi Saleh', "Hassi M'Hadi", 'Elmessgoul', 'Sivane',
   // تكانت
   'تجكجة', 'تيشيت', 'موجريه',
-  "N'Beike", 'Soudoud', 'Lekhcheb', 'El Wahat', 'Tensigh',
-  'Boubacar Ben Amer', 'Lehsira',
   // آدرار
   'أطار', 'شنقيط', 'وادان', 'اوجفت', 'يغرف',
-  'Maeden', "N'Teirguent", 'El Medah', 'Aïn Ehel Taya', 'Tawaz', 'Choum',
-  'Aïn Savra',
   // انشيري
-  'أكجوجت', 'بنيشاب', 'Mheijrat',
+  'أكجوجت', 'بنيشاب',
   // داخلة نواذيبو
-  'نواذيبو', 'Boulenouar', 'Inal', 'Chami', 'Tmeimichat', 'Nouamghar',
+  'نواذيبو',
   // تيرس زمور
   'زويرات', 'بير أم اكرين', 'فديريك',
 ];
 
-const EXTRA_COVERAGE_BATCH_COUNT = 5;
-const rotatingCommuneCoverageBatches = Array.from(
-  { length: EXTRA_COVERAGE_BATCH_COUNT },
-  () => []
-);
-
+// دفعة تغطية إضافية واحدة لكل ولاية (بدل تقسيم عشوائي) — كل دورة خلفية
+// تجلب بلديات ولاية واحدة كاملة، فتكون البلديات المتبقية دوماً مجمّعة
+// بحسب ولايتها بدل التوزيع العشوائي على 5 دفعات ثابتة.
+const wilayaCoverageBatchesMap = new Map();
 filteredMauritaniaCommunesList
   .sort((a, b) => {
-    const wilayaCompare = (a.wilaya || '').localeCompare(b.wilaya || '');
-    if (wilayaCompare !== 0) return wilayaCompare;
     const moughataaCompare = (a.moughataa || '').localeCompare(b.moughataa || '');
     if (moughataaCompare !== 0) return moughataaCompare;
     return (a.city || '').localeCompare(b.city || '');
   })
-  .forEach((commune, index) => {
-    rotatingCommuneCoverageBatches[index % EXTRA_COVERAGE_BATCH_COUNT].push(commune.city);
+  .forEach((commune) => {
+    const wilayaKey = commune.wilaya || 'أخرى';
+    if (!wilayaCoverageBatchesMap.has(wilayaKey)) wilayaCoverageBatchesMap.set(wilayaKey, []);
+    wilayaCoverageBatchesMap.get(wilayaKey).push(commune.city);
   });
+
+const rotatingCommuneCoverageBatches = [...wilayaCoverageBatchesMap.values()];
 
 // رصد دائم لكل بلديات موريتانيا في كل تحديث (لا دورة) — يُجلب على دفعات آمنة
 const ALL_TRACKED_CITIES = [
