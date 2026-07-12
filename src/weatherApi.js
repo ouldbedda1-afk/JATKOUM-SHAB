@@ -475,6 +475,10 @@ const coreMauritanianCities = [
   'روصو', 'بوتلميت', 'كرمسين', 'المذرذرة', 'واد الناقة', 'اركيز', 'انتيكان',
   // البراكنة
   'ألاك', 'بابابى', 'بوكي', 'مقاطع لحجار', 'امباني', 'صنكرافه',
+  'Chegar', 'Bouhdida', 'Aghchourguit', 'El Verae', "Aéré M'Bar",
+  'Dar El Aviye', 'Dar El Barke', 'Ould Biram', 'Djonabe', 'Ouad Emmour',
+  'Niabina', 'Edebaye El Hejjaj', 'Bagodine', 'Maal', 'Roumed',
+  'Elwad Lebiadh', 'Bourat', 'Djelwar',
   // كوركول
   'كيهيدي', 'امبود', 'مقامة', 'مونغل',
   'Néré Walo', 'Djewol', 'Toghomadi', 'Tifondé Civé', 'Doo', 'Dolol Civé',
@@ -512,8 +516,12 @@ const coreMauritanianCities = [
   "Hassi M'Hadi", 'Elmessgoul', 'Sivane',
   // تكانت
   'تجكجة', 'تيشيت', 'موجريه',
+  "N'Beike", 'Soudoud', 'Lekhcheb', 'El Wahat', 'Tensigh',
+  'Boubacar Ben Amer', 'Lehsira',
   // آدرار
   'أطار', 'شنقيط', 'وادان', 'اوجفت', 'يغرف',
+  'Maeden', "N'Teirguent", 'El Medah', 'Aïn Ehel Taya', 'Tawaz', 'Choum',
+  'Aïn Savra',
   // انشيري
   'أكجوجت', 'بنيشاب',
   // داخلة نواذيبو
