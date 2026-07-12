@@ -505,6 +505,11 @@ const coreMauritanianCities = [
   // الحوض الشرقي
   'النعمة', 'تمبدغة', 'باسكنو', 'جيكني', 'امرج', 'ولاته',
   'فصاله', 'عدل بكرو', 'انبيكت لحواش', 'افيرني', 'اعوينات ازبل', 'بوسطيله',
+  'Oum Echeich', 'Bougadoum', 'Djigui', 'Legdour', 'El Megve', 'Dhar',
+  'El Mabrouk 1', 'Ghlig Ehel Beye', 'Kasr El Barke', 'Achemime', 'Jreif',
+  'Bangou', 'Hassi Etile', 'Oum Avnadech', 'El Mabrouk 2', 'Beribavat',
+  'Noual', 'Agoueinit', 'Elbatene', 'Touil 1', 'Koumbi Saleh',
+  "Hassi M'Hadi", 'Elmessgoul', 'Sivane',
   // تكانت
   'تجكجة', 'تيشيت', 'موجريه',
   // آدرار
