@@ -29,12 +29,6 @@ function rainLevel(mm) {
   return null;
 }
 
-function join(arr) {
-  if (!arr.length) return '';
-  if (arr.length === 1) return arr[0];
-  return arr.slice(0, -1).join('، ') + ' و' + arr[arr.length - 1];
-}
-
 // ─── 1. استخراج التوقعات مقسّمة حسب الولاية (نفس منطق WeatherAlerts) ──────
 export function extractForecastDays(weatherData) {
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -306,97 +300,85 @@ export async function autoPublishWeatherAlerts(weatherData) {
     }
   });
 
+  // ينشر خبراً مستقلاً لكل بلدية متأثرة (بصيغة "بلدية X وضواحيها") بدل خبر واحد
+  // يجمع أعلى 5 بلديات — كل بلدية تحصل على تحذيرها الخاص بنفس الصياغة الموحّدة.
+  async function publishPerCommune(dateStr, dateAr, entries, { typeKey, category, tagLabel, imageKey, buildTitle, buildBody }) {
+    for (const entry of dedup(entries, 'city')) {
+      const slug = `alert-${typeKey}-${dateStr}-${entry.city.replace(/\s+/g, '-')}`;
+      if (await alertSlugExists(slug)) continue;
+      const title = buildTitle(entry, dateAr);
+      await publish({
+        title, slug,
+        category,
+        tags: [tagLabel, 'تحذير', dateStr],
+        content: buildBody(entry, dateStr),
+        image: getImageForAlert(imageKey, title),
+      });
+      published++;
+    }
+  }
+
+  const areaLabel = (entry) => `بلدية ${entry.city} وضواحيها${entry.wilaya ? ` (${entry.wilaya})` : ''}`;
+  const wilayaLine = (entry) => entry.wilaya ? ` بولاية ${entry.wilaya}` : '';
+
   for (const [dateStr, alerts] of Object.entries(byDay)) {
-    const dateObj = new Date(dateStr);
-    const dateAr  = arabicFullDate(dateStr);
+    const dateAr = arabicFullDate(dateStr);
 
     // ── رياح قوية ──
-    if (alerts.wind.length > 0) {
-      const slug = `alert-wind-${dateStr}`;
-      if (!(await alertSlugExists(slug))) {
-        const topCities = [...new Set(alerts.wind.map(c => c.city))].slice(0, 5);
-        const maxSpeed  = Math.max(...alerts.wind.map(c => c.speed));
-        const lines     = dedup(alerts.wind, 'city')
-          .map(c => `${c.city}${c.wilaya ? ` (${c.wilaya})` : ''}: ${c.speed} كم/س`).join('\n');
-        const title = `⚠️ تحذير من رياح قوية — ${join(topCities)} — ${dateAr}`;
-        await publish({
-          title, slug,
-          category: 'طقس',
-          tags: ['رياح', 'تحذير', dateStr],
-          content:
-            `📅 ${dateAr}\n💨 تتوقع التوقعات الجوية رياحاً قوية تتجاوز 50 كم/س في المناطق التالية:\n\n${lines}\n\n` +
-            `⚠️ يُنصح بتأمين الأشياء غير الثابتة في الهواء الطلق، وتجنب الطرق الصحراوية.\n\nنسأل الله السلامة. 🤲`,
-          image: getImageForAlert('رياح', title),
-        });
-        published++;
-      }
-    }
+    await publishPerCommune(dateStr, dateAr, alerts.wind, {
+      typeKey: 'wind', category: 'طقس', tagLabel: 'رياح', imageKey: 'رياح',
+      buildTitle: (e, d) => `⚠️ تحذير من رياح قوية على ${areaLabel(e)} — ${d}`,
+      buildBody: (e, ds) =>
+        `📅 ${arabicFullDateWithYear(ds)}\n\n` +
+        `💨 تشير أحدث التوقعات الجوية إلى توقع هبوب رياح قوية قد تصل سرعتها إلى ${e.speed} كم/س ` +
+        `في بلدية ${e.city} وضواحيها${wilayaLine(e)}.\n\n` +
+        `⚠️ التوصيات:\n\n` +
+        `تثبيت أو إزالة الأغراض القابلة للتطاير.\n\n` +
+        `متابعة التحديثات الجوية في حال حدوث أي تغيرات.\n\n` +
+        `🤲 نسأل الله السلامة للجميع.`,
+    });
 
     // ── عواصف رملية / غبار ──
-    if (alerts.dust.length > 0) {
-      const slug = `alert-dust-${dateStr}`;
-      if (!(await alertSlugExists(slug))) {
-        const topCities = [...new Set(alerts.dust.map(c => c.city))].slice(0, 5);
-        const lines     = dedup(alerts.dust, 'city')
-          .map(c => `${c.city}${c.wilaya ? ` (${c.wilaya})` : ''}`).join('\n');
-        const title = `⚠️ تحذير من عواصف رملية وغبار — ${join(topCities)} — ${dateAr}`;
-        await publish({
-          title, slug,
-          category: 'طقس',
-          tags: ['غبار', 'رمال', 'تحذير', dateStr],
-          content:
-            `📅 ${dateAr}\n🌪️ يُتوقع تشكّل عواصف رملية وغبار في المناطق التالية:\n\n${lines}\n\n` +
-            `⚠️ يُنصح بالبقاء داخل المنازل وإغلاق النوافذ وارتداء أغطية الأنف والفم عند الخروج.\n\nنسأل الله السلامة. 🤲`,
-          image: getImageForAlert('رياح', title),
-        });
-        published++;
-      }
-    }
+    await publishPerCommune(dateStr, dateAr, alerts.dust, {
+      typeKey: 'dust', category: 'طقس', tagLabel: 'غبار', imageKey: 'رياح',
+      buildTitle: (e, d) => `⚠️ تحذير من عواصف رملية وغبار على ${areaLabel(e)} — ${d}`,
+      buildBody: (e, ds) =>
+        `📅 ${arabicFullDateWithYear(ds)}\n\n` +
+        `🌪️ تشير أحدث التوقعات الجوية إلى توقع تشكّل عواصف رملية وغبار ` +
+        `في بلدية ${e.city} وضواحيها${wilayaLine(e)}.\n\n` +
+        `⚠️ التوصيات:\n\n` +
+        `البقاء داخل المنازل وإغلاق النوافذ.\n\n` +
+        `ارتداء أغطية الأنف والفم عند الخروج.\n\n` +
+        `🤲 نسأل الله السلامة للجميع.`,
+    });
 
     // ── موجة حر ──
-    if (alerts.heat.length > 0) {
-      const slug = `alert-heat-${dateStr}`;
-      if (!(await alertSlugExists(slug))) {
-        const topCities = [...new Set(alerts.heat.map(c => c.city))].slice(0, 5);
-        const maxTemp   = Math.max(...alerts.heat.map(c => c.temp));
-        const lines     = dedup(alerts.heat, 'city')
-          .map(c => `${c.city}${c.wilaya ? ` (${c.wilaya})` : ''}: ${c.temp}°م`).join('\n');
-        const title = `⚠️ تحذير من موجة حر — حتى ${maxTemp}°م — ${join(topCities)} — ${dateAr}`;
-        await publish({
-          title, slug,
-          category: 'طقس حار',
-          tags: ['موجة حر', 'تحذير', dateStr],
-          content:
-            `📅 ${dateAr}\n🌡️ يُتوقع ارتفاع درجات الحرارة إلى مستويات قصوى في المناطق التالية:\n\n${lines}\n\n` +
-            `⚠️ يُنصح بالإكثار من شرب السوائل، وتجنب التعرض المباشر لأشعة الشمس بين 12:00 و16:00، ` +
-            `وإيلاء العناية الخاصة للأطفال وكبار السن.\n\nنسأل الله السلامة. 🤲`,
-          image: getImageForAlert('حر', title),
-        });
-        published++;
-      }
-    }
+    await publishPerCommune(dateStr, dateAr, alerts.heat, {
+      typeKey: 'heat', category: 'طقس حار', tagLabel: 'موجة حر', imageKey: 'حر',
+      buildTitle: (e, d) => `⚠️ تحذير من موجة حر على ${areaLabel(e)} — حتى ${e.temp}°م — ${d}`,
+      buildBody: (e, ds) =>
+        `📅 ${arabicFullDateWithYear(ds)}\n\n` +
+        `🌡️ تشير أحدث التوقعات الجوية إلى توقع ارتفاع درجات الحرارة إلى حوالي ${e.temp}°م ` +
+        `في بلدية ${e.city} وضواحيها${wilayaLine(e)}.\n\n` +
+        `⚠️ التوصيات:\n\n` +
+        `الإكثار من شرب السوائل، وتجنب التعرض المباشر لأشعة الشمس بين 12:00 و16:00.\n\n` +
+        `إيلاء العناية الخاصة للأطفال وكبار السن.\n\n` +
+        `🤲 نسأل الله السلامة للجميع.`,
+    });
 
     // ── برودة شديدة ──
-    if (alerts.cold.length > 0) {
-      const slug = `alert-cold-${dateStr}`;
-      if (!(await alertSlugExists(slug))) {
-        const topCities = [...new Set(alerts.cold.map(c => c.city))].slice(0, 5);
-        const minTemp   = Math.min(...alerts.cold.map(c => c.temp));
-        const lines     = dedup(alerts.cold, 'city')
-          .map(c => `${c.city}${c.wilaya ? ` (${c.wilaya})` : ''}: ${c.temp}°م`).join('\n');
-        const title = `⚠️ تحذير من برودة شديدة — حتى ${minTemp}°م — ${join(topCities)} — ${dateAr}`;
-        await publish({
-          title, slug,
-          category: 'طقس',
-          tags: ['برودة', 'تحذير', dateStr],
-          content:
-            `📅 ${dateAr}\n🥶 يُتوقع انخفاض درجات الحرارة الليلية بشكل ملحوظ في المناطق التالية:\n\n${lines}\n\n` +
-            `⚠️ يُنصح بارتداء الملابس الدافئة، وتوفير التدفئة الكافية خاصة لكبار السن والأطفال.\n\nنسأل الله السلامة. 🤲`,
-          image: getImageForAlert('برودة', title),
-        });
-        published++;
-      }
-    }
+    await publishPerCommune(dateStr, dateAr, alerts.cold, {
+      typeKey: 'cold', category: 'طقس', tagLabel: 'برودة', imageKey: 'برودة',
+      buildTitle: (e, d) => `⚠️ تحذير من برودة شديدة على ${areaLabel(e)} — حتى ${e.temp}°م — ${d}`,
+      buildBody: (e, ds) =>
+        `📅 ${arabicFullDateWithYear(ds)}\n\n` +
+        `🥶 تشير أحدث التوقعات الجوية إلى توقع انخفاض درجات الحرارة الليلية إلى حوالي ${e.temp}°م ` +
+        `في بلدية ${e.city} وضواحيها${wilayaLine(e)}.\n\n` +
+        `⚠️ التوصيات:\n\n` +
+        `ارتداء الملابس الدافئة.\n\n` +
+        `توفير التدفئة الكافية خاصة لكبار السن والأطفال.\n\n` +
+        `🤲 نسأل الله السلامة للجميع.`,
+    });
   }
 
   return { published };
