@@ -473,6 +473,10 @@ const coreMauritanianCities = [
   'نواكشوط',
   // الترارزة
   'روصو', 'بوتلميت', 'كرمسين', 'المذرذرة', 'واد الناقة', 'اركيز', 'انتيكان',
+  'Elb Adress', 'Ajoueir', "N'Teichet", 'Nebaghiye', 'Tenghadej', 'El Mouyessar',
+  'Keurmacen', "N'Diago", "M'Balal", 'Beir Taouress', 'Taguilalet', 'El Khat',
+  'Tiguent (El Jedide)', 'Aouleiygat', 'El Ariye', "R'Kiz", 'Boutalhaye',
+  'Bareine', 'Jedrel Mouhguen', 'Teikane', 'Chemame', 'Teichteyat', 'Lexelbe 2',
   // البراكنة
   'ألاك', 'بابابى', 'بوكي', 'مقاطع لحجار', 'امباني', 'صنكرافه',
   'Chegar', 'Bouhdida', 'Aghchourguit', 'El Verae', "Aéré M'Bar",
