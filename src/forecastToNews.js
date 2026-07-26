@@ -5,6 +5,7 @@ import { toArabicCommune } from './mauritaniaCommuneNamesAr';
 import { normalizeMauritaniaWilayaName } from './mauritaniaPlaceNames';
 import { adminCreateNews, supabase, saveWeatherSnapshot, broadcastPush } from './supabase';
 import { getImageForAlert } from './weatherImages';
+import { wilayaToSlug } from './wilayaUrlSlugs';
 
 const DAYS_AR   = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
 const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -162,17 +163,15 @@ function buildWilayaTitle(wilaya, entries) {
   return `يتوقع بإذن الله هطول أمطار ${intensity} على ${loc} (${wilaya})`;
 }
 
-function slugifyWilaya(wilaya) {
-  return wilaya
-    .replace(/[أإآا]/g,'a').replace(/ى/g,'y').replace(/ة/g,'h')
-    .replace(/[^\w\s-]/g,'').replace(/\s+/g,'-').toLowerCase()
-    .slice(0, 50);
-}
-
 // slug حتمي لكل ولاية + يوم → يمنع التكرار حتى عند التشغيل المتزامن
+// ملاحظة: استخدام wilayaToSlug (معرّفات إنجليزية فريدة مضبوطة يدوياً في
+// wilayaUrlSlugs.js) إلزامي هنا — التحويل الصوتي الحرفي القديم (استبدال
+// الألف بـ"a" وحذف بقية الحروف) كان يُنتج نفس المعرّف "a-a" لكل من
+// "الحوض الشرقي" و"الحوض الغربي"، فيظن النظام أن أحدهما نُشر مسبقاً
+// عندما تُنشر الأخرى، ويتجاهل نشرها بصمت.
 function makeDailySlug(wilaya) {
   const today = new Date().toISOString().slice(0, 10);
-  return `forecast-${slugifyWilaya(wilaya)}-${today}`;
+  return `forecast-${wilayaToSlug(wilaya)}-${today}`;
 }
 
 // ─── 5. تجنب التكرار ─────────────────────────────────────────────────────
