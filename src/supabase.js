@@ -887,7 +887,7 @@ export async function adminGetAllNews({ limit = 50, offset = 0, search = null } 
 }
 
 /** الإدارة: إنشاء خبر جديد */
-export async function adminCreateNews(article) {
+export async function adminCreateNews(article, { skipFbPost = false } = {}) {
   if (!isSupabaseConfigured) throw new Error('Supabase غير مهيأ');
   const slug = article.slug || slugify(article.title);
   const row = {
@@ -899,7 +899,9 @@ export async function adminCreateNews(article) {
   if (error) throw new Error(error.message);
   // كل خبر يُنشر على الموقع يُنشر أيضاً تلقائياً على صفحة فيسبوك (fire-and-forget، لا يعطّل النشر على الموقع)
   // نحفظ معرّف منشور فيسبوك الناتج في نفس السجل لعرض عدد مشاهداته لاحقاً
-  if (data?.is_published) {
+  // skipFbPost: للحالات التي تُنشر فيها أخبار عديدة دفعة واحدة (تحذير لكل بلدية)
+  // ويُراد بدلاً منها نشر منشور واحد مجمّع على فيسبوك (انظر forecastToNews.js)
+  if (data?.is_published && !skipFbPost) {
     fetch(`${supabaseUrl}/functions/v1/fb-post-article`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

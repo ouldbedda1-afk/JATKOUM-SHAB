@@ -263,6 +263,30 @@ async function alertSlugExists(slug) {
   return data?.length > 0;
 }
 
+// سجل حتمي غير منشور (is_published:false) — لا يظهر على الموقع ولا يُنشر على
+// فيسبوك، فقط يمنع تكرار نفس منشور الولاية المجمّع على فيسبوك لاحقاً في نفس اليوم
+async function alertSlugMark(slug) {
+  try {
+    await adminCreateNews({ title: slug, slug, content: '', is_published: false, author: 'جاتكم اسحاب' });
+  } catch { /* تجاهل تكرار */ }
+}
+
+const SITE_URL = 'https://www.jatkoumshab.com';
+
+// منشور فيسبوك مباشر (بدون خبر مقابل على الموقع) — يُستخدم لتجميع تحذيرات
+// عدة بلديات في منشور واحد بدل نشر كل بلدية على حدة على صفحة فيسبوك
+async function postFacebookDigest(title, body, linkPath = 'news') {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  if (!supabaseUrl) return;
+  try {
+    await fetch(`${supabaseUrl}/functions/v1/fb-post-article`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title, content: `${body}\n${SITE_URL}/${linkPath}` }),
+    });
+  } catch { /* fire-and-forget */ }
+}
+
 export async function autoPublishWeatherAlerts(weatherData) {
   const todayStr = new Date().toISOString().slice(0, 10);
   let published = 0;
@@ -300,77 +324,86 @@ export async function autoPublishWeatherAlerts(weatherData) {
     }
   });
 
-  // خبر واحد فقط لكل نوع تحذير × يوم (وليس خبراً لكل بلدية) — يسرد كل البلديات
-  // المتأثرة داخل نفس الخبر بصيغة "بلدية X وضواحيها" الموحّدة.
-  function communeLine(entry, valueLabel) {
-    return `🔸 بلدية ${entry.city} وضواحيها${entry.wilaya ? ` (${entry.wilaya})` : ''}${valueLabel ? `: ${valueLabel}` : ''}`;
-  }
-
-  async function publishDayAlert(dateStr, dateAr, entries, { typeKey, category, tagLabel, imageKey, headline, icon, intro, valueOf, recommendations }) {
+  // الموقع: خبر مستقل لكل بلدية متأثرة (بصيغة "بلدية X وضواحيها") — يبحث الزائر
+  // عن بلديته تحديداً، فهذا يمنحها أفضل ظهور وفهرسة (SEO) على حدة.
+  // فيسبوك: لا يُنشر كل هذه الأخبار تلقائياً (سيغرق الصفحة) — بدلاً من ذلك يُجمَع
+  // منشور واحد لكل ولاية يسرد كل بلدياتها المتأثرة مع رابط للموقع لكل التفاصيل.
+  async function publishPerCommuneAlerts(dateStr, dateAr, entries, { typeKey, category, tagLabel, imageKey, headline, icon, valueOf, recommendations }) {
     if (entries.length === 0) return;
-    const slug = `alert-${typeKey}-${dateStr}`;
-    if (await alertSlugExists(slug)) return;
-
     const list = dedup(entries, 'city');
-    const primary = list[0];
-    const extraCount = list.length - 1;
-    const title = extraCount > 0
-      ? `⚠️ ${headline} على بلدية ${primary.city} وضواحيها وعدة بلديات أخرى (${list.length}) — ${dateAr}`
-      : `⚠️ ${headline} على بلدية ${primary.city} وضواحيها${primary.wilaya ? ` (${primary.wilaya})` : ''} — ${dateAr}`;
+    const recLines = recommendations.join('\n\n');
 
-    const lines = list.map((e) => communeLine(e, valueOf(e))).join('\n\n');
-    const recLines = recommendations.map((r) => r).join('\n\n');
+    // 1) خبر مستقل لكل بلدية على الموقع (بلا نشر فيسبوك فردي)
+    for (const e of list) {
+      const slug = `alert-${typeKey}-${dateStr}-${e.city.replace(/\s+/g, '-')}`;
+      if (await alertSlugExists(slug)) continue;
+      const title = `⚠️ ${headline} على بلدية ${e.city} وضواحيها${e.wilaya ? ` (${e.wilaya})` : ''} — ${dateAr}`;
+      await publish({
+        title, slug,
+        category,
+        tags: [tagLabel, 'تحذير', dateStr],
+        content:
+          `📅 ${arabicFullDateWithYear(dateStr)}\n\n` +
+          `${icon} تشير أحدث التوقعات الجوية إلى توقع ${headline.replace('تحذير من ', '')} ` +
+          `${valueOf(e) ? `(${valueOf(e)}) ` : ''}في بلدية ${e.city} وضواحيها${e.wilaya ? ` بولاية ${e.wilaya}` : ''}.\n\n` +
+          `⚠️ التوصيات:\n\n${recLines}\n\n` +
+          `🤲 نسأل الله السلامة للجميع.`,
+        image: getImageForAlert(imageKey, title),
+      }, { skipFbPost: true });
+      published++;
+    }
 
-    await publish({
-      title, slug,
-      category,
-      tags: [tagLabel, 'تحذير', dateStr],
-      content:
-        `📅 ${arabicFullDateWithYear(dateStr)}\n\n` +
-        `${icon} ${intro}\n\n` +
-        `${lines}\n\n` +
-        `⚠️ التوصيات:\n\n${recLines}\n\n` +
-        `🤲 نسأل الله السلامة للجميع.`,
-      image: getImageForAlert(imageKey, title),
+    // 2) منشور فيسبوك واحد لكل ولاية يجمع كل بلدياتها المتأثرة بهذا التحذير
+    const byWilaya = new Map();
+    list.forEach((e) => {
+      const w = e.wilaya || 'مناطق أخرى';
+      if (!byWilaya.has(w)) byWilaya.set(w, []);
+      byWilaya.get(w).push(e);
     });
-    published++;
+    for (const [wilaya, wilayaEntries] of byWilaya) {
+      const fbSlug = `alert-${typeKey}-${dateStr}-fb-${wilaya}`.replace(/\s+/g, '-');
+      if (await alertSlugExists(fbSlug)) continue; // نفس الولاية والتاريخ لا يُنشر مرتين
+      const lines = wilayaEntries.map((e) => `🔸 بلدية ${e.city} وضواحيها${valueOf(e) ? `: ${valueOf(e)}` : ''}`).join('\n');
+      const fbTitle = `⚠️ ${headline} — ولاية ${wilaya} — ${dateAr}`;
+      const fbBody =
+        `${icon} ${fbTitle}\n\n${lines}\n\n⚠️ التوصيات:\n${recLines}\n\n🤲 نسأل الله السلامة للجميع.\n\nتفاصيل كل بلدية على الموقع:`;
+      await postFacebookDigest(fbTitle, fbBody, 'news');
+      // سجل حتمي (بلا نشر ظاهر على الموقع) لمنع تكرار نفس منشور الولاية لاحقاً في نفس اليوم
+      await alertSlugMark(fbSlug);
+    }
   }
 
   for (const [dateStr, alerts] of Object.entries(byDay)) {
     const dateAr = arabicFullDate(dateStr);
 
     // ── رياح قوية ──
-    await publishDayAlert(dateStr, dateAr, alerts.wind, {
+    await publishPerCommuneAlerts(dateStr, dateAr, alerts.wind, {
       typeKey: 'wind', category: 'طقس', tagLabel: 'رياح', imageKey: 'رياح',
       headline: 'تحذير من رياح قوية', icon: '💨',
-      intro: 'تشير أحدث التوقعات الجوية إلى توقع هبوب رياح قوية في المناطق التالية:',
       valueOf: (e) => `حتى ${e.speed} كم/س`,
       recommendations: ['تثبيت أو إزالة الأغراض القابلة للتطاير.', 'متابعة التحديثات الجوية في حال حدوث أي تغيرات.'],
     });
 
     // ── عواصف رملية / غبار ──
-    await publishDayAlert(dateStr, dateAr, alerts.dust, {
+    await publishPerCommuneAlerts(dateStr, dateAr, alerts.dust, {
       typeKey: 'dust', category: 'طقس', tagLabel: 'غبار', imageKey: 'رياح',
       headline: 'تحذير من عواصف رملية وغبار', icon: '🌪️',
-      intro: 'تشير أحدث التوقعات الجوية إلى توقع تشكّل عواصف رملية وغبار في المناطق التالية:',
       valueOf: () => '',
       recommendations: ['البقاء داخل المنازل وإغلاق النوافذ.', 'ارتداء أغطية الأنف والفم عند الخروج.'],
     });
 
     // ── موجة حر ──
-    await publishDayAlert(dateStr, dateAr, alerts.heat, {
+    await publishPerCommuneAlerts(dateStr, dateAr, alerts.heat, {
       typeKey: 'heat', category: 'طقس حار', tagLabel: 'موجة حر', imageKey: 'حر',
       headline: 'تحذير من موجة حر', icon: '🌡️',
-      intro: 'تشير أحدث التوقعات الجوية إلى توقع ارتفاع درجات الحرارة إلى مستويات قصوى في المناطق التالية:',
       valueOf: (e) => `حتى ${e.temp}°م`,
       recommendations: ['الإكثار من شرب السوائل، وتجنب التعرض المباشر لأشعة الشمس بين 12:00 و16:00.', 'إيلاء العناية الخاصة للأطفال وكبار السن.'],
     });
 
     // ── برودة شديدة ──
-    await publishDayAlert(dateStr, dateAr, alerts.cold, {
+    await publishPerCommuneAlerts(dateStr, dateAr, alerts.cold, {
       typeKey: 'cold', category: 'طقس', tagLabel: 'برودة', imageKey: 'برودة',
       headline: 'تحذير من برودة شديدة', icon: '🥶',
-      intro: 'تشير أحدث التوقعات الجوية إلى توقع انخفاض درجات الحرارة الليلية بشكل ملحوظ في المناطق التالية:',
       valueOf: (e) => `حتى ${e.temp}°م`,
       recommendations: ['ارتداء الملابس الدافئة.', 'توفير التدفئة الكافية خاصة لكبار السن والأطفال.'],
     });
@@ -389,7 +422,7 @@ function dedup(arr, key) {
   });
 }
 
-async function publish({ title, slug, category, tags, content, image }) {
+async function publish({ title, slug, category, tags, content, image }, { skipFbPost = false } = {}) {
   try {
     await adminCreateNews({
       title, slug,
@@ -400,7 +433,7 @@ async function publish({ title, slug, category, tags, content, image }) {
       is_published: true,
       tags,
       featured_image: image || '',
-    });
+    }, { skipFbPost });
   } catch (e) {
     // تجاهل خطأ التكرار (slug موجود مسبقاً)
     if (!String(e).includes('duplicate') && !String(e).includes('unique')) throw e;
