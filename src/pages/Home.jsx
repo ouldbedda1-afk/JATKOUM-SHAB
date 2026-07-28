@@ -5,7 +5,6 @@ import NewsTicker from '../components/NewsTicker';
 import WeatherHero from '../components/WeatherHero';
 import WeeklyForecast from '../components/WeeklyForecast';
 import CityGrid from '../components/CityGrid';
-import StormAlertBanner from '../components/StormAlertBanner';
 import TodaySummaryStrip from '../components/TodaySummaryStrip';
 import { getFbStats } from '../supabase';
 
@@ -134,7 +133,6 @@ export default function Home() {
 
       <main className="max-w-[1600px] mx-auto px-4 md:px-6 mt-4 md:mt-8">
         <TodaySummaryStrip />
-        <StormAlertBanner />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 mt-6">
           {/* Main Content */}

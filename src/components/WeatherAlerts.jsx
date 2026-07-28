@@ -12,6 +12,7 @@ import {
 } from '../mauritaniaPlaceNames';
 import { adminCreateNews, supabase } from '../supabase';
 import { autoPublishForecastNews, autoPublishWeatherAlerts } from '../forecastToNews';
+import { getThunderstormAlerts } from '../weatherApi';
 import { getImageForAlert } from '../weatherImages';
 import { useNavigate, Link } from 'react-router-dom';
 import { wilayaToSlug } from '../wilayaUrlSlugs';
@@ -35,6 +36,16 @@ const DAYS_AR = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأرب
 function dayName(dateStr) {
   return DAYS_AR[new Date(dateStr).getDay()];
 }
+
+// شارات الخطورة لكل مقاطعة داخل بطاقة توقعات الولاية (نفس تصنيف getThunderstormAlerts)
+const SEVERITY_BADGE = {
+  'شديدة جداً': 'bg-red-900 text-white',
+  'خطيرة جداً': 'bg-red-900 text-white',
+  'خطيرة':      'bg-orange-800 text-white',
+  'شديدة':      'bg-yellow-800 text-white',
+  'عالية':      'bg-amber-700 text-white',
+  'متوسطة':     'bg-blue-800 text-white',
+};
 
 // يحوّل **نص** إلى عنصر بارز — دعم بسيط للتشديد داخل نصوص التنبيهات
 function BoldText({ text }) {
@@ -448,7 +459,7 @@ function WilayaShareButtons({ wilaya, entries, compact = false }) {
 /* ══════════════════════════════════════════
    مكوّن النشرة الجوية الرسمية (3 أيام موحدة)
 ══════════════════════════════════════════ */
-function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNow, lightningStrikes, trackedCells, stormClouds, weatherBulletins }) {
+function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNow, lightningStrikes, trackedCells, stormClouds, weatherBulletins, stormAlerts }) {
   const [isTodayObservationFlashing, setIsTodayObservationFlashing] = useState(false);
   const [confirmedForecasts, setConfirmedForecasts] = useState([]);
   const flashTimeoutRef = useRef(null);
@@ -597,6 +608,18 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       .sort((a, b) => new Date(a.dateStr) - new Date(b.dateStr))
       .slice(0, 3);
   }, [cities, satelliteSet]);
+
+  // تفاصيل التحذيرات الرسمية (ECMWF) مقسّمة حسب الولاية ثم اليوم — تُعرض داخل بطاقة توقعات كل ولاية
+  const stormAlertsByWilaya = useMemo(() => {
+    const map = {};
+    (stormAlerts || []).filter(a => !a.isNow).forEach(alert => {
+      const wilayaKey = normalizeMauritaniaWilayaName(alert.wilaya) || 'مناطق أخرى';
+      if (!map[wilayaKey]) map[wilayaKey] = {};
+      if (!map[wilayaKey][alert.date]) map[wilayaKey][alert.date] = [];
+      map[wilayaKey][alert.date].push(alert);
+    });
+    return map;
+  }, [stormAlerts]);
 
   const todayDate = fmtDate(new Date());
   const todayDayName = dayName(new Date());
@@ -1004,6 +1027,8 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       : daysLabel;
 
     const forecastPath = makeWilayaForecastPath(wilaya);
+    const alertsByDate = stormAlertsByWilaya[wilaya] || {};
+    const alertDates = Object.keys(alertsByDate).sort();
 
     return (
       <article
@@ -1034,6 +1059,32 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
               : `تشير التوقعات إلى فرص لهطول أمطار متفاوتة الشدة على عدة مناطق من الولاية خلال الأيام القادمة.`
             }
           </p>
+
+          {/* تفاصيل التحذير الرسمي (ECMWF) حسب المقاطعة واليوم */}
+          {alertDates.length > 0 && (
+            <div className="mt-3 space-y-2.5 border-t border-slate-100 pt-3">
+              <p className="text-[11px] font-black text-slate-500">🔶 تفاصيل التحذير — المصدر: ECMWF</p>
+              {alertDates.map(date => (
+                <div key={date}>
+                  <p className="text-[11px] font-bold text-slate-500 mb-1.5">📅 {dayName(date)} {fmtDate(date)}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {alertsByDate[date].map(alert => (
+                      <span
+                        key={alert.id}
+                        className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[11px]"
+                      >
+                        <span>{alert.icon}</span>
+                        <span className="font-bold text-slate-700">{toArabicCommune(alert.city) || alert.city}</span>
+                        <span className={`font-black px-1.5 py-0.5 rounded-full text-[10px] ${SEVERITY_BADGE[alert.severity] || SEVERITY_BADGE['متوسطة']}`}>
+                          {alert.severity}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* زر "اقرأ التوقعات كاملة" */}
           <Link
@@ -1172,6 +1223,7 @@ const WeatherAlerts = () => {
     }),
     [rainingNow, modelRainingNow, citiesWeather]
   );
+  const stormAlerts = useMemo(() => getThunderstormAlerts(citiesWeather), [citiesWeather]);
 
   const weatherAlerts = useMemo(() => {
     if (loading) return [];
@@ -1459,6 +1511,7 @@ const WeatherAlerts = () => {
         trackedCells={trackedCells}
         stormClouds={stormClouds}
         weatherBulletins={weatherBulletins}
+        stormAlerts={stormAlerts}
       />
 
     </div>
