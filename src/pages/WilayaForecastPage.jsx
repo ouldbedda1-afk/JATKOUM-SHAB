@@ -57,6 +57,11 @@ function CommuneChip({ item }) {
   return (
     <span className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-sm">
       <span className="font-bold text-slate-700">{toArabicCommune(item.city) || item.city}</span>
+      {item.hail && (
+        <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-cyan-100 text-cyan-800">
+          🧊 برد {item.hail}
+        </span>
+      )}
       {item.w != null && <span className="text-[10px] text-slate-500">{item.w} كم/س</span>}
       {item.confirmed && <span className="text-[10px] text-emerald-700">🛰️ مؤكدة</span>}
     </span>

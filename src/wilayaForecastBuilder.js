@@ -97,7 +97,8 @@ export function buildForecastDays(cities, satelliteSet = new Set()) {
                    : mm >= 1 ? 'مصحوبة بأمطار'
                    : 'جافة (صواعق ورياح)';
         }
-        wilayaForecast.thunder.push({ city: city.city, rainDesc, level: rainLevel(mm), confirmed });
+        const hail = code === 99 ? 'شديد' : code === 96 ? 'خفيف' : null;
+        wilayaForecast.thunder.push({ city: city.city, rainDesc, level: rainLevel(mm), hail, confirmed });
       } else if (mm >= 1 || code >= 61) {
         const lvl = rainLevel(mm);
         if (lvl === 'غزيرة جداً' || lvl === 'غزيرة') wilayaForecast.heavy.push({ city: city.city, confirmed });
