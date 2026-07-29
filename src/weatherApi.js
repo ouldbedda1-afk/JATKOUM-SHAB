@@ -1136,17 +1136,13 @@ export async function getAllCitiesWeather() {
 }
 
 // جلب بلدية دوّار في الخلفية بعد تحميل البيانات الأساسية (بدون تأثير على الواجهة)
-export async function fetchExtraCommunesBatch(onBatchReady) {
-  if (isCircuitOpen || isDailyLimitBlocked()) return;
-  const batchIndex = getNextCoverageBatchIndex();
-  const batch = rotatingCommuneCoverageBatches[batchIndex] || [];
-  if (batch.length === 0) return;
+async function fetchCommuneBatch(batch, batchCacheKey, onBatchReady) {
+  if (batch.length === 0) return [];
 
-  const batchCacheKey = `${ALL_CITIES_CACHE_KEY}_extra_${batchIndex}`;
   const cached = getCached(batchCacheKey);
-  if (cached) { if (onBatchReady) onBatchReady(cached); return; }
+  if (cached) { if (onBatchReady) onBatchReady(cached); return cached; }
 
-  if (pendingRequests.has(batchCacheKey)) return;
+  if (pendingRequests.has(batchCacheKey)) return pendingRequests.get(batchCacheKey);
 
   const promise = (async () => {
     try {
@@ -1161,10 +1157,10 @@ export async function fetchExtraCommunesBatch(onBatchReady) {
       const sourceUrl = `${OPEN_METEO_API}?${params}`;
       const target = buildProxyTarget(sourceUrl);
       const response = await enqueueFetch(target);
-      if (!response.ok) return;
+      if (!response.ok) return [];
       const data = await response.json();
       const items = Array.isArray(data) ? data : [data];
-      if (items.length !== batch.length) return;
+      if (items.length !== batch.length) return [];
       const results = items.map((item, i) => {
         const cityName = batch[i];
         const coords = mauritanianCities[cityName];
@@ -1172,13 +1168,34 @@ export async function fetchExtraCommunesBatch(onBatchReady) {
       });
       setCached(batchCacheKey, results);
       if (onBatchReady) onBatchReady(results);
+      return results;
     } catch {
       // صامت — البلديات الإضافية ليست حرجة
+      return [];
     } finally {
       pendingRequests.delete(batchCacheKey);
     }
   })();
   pendingRequests.set(batchCacheKey, promise);
+  return promise;
+}
+
+export async function fetchExtraCommunesBatch(onBatchReady) {
+  if (isCircuitOpen || isDailyLimitBlocked()) return;
+  const batchIndex = getNextCoverageBatchIndex();
+  const batch = rotatingCommuneCoverageBatches[batchIndex] || [];
+  return fetchCommuneBatch(batch, `${ALL_CITIES_CACHE_KEY}_extra_${batchIndex}`, onBatchReady);
+}
+
+/**
+ * يجلب مباشرة كل بلديات ولاية محددة، دون انتظار دورها في التناوب العشوائي.
+ * تستخدمها صفحة تفاصيل الولاية كي لا تعتمد على وصول دور تلك الولاية في
+ * التغطية الدورية للصفحة الرئيسية.
+ */
+export async function fetchWilayaCommunes(wilayaName) {
+  if (isCircuitOpen || isDailyLimitBlocked() || !wilayaName) return [];
+  const batch = wilayaCoverageBatchesMap.get(wilayaName) || [];
+  return fetchCommuneBatch(batch, `${ALL_CITIES_CACHE_KEY}_wilaya_${wilayaName}`);
 }
 
 export async function getMarineWeather() {

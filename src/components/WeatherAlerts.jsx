@@ -12,7 +12,7 @@ import {
 } from '../mauritaniaPlaceNames';
 import { adminCreateNews, supabase } from '../supabase';
 import { autoPublishForecastNews, autoPublishWeatherAlerts } from '../forecastToNews';
-import { getThunderstormAlerts } from '../weatherApi';
+import { buildForecastDays } from '../wilayaForecastBuilder';
 import { getImageForAlert } from '../weatherImages';
 import { useNavigate, Link } from 'react-router-dom';
 import { wilayaToSlug } from '../wilayaUrlSlugs';
@@ -36,16 +36,6 @@ const DAYS_AR = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأرب
 function dayName(dateStr) {
   return DAYS_AR[new Date(dateStr).getDay()];
 }
-
-// شارات الخطورة لكل مقاطعة داخل بطاقة توقعات الولاية (نفس تصنيف getThunderstormAlerts)
-const SEVERITY_BADGE = {
-  'شديدة جداً': 'bg-red-900 text-white',
-  'خطيرة جداً': 'bg-red-900 text-white',
-  'خطيرة':      'bg-orange-800 text-white',
-  'شديدة':      'bg-yellow-800 text-white',
-  'عالية':      'bg-amber-700 text-white',
-  'متوسطة':     'bg-blue-800 text-white',
-};
 
 // يحوّل **نص** إلى عنصر بارز — دعم بسيط للتشديد داخل نصوص التنبيهات
 function BoldText({ text }) {
@@ -340,15 +330,6 @@ function buildCurrentRainNarrative({ rainingNow, modelRainingNow, cities }) {
   };
 }
 
-/* ── تصنيف شدة المطر ── */
-function rainLevel(mm) {
-  if (mm >= 20) return 'غزيرة جداً';
-  if (mm >= 10) return 'غزيرة';
-  if (mm >= 5)  return 'متوسطة';
-  if (mm >= 1)  return 'ضعيفة';
-  return null;
-}
-
 function getForecastBucketPriority(bucket) {
   switch (bucket) {
     case 'thunder':
@@ -376,25 +357,26 @@ function getWilayaForecastScore(forecast) {
   );
 }
 
-/* موسم الأمطار في موريتانيا: يونيو → أكتوبر
-   العواصف الرعدية في هذه الفترة دائماً مصحوبة بأمطار (ITCZ) */
-function isRainySeason(dateStr) {
-  const m = new Date(dateStr).getMonth() + 1; // 1-12
-  return m >= 6 && m <= 10;
+/* ── رابط صفحة التوقع المستقلة: /forecast/{date}/{wilaya-slug} ──
+   dateStr يجب أن يطابق اليوم الذي تُعرض بياناته فعلياً في البطاقة —
+   وليس تاريخ اليوم الحالي — حتى تكون صفحة التفاصيل امتداداً لنفس البيانات ── */
+function makeWilayaForecastPath(wilaya, dateStr) {
+  const date = dateStr || new Date().toISOString().slice(0, 10);
+  return `/forecast/${date}/${wilayaToSlug(wilaya)}`;
 }
 
-/* ── رابط صفحة التوقع المستقلة: /forecast/{date}/{wilaya-slug} ── */
-function makeWilayaForecastPath(wilaya) {
-  const date = new Date().toISOString().slice(0, 10);
-  return `/forecast/${date}/${wilayaToSlug(wilaya)}`;
+/* أقرب يوم "يستحق" أن تشير إليه صفحة التفاصيل: أول يوم فيه عاصفة رعدية، وإلا أول يوم متاح */
+function pickPrimaryEntry(entries) {
+  return (entries || []).find(e => e.forecast.thunder.length > 0) || (entries || [])[0] || null;
 }
 
 /* ── أزرار مشاركة بطاقة الولاية ── */
 function WilayaShareButtons({ wilaya, entries, compact = false }) {
   const [copied, setCopied] = useState(false);
-  const forecastPath = makeWilayaForecastPath(wilaya);
-  const date         = new Date().toISOString().slice(0, 10);
-  const articleUrl   = `${SITE_URL}/#${forecastPath}`;
+  const primaryEntry = pickPrimaryEntry(entries);
+  const date          = primaryEntry?.day?.dateStr || new Date().toISOString().slice(0, 10);
+  const forecastPath  = makeWilayaForecastPath(wilaya, date);
+  const articleUrl    = `${SITE_URL}${forecastPath}`;
   const fbUrl        = encodeURIComponent(`${WORKER_URL}/forecast/${date}/${wilayaToSlug(wilaya)}`);
 
   const anyThunder = entries.some(e => e.forecast.thunder.length > 0);
@@ -459,7 +441,7 @@ function WilayaShareButtons({ wilaya, entries, compact = false }) {
 /* ══════════════════════════════════════════
    مكوّن النشرة الجوية الرسمية (3 أيام موحدة)
 ══════════════════════════════════════════ */
-function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNow, lightningStrikes, trackedCells, stormClouds, weatherBulletins, stormAlerts }) {
+function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNow, lightningStrikes, trackedCells, stormClouds, weatherBulletins }) {
   const [isTodayObservationFlashing, setIsTodayObservationFlashing] = useState(false);
   const [confirmedForecasts, setConfirmedForecasts] = useState([]);
   const flashTimeoutRef = useRef(null);
@@ -526,100 +508,8 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
     setConfirmedForecasts(stillRaining);
   }, [rainingNow, modelRainingNow]);
 
-  // نجمع البيانات مقسّمة حسب اليوم (3 أيام قادمة)
-  const days = useMemo(() => {
-    const map = {}; // key = dateStr
-
-    cities.forEach(city => {
-      const dates = city.daily?.time               || [];
-      const codes = city.daily?.weather_code       || [];
-      const rains = city.daily?.precipitation_sum  || [];
-      const winds = city.daily?.wind_speed_10m_max || [];
-
-      // نبحث عن الغد والأيام التالية (نتجاهل أي يوم <= اليوم الحالي)
-      const todayStr = new Date().toISOString().slice(0, 10);
-      let count = 0;
-      for (let i = 0; i < dates.length && count < 3; i++) {
-        if (!dates[i] || dates[i] <= todayStr) continue;
-        count++;
-        const dateStr = dates[i];
-        if (!map[dateStr]) {
-          map[dateStr] = {
-            dateStr,
-            dayAr:     dayName(dateStr),
-            dateLabel: fmtDate(dateStr),
-            wilayas:   {},
-          };
-        }
-        const d    = map[dateStr];
-        const code = codes[i] ?? 0;
-        const mm   = rains[i] ?? 0;
-        const w    = winds[i] ?? 0;
-        const confirmed = satelliteSet.has(city.city);
-        const wilayaKey = normalizeMauritaniaWilayaName(city.wilaya) || 'مناطق أخرى';
-
-        if (!d.wilayas[wilayaKey]) {
-          d.wilayas[wilayaKey] = {
-            wilaya: wilayaKey,
-            thunder: [],
-            heavy: [],
-            moderate: [],
-            weak: [],
-            wind: [],
-          };
-        }
-
-        const wilayaForecast = d.wilayas[wilayaKey];
-
-        if (code >= 95) {
-          let rainDesc;
-          if (isRainySeason(dateStr)) {
-            rainDesc = mm >= 10 ? 'مصحوبة بأمطار غزيرة' : 'مصحوبة بأمطار';
-          } else {
-            rainDesc = mm >= 5 ? 'مصحوبة بأمطار غزيرة'
-                     : mm >= 1 ? 'مصحوبة بأمطار'
-                     : 'جافة (صواعق ورياح)';
-          }
-          wilayaForecast.thunder.push({ city: city.city, rainDesc, confirmed });
-        } else if (mm >= 1 || code >= 61) {
-          const lvl = rainLevel(mm);
-          if (lvl === 'غزيرة جداً' || lvl === 'غزيرة') wilayaForecast.heavy.push({ city: city.city, confirmed });
-          else if (lvl === 'متوسطة')                    wilayaForecast.moderate.push({ city: city.city, confirmed });
-          else if (lvl === 'ضعيفة')                     wilayaForecast.weak.push({ city: city.city, confirmed });
-        }
-        if (w > 55) wilayaForecast.wind.push({ city: city.city, w: Math.round(w) });
-      } // end for dates
-    });
-
-    return Object.values(map)
-      .map((day) => ({
-        ...day,
-        forecasts: Object.values(day.wilayas)
-          .filter(
-            (forecast) =>
-              forecast.thunder.length > 0 ||
-              forecast.heavy.length > 0 ||
-              forecast.moderate.length > 0 ||
-              forecast.weak.length > 0 ||
-              forecast.wind.length > 0
-          )
-          .sort((a, b) => compareMauritaniaWilayaAdminOrder(a.wilaya, b.wilaya)),
-      }))
-      .sort((a, b) => new Date(a.dateStr) - new Date(b.dateStr))
-      .slice(0, 3);
-  }, [cities, satelliteSet]);
-
-  // تفاصيل التحذيرات الرسمية (ECMWF) مقسّمة حسب الولاية ثم اليوم — تُعرض داخل بطاقة توقعات كل ولاية
-  const stormAlertsByWilaya = useMemo(() => {
-    const map = {};
-    (stormAlerts || []).filter(a => !a.isNow).forEach(alert => {
-      const wilayaKey = normalizeMauritaniaWilayaName(alert.wilaya) || 'مناطق أخرى';
-      if (!map[wilayaKey]) map[wilayaKey] = {};
-      if (!map[wilayaKey][alert.date]) map[wilayaKey][alert.date] = [];
-      map[wilayaKey][alert.date].push(alert);
-    });
-    return map;
-  }, [stormAlerts]);
+  // نجمع البيانات مقسّمة حسب اليوم (3 أيام قادمة) — منطق مشترك مع صفحة تفاصيل الولاية
+  const days = useMemo(() => buildForecastDays(cities, satelliteSet), [cities, satelliteSet]);
 
   const todayDate = fmtDate(new Date());
   const todayDayName = dayName(new Date());
@@ -1008,6 +898,9 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
   const renderWilayaCard = (wilaya, entries) => {
     const theme = getWilayaTheme(wilaya);
     const anyThunder = entries.some((e) => e.forecast.thunder.length > 0);
+    const hasHeavyThunder = entries.some((e) =>
+      e.forecast.thunder.some((t) => t.level === 'غزيرة' || t.level === 'غزيرة جداً')
+    );
 
     // ملخص قصير: أبرز المناطق المتأثرة
     const topCities = [...new Set([
@@ -1022,13 +915,12 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
       ? `⛈️ عواصف رعدية مع أمطار — ${wilaya}`
       : `🌧️ أمطار متوقعة — ${wilaya}`;
 
-    const shortSummary = topCities.length > 0
-      ? `${daysLabel} — أبرز المناطق: ${topCities.join('، ')}`
-      : daysLabel;
+    const primaryEntry = pickPrimaryEntry(entries);
+    const forecastPath = makeWilayaForecastPath(wilaya, primaryEntry?.day?.dateStr);
 
-    const forecastPath = makeWilayaForecastPath(wilaya);
-    const alertsByDate = stormAlertsByWilaya[wilaya] || {};
-    const alertDates = Object.keys(alertsByDate).sort();
+    const prose = anyThunder
+      ? `يتوقع بإذن الله هطول أمطار من خفيفة إلى غزيرة، قد تصحبها عواصف رعدية، على عدد من مناطق ولاية ${wilaya} خلال ${daysLabel === '' ? 'الأيام القادمة' : (entries.length > 1 ? `يومي ${daysLabel}` : `يوم ${daysLabel}`)}.`
+      : `يتوقع بإذن الله هطول أمطار متفاوتة الشدة على عدد من مناطق ولاية ${wilaya} خلال ${entries.length > 1 ? `يومي ${daysLabel}` : `يوم ${daysLabel}`}.`;
 
     return (
       <article
@@ -1040,10 +932,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
 
           {/* رأس البطاقة */}
           <div className="flex items-start justify-between gap-3 mb-3">
-            <div>
-              <h3 className={`text-lg font-black ${theme.accent}`}>{headline}</h3>
-              <p className="text-xs text-slate-500 mt-0.5">{shortSummary}</p>
-            </div>
+            <h3 className={`text-lg font-black ${theme.accent}`}>{headline}</h3>
             {anyThunder && (
               <span className="shrink-0 flex items-center gap-1 bg-red-100 text-red-700 text-[10px] font-black px-2.5 py-1 rounded-full border border-red-200">
                 <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
@@ -1052,38 +941,18 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
             )}
           </div>
 
-          {/* ملخص سطر واحد فقط — النص الكامل في صفحة التفاصيل */}
-          <p className="text-sm text-slate-600 leading-7 line-clamp-2">
-            {anyThunder
-              ? `تشير التوقعات إلى عواصف رعدية مصحوبة بأمطار غزيرة على عدة مناطق من الولاية خلال الأيام القادمة، يُنصح بالحذر والابتعاد عن الأودية.`
-              : `تشير التوقعات إلى فرص لهطول أمطار متفاوتة الشدة على عدة مناطق من الولاية خلال الأيام القادمة.`
-            }
-          </p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 mb-2.5">
+            <span>📅 {daysLabel}</span>
+            {topCities.length > 0 && <span>📍 أبرز المناطق: {topCities.join('، ')}</span>}
+          </div>
 
-          {/* تفاصيل التحذير الرسمي (ECMWF) حسب المقاطعة واليوم */}
-          {alertDates.length > 0 && (
-            <div className="mt-3 space-y-2.5 border-t border-slate-100 pt-3">
-              <p className="text-[11px] font-black text-slate-500">🔶 تفاصيل التحذير — المصدر: ECMWF</p>
-              {alertDates.map(date => (
-                <div key={date}>
-                  <p className="text-[11px] font-bold text-slate-500 mb-1.5">📅 {dayName(date)} {fmtDate(date)}</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {alertsByDate[date].map(alert => (
-                      <span
-                        key={alert.id}
-                        className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[11px]"
-                      >
-                        <span>{alert.icon}</span>
-                        <span className="font-bold text-slate-700">{toArabicCommune(alert.city) || alert.city}</span>
-                        <span className={`font-black px-1.5 py-0.5 rounded-full text-[10px] ${SEVERITY_BADGE[alert.severity] || SEVERITY_BADGE['متوسطة']}`}>
-                          {alert.severity}
-                        </span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+          {/* ملخص — النص الكامل بكل المقاطعات في صفحة التفاصيل */}
+          <p className="text-sm text-slate-600 leading-7 line-clamp-3">{prose}</p>
+
+          {hasHeavyThunder && (
+            <p className="mt-2 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+              ⚠️ تنبيه: قد تشهد بعض المناطق أمطاراً غزيرة مع نشاط رعدي.
+            </p>
           )}
 
           {/* زر "اقرأ التوقعات كاملة" */}
@@ -1223,7 +1092,6 @@ const WeatherAlerts = () => {
     }),
     [rainingNow, modelRainingNow, citiesWeather]
   );
-  const stormAlerts = useMemo(() => getThunderstormAlerts(citiesWeather), [citiesWeather]);
 
   const weatherAlerts = useMemo(() => {
     if (loading) return [];
@@ -1511,7 +1379,6 @@ const WeatherAlerts = () => {
         trackedCells={trackedCells}
         stormClouds={stormClouds}
         weatherBulletins={weatherBulletins}
-        stormAlerts={stormAlerts}
       />
 
     </div>

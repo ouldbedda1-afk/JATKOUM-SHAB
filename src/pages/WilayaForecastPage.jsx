@@ -1,9 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../supabase';
 import Navbar from '../components/Navbar';
 import { slugToWilaya, wilayaToSlug } from '../wilayaUrlSlugs';
 import { getImageForAlert } from '../weatherImages';
+import { useWeatherContext } from '../WeatherContext';
+import { fetchWilayaCommunes } from '../weatherApi';
+import { buildForecastDays, groupThunderByLevel } from '../wilayaForecastBuilder';
+import { toArabicCommune } from '../mauritaniaCommuneNamesAr';
+import { normalizeMauritaniaWilayaName } from '../mauritaniaPlaceNames';
+
+const BUCKET_META = {
+  heavy:    { icon: '🌧️', label: 'أمطار غزيرة' },
+  moderate: { icon: '🌦️', label: 'أمطار متوسطة' },
+  weak:     { icon: '🌂', label: 'أمطار خفيفة' },
+  wind:     { icon: '💨', label: 'رياح قوية' },
+};
 
 const SITE_URL   = 'https://www.jatkoumshab.com';
 const WORKER_URL = 'https://jatkoumshab-share.workers.dev';
@@ -11,9 +23,19 @@ const WORKER_URL = 'https://jatkoumshab-share.workers.dev';
 const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 const DAYS_AR   = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
 
+function dayName(dateStr) {
+  return DAYS_AR[new Date(dateStr).getDay()];
+}
+
 function fmtArabicDate(dateStr) {
   const d = new Date(dateStr);
   return `${DAYS_AR[d.getDay()]} ${d.getDate()} ${MONTHS_AR[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function fmtDMY(dateStr) {
+  const d = new Date(dateStr);
+  const pad = n => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 
 function ArticleContent({ content }) {
@@ -26,6 +48,70 @@ function ArticleContent({ content }) {
             <React.Fragment key={j}>{line}{j < arr.length - 1 && <br />}</React.Fragment>
           ))}
         </p>
+      ))}
+    </div>
+  );
+}
+
+function CommuneChip({ item }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-sm">
+      <span className="font-bold text-slate-700">{toArabicCommune(item.city) || item.city}</span>
+      {item.w != null && <span className="text-[10px] text-slate-500">{item.w} كم/س</span>}
+      {item.confirmed && <span className="text-[10px] text-emerald-700">🛰️ مؤكدة</span>}
+    </span>
+  );
+}
+
+/* يوم واحد من التفاصيل الكاملة — نفس تصنيف بطاقة الصفحة الرئيسية، لكن غير مختصر */
+function DayBreakdown({ day, forecast }) {
+  const thunderGroups = groupThunderByLevel(forecast.thunder);
+  const restBuckets = ['heavy', 'moderate', 'weak', 'wind'].filter(
+    key => (forecast[key]?.length || 0) > 0
+  );
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm font-black text-slate-800">📅 {dayName(day.dateStr)} {fmtDMY(day.dateStr)}</p>
+
+      {thunderGroups.map(group => (
+        <div key={group.level || 'جافة'}>
+          <p className="text-sm font-black text-slate-800 mb-2">⛈️ أمطار {group.label} مع عواصف رعدية</p>
+          <div className="flex flex-wrap gap-2">
+            {group.items.map((item, i) => <CommuneChip key={`${item.city}-${i}`} item={item} />)}
+          </div>
+        </div>
+      ))}
+
+      {restBuckets.map(key => {
+        const meta = BUCKET_META[key];
+        return (
+          <div key={key}>
+            <p className="text-sm font-black text-slate-800 mb-2">{meta.icon} {meta.label}</p>
+            <div className="flex flex-wrap gap-2">
+              {forecast[key].map((item, i) => <CommuneChip key={`${item.city}-${i}`} item={item} />)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* محتوى حيّ — نفس بيانات بطاقة "النشرة الجوية" في الصفحة الرئيسية، لكن لكل الأيام وبالقائمة الكاملة غير المختصرة */
+function LiveForecastContent({ wilaya, entries }) {
+  if (entries.length === 0) {
+    return (
+      <p className="text-sm text-slate-600 leading-8">
+        لا توقعات أمطار بارزة على ولاية {wilaya} خلال الأيام القادمة، بإذن الله.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-6" dir="rtl">
+      {entries.map(({ day, forecast }) => (
+        <DayBreakdown key={day.dateStr} day={day} forecast={forecast} />
       ))}
     </div>
   );
@@ -76,6 +162,68 @@ export default function WilayaForecastPage() {
   const { date, wilayaSlug } = useParams();
   const wilaya = slugToWilaya(wilayaSlug);
 
+  const { weatherData, loading: weatherLoading } = useWeatherContext();
+
+  // بلديات هذه الولاية قد لا تكون قد وصل دورها بعد في التغطية الدورية للصفحة
+  // الرئيسية (تناوب عشوائي لتوفير حصة الاستعلامات) — نجلبها مباشرة هنا حتى
+  // لا تعتمد هذه الصفحة على الحظ في التوقيت.
+  const [supplementCities, setSupplementCities] = useState([]);
+  const [supplementReady, setSupplementReady] = useState(false);
+
+  useEffect(() => {
+    setSupplementReady(false);
+    if (weatherLoading || !wilaya) return;
+
+    const alreadyPresent = weatherData.some(
+      c => normalizeMauritaniaWilayaName(c.wilaya) === wilaya
+    );
+    if (alreadyPresent) {
+      setSupplementCities([]);
+      setSupplementReady(true);
+      return;
+    }
+
+    let cancelled = false;
+    fetchWilayaCommunes(wilaya).then(results => {
+      if (cancelled) return;
+      setSupplementCities(results || []);
+      setSupplementReady(true);
+    });
+    return () => { cancelled = true; };
+  }, [weatherLoading, weatherData, wilaya]);
+
+  const cities = useMemo(() => {
+    if (supplementCities.length === 0) return weatherData;
+    const existing = new Set(weatherData.map(c => c.city));
+    return [...weatherData, ...supplementCities.filter(c => !existing.has(c.city))];
+  }, [weatherData, supplementCities]);
+
+  // ── نفس منطق البطاقة على الصفحة الرئيسية بالضبط (WeatherAlerts.jsx) ──
+  // نعطي الأولوية لهذه البيانات الحيّة كي تكون هذه الصفحة امتداداً مباشراً للبطاقة،
+  // وتعرض كل الأيام التي للولاية توقعات فيها (وليس يوماً واحداً فقط)
+  const days = useMemo(() => buildForecastDays(cities), [cities]);
+  const wilayaEntries = useMemo(() => {
+    const list = [];
+    days.forEach(day => {
+      const forecast = day.forecasts.find(f => f.wilaya === wilaya);
+      if (forecast) list.push({ day, forecast });
+    });
+    return list;
+  }, [days, wilaya]);
+  const hasLiveData = wilayaEntries.length > 0;
+
+  const anyThunder = wilayaEntries.some(e => e.forecast.thunder.length > 0);
+  const hasHeavyThunder = wilayaEntries.some(e =>
+    e.forecast.thunder.some(t => t.level === 'غزيرة' || t.level === 'غزيرة جداً')
+  );
+  const topCities = [...new Set([
+    ...wilayaEntries.flatMap(e => e.forecast.thunder.map(t => toArabicCommune(t.city))),
+    ...wilayaEntries.flatMap(e => e.forecast.heavy.map(c => toArabicCommune(c.city))),
+    ...wilayaEntries.flatMap(e => e.forecast.moderate.map(c => toArabicCommune(c.city))),
+  ])].filter(Boolean).slice(0, 3);
+  const daysLabel = [...new Set(wilayaEntries.map(e => dayName(e.day.dateStr)))].join(' و');
+
+  // ── أرشيف: يُستخدم فقط للتواريخ التي خرجت من نافذة الأيام الثلاثة الحيّة ──
   const [article,  setArticle]  = useState(null);
   const [loading,  setLoading]  = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -83,10 +231,20 @@ export default function WilayaForecastPage() {
   useEffect(() => {
     if (!date || !wilayaSlug) { setNotFound(true); setLoading(false); return; }
 
+    // ننتظر استقرار البيانات الحيّة (بما فيها جلب بلديات هذه الولاية تحديداً) قبل اللجوء للأرشيف
+    if (weatherLoading || !supplementReady) { setLoading(true); return; }
+
+    if (hasLiveData) {
+      setArticle(null);
+      setNotFound(false);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setNotFound(false);
 
-    // البحث بالولاية + التاريخ (يوم كامل)
+    // البحث بالولاية + التاريخ (يوم كامل) — أرشيف فقط
     const dayStart = `${date}T00:00:00`;
     const dayEnd   = `${date}T23:59:59`;
 
@@ -101,17 +259,30 @@ export default function WilayaForecastPage() {
       .limit(1)
       .then(({ data }) => {
         if (data?.length) {
-          const a = data[0];
-          setArticle(a);
-          document.title = `${a.title} | جاتكم اسحاب`;
+          setArticle(data[0]);
         } else {
           setNotFound(true);
         }
         setLoading(false);
       });
+  }, [date, wilayaSlug, wilaya, weatherLoading, supplementReady, hasLiveData]);
 
+  const liveTitle = anyThunder
+    ? `⛈️ عواصف رعدية مع أمطار — ${wilaya}`
+    : `🌧️ أمطار متوقعة — ${wilaya}`;
+
+  const prose = hasLiveData
+    ? (anyThunder
+        ? `يتوقع بإذن الله هطول أمطار من خفيفة إلى غزيرة، قد تصحبها عواصف رعدية، على عدد من مناطق ولاية ${wilaya} خلال ${wilayaEntries.length > 1 ? `يومي ${daysLabel}` : `يوم ${daysLabel}`}.`
+        : `يتوقع بإذن الله هطول أمطار متفاوتة الشدة على عدد من مناطق ولاية ${wilaya} خلال ${wilayaEntries.length > 1 ? `يومي ${daysLabel}` : `يوم ${daysLabel}`}.`)
+    : '';
+
+  const pageTitle = article?.title || (hasLiveData ? liveTitle : '');
+
+  useEffect(() => {
+    document.title = pageTitle ? `${pageTitle} | جاتكم اسحاب` : 'جاتكم اسحاب | الطقس في موريتانيا';
     return () => { document.title = 'جاتكم اسحاب | الطقس في موريتانيا'; };
-  }, [date, wilayaSlug, wilaya]);
+  }, [pageTitle]);
 
   const heroImage = article?.featured_image || getImageForAlert('أمطار', wilaya);
 
@@ -159,15 +330,15 @@ export default function WilayaForecastPage() {
         <article className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
           {/* صورة الغلاف */}
           <div className="relative h-52 overflow-hidden">
-            <img src={heroImage} alt={article.title}
+            <img src={heroImage} alt={pageTitle}
               className="w-full h-full object-cover"
               onError={e => { e.target.style.display='none'; }} />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
             <div className="absolute bottom-0 right-0 left-0 p-5">
               <span className="inline-block bg-blue-500/80 text-white text-[11px] font-black px-2.5 py-1 rounded-full mb-2">
-                {article.category || 'توقعات'}
+                {article?.category || 'توقعات'}
               </span>
-              <h1 className="text-white font-black text-xl leading-tight">{article.title}</h1>
+              <h1 className="text-white font-black text-xl leading-tight">{pageTitle}</h1>
             </div>
           </div>
 
@@ -178,11 +349,25 @@ export default function WilayaForecastPage() {
               <span>·</span>
               <span>📅 {fmtArabicDate(date)}</span>
               <span>·</span>
-              <span>✍️ {article.author || 'جاتكم اسحاب'}</span>
+              <span>✍️ {article?.author || 'جاتكم اسحاب'}</span>
             </div>
 
-            {/* المحتوى الكامل */}
-            <ArticleContent content={article.content} />
+            {hasLiveData ? (
+              <>
+                {topCities.length > 0 && (
+                  <p className="text-xs text-gray-500 mb-2">📍 أبرز المناطق: {topCities.join('، ')}</p>
+                )}
+                <p className="text-[15px] leading-8 text-slate-800 mb-4">{prose}</p>
+                {hasHeavyThunder && (
+                  <p className="mb-5 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                    ⚠️ تنبيه: قد تشهد بعض المناطق أمطاراً غزيرة مع نشاط رعدي.
+                  </p>
+                )}
+                <LiveForecastContent wilaya={wilaya} entries={wilayaEntries} />
+              </>
+            ) : (
+              <ArticleContent content={article?.content} />
+            )}
 
             {/* دعاء */}
             <div className="mt-6 py-4 text-center border-t border-b border-emerald-100 bg-emerald-50 rounded-xl">
@@ -195,7 +380,7 @@ export default function WilayaForecastPage() {
               <ShareRow
                 wilaya={wilaya}
                 date={date}
-                title={article.title}
+                title={pageTitle}
                 image={heroImage}
               />
             </div>
