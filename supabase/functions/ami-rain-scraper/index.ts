@@ -114,6 +114,12 @@ function cleanName(text: string): string {
   return stripTatweel(stripBullet(text)).replace(/:$/, '').trim();
 }
 
+// يحذف بادئة "مقاطعة"/"بمقاطعة" — بعض التقارير تكتب "مقاطعة كنكوصه" وأخرى
+// "كنكوصه" فقط لنفس المقاطعة، فتتشتّت إحصائياً كمقاطعتين مختلفتين بلا هذا التوحيد
+function cleanMoughataa(text: string): string {
+  return cleanName(text).replace(/^(مقاطعة|بمقاطعة)\s+/, '').trim();
+}
+
 // سطر تصنيف (وليس قرية+كمية) قد يكون اسم ولاية معروفاً أو اسم مقاطعة —
 // لكن الفقرة التمهيدية لأي تقرير تذكر أحياناً اسم ولاية ضمن جملة كاملة
 // ("...من ولايتي الحوض الغربي ولعصابه...")؛ رفض أي "تصنيف" أطول من طول
@@ -123,7 +129,7 @@ function classifyLabel(rawLabel: string): { kind: 'wilaya' | 'moughataa' | 'igno
   if (!label || label.length > 25 || /[،.؟!]/.test(label)) return { kind: 'ignore', value: '' };
   const canonical = WILAYA_CANONICAL[label];
   if (canonical) return { kind: 'wilaya', value: canonical };
-  return { kind: 'moughataa', value: label };
+  return { kind: 'moughataa', value: cleanMoughataa(label) };
 }
 
 function parseRainTable($: cheerio.CheerioAPI, table: any): RainRow[] {
@@ -149,7 +155,7 @@ function parseRainTable($: cheerio.CheerioAPI, table: any): RainRow[] {
     }
     if (moughataaLeft <= 0) {
       const cell = tds.eq(idx);
-      currentMoughataa = cleanName(cell.text());
+      currentMoughataa = cleanMoughataa(cell.text());
       moughataaLeft = parseInt(cell.attr('rowspan') || '1', 10) || 1;
       idx++;
     }
