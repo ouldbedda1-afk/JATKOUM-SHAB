@@ -329,13 +329,6 @@ Deno.serve(async () => {
 
     let published = 0;
 
-    // وقت صدور تشغيلة النموذج (ثابت للجولة كلها) ووقت النشر الفعلي — يُعرضان منفصلَين.
-    const modelRunUTC = new Date(`${today}T${run === 'AM' ? '00:00:00' : '12:00:00'}Z`);
-    const fmtUTCTime = (d: Date) =>
-      d.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' }) + ' UTC';
-    const issuedTimeStr    = fmtUTCTime(modelRunUTC);
-    const publishedTimeStr = fmtUTCTime(now);
-
     // ── 3. نشر مقال مستقل لكل (يوم × جولة) — إلا إذا لم تتغيّر التوقعات جوهرياً ──
     for (const [dateStr, entry] of Object.entries(byDay)) {
       // slug حتمي لكل يوم توقّع × جولة نشر — بحد أقصى مقالان لكل يوم (AM/PM)
@@ -406,16 +399,12 @@ Deno.serve(async () => {
       const signatureData = buildSignature(entry, intensity);
       const signatureHash = await sha256Hex(JSON.stringify(canonicalize(signatureData)));
 
-      // ── وقت صدور بيانات النموذج ووقت نشر الخبر، منفصلان بوضوح ──
-      const meta =
-        `🛰️ صدرت بيانات النموذج (ECMWF ${modelCycle}) الساعة ${issuedTimeStr}\n` +
-        `🕓 نُشر هذا الخبر الساعة ${publishedTimeStr}`;
       const link = `${Deno.env.get('SITE_URL') ?? 'https://www.jatkoumshab.com'}/news/${slug}`;
       const tags = ['توقعات', category, 'أوتوماتيك', run, modelCycle];
 
       // ── لا يوجد أي مقال بعد لهذا اليوم — نشر أول مقال (بلا مقارنة ممكنة) ──
       if (!target) {
-        const content = `${body}\n\n${meta}`;
+        const content = body;
         const { error } = await supabase.from('news_articles').insert([{
           title, slug, excerpt: title, content, category, wilaya,
           author: 'جاتكم اسحاب',
@@ -440,10 +429,8 @@ Deno.serve(async () => {
       // بصمتان متطابقتان = لا تغيير جوهري — لا يُنشأ ولا يُحدَّث أي شيء
       if (target.forecast_signature_hash === signatureHash) {
         if (target === amArticle) {
-          const noChangeNote =
-            `\n\n🔄 **تحديث مسائي (${modelCycle} — ${publishedTimeStr}):** لا توجد تغييرات جوهرية ` +
-            `مقارنة بالنشرة الصباحية.`;
-          if (!(amArticle.content || '').includes('تحديث مسائي (')) {
+          const noChangeNote = `\n\n🔄 **تحديث مسائي:** لا توجد تغييرات جوهرية مقارنة بالنشرة الصباحية.`;
+          if (!(amArticle.content || '').includes('تحديث مسائي:')) {
             await supabase.from('news_articles')
               .update({ content: amArticle.content + noChangeNote })
               .eq('id', amArticle.id);
@@ -459,7 +446,7 @@ Deno.serve(async () => {
       const diffBlock = diff && diff.hasChanges
         ? renderPreviousSummary(target.forecast_signature, dayAr, dateAr) + renderDiff(diff, signatureData, target.forecast_signature, dayAr, dateAr)
         : '';
-      const content = `${body}\n\n${diffBlock}${meta}`;
+      const content = `${body}\n\n${diffBlock}`.trimEnd();
 
       const { error } = await supabase.from('news_articles').update({
         title, excerpt: title, content, category, wilaya,
