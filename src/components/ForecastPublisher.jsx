@@ -30,11 +30,12 @@ const WILAYAS = [
   'نواكشوط الشمالية','نواكشوط الغربية','نواكشوط الجنوبية',
 ];
 
+// calendar: 'gregory' يفرض التقويم الميلادي — ar-SA يستخدم الهجري افتراضياً
 function arabicDay(date) {
-  return date.toLocaleDateString('ar-SA', { weekday: 'long' });
+  return date.toLocaleDateString('ar-SA', { weekday: 'long', calendar: 'gregory' });
 }
 function arabicDate(date) {
-  return date.toLocaleDateString('ar-SA', { day: 'numeric', month: 'long' });
+  return date.toLocaleDateString('ar-SA', { day: 'numeric', month: 'long', calendar: 'gregory' });
 }
 
 // Next N days as options

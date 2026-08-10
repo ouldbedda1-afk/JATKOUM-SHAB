@@ -227,11 +227,13 @@ function renderDiff(diff: SignatureDiff, currSig: SignatureData, prevSig: Signat
 }
 
 // تحويل تاريخ إلى أسماء عربية
+// ملاحظة: locale 'ar-SA' يستخدم التقويم الهجري افتراضياً في محرك ICU
+// (فيُنتج "٢٨ صفر" بدل "١١ أغسطس") — calendar: 'gregory' يفرض التقويم الميلادي
 function arabicDay(d: Date): string {
-  return d.toLocaleDateString('ar-SA', { weekday: 'long', timeZone: 'Africa/Abidjan' });
+  return d.toLocaleDateString('ar-SA', { weekday: 'long', calendar: 'gregory', timeZone: 'Africa/Abidjan' });
 }
 function arabicDate(d: Date): string {
-  return d.toLocaleDateString('ar-SA', { day: 'numeric', month: 'long', timeZone: 'Africa/Abidjan' });
+  return d.toLocaleDateString('ar-SA', { day: 'numeric', month: 'long', calendar: 'gregory', timeZone: 'Africa/Abidjan' });
 }
 function isoDate(d: Date): string {
   return d.toISOString().split('T')[0];
