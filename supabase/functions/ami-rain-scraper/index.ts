@@ -70,6 +70,62 @@ const HEADER_LABELS = new Set(['الولاية', 'المقاطعة', 'القري
 
 interface RainRow { wilaya: string; moughataa: string; village: string; mm: number }
 
+// ── تطبيع أسماء الولايات (AMI يكتبها بإملاءات مختلفة عبر التقارير: لعصابه/
+// لعصابة/العصابة...) — بلا هذا التطبيع تتشتّت نفس الولاية إلى عدة "ولايات"
+// مختلفة في الإحصاءات. المطابقة تامة فقط (بعد التنظيف) لتفادي مطابقة اسم
+// ولاية يظهر عرضاً داخل جملة طويلة (كفقرة تمهيدية تذكر عدة ولايات).
+const WILAYA_CANONICAL: Record<string, string> = {};
+function addWilaya(canonical: string, variants: string[]) {
+  WILAYA_CANONICAL[canonical] = canonical;
+  for (const v of variants) WILAYA_CANONICAL[v] = canonical;
+}
+addWilaya('نواكشوط الشمالية', ['نواكشوط الشماليه', 'انواكشوط الشمالية', 'انواكشوط الشماليه']);
+addWilaya('نواكشوط الغربية', ['نواكشوط الغربيه', 'انواكشوط الغربية', 'انواكشوط الغربيه']);
+addWilaya('نواكشوط الجنوبية', ['نواكشوط الجنوبيه', 'انواكشوط الجنوبية', 'انواكشوط الجنوبيه']);
+addWilaya('الحوض الشرقي', ['ولاية الحوض الشرقي']);
+addWilaya('الحوض الغربي', ['ولاية الحوض الغربي']);
+addWilaya('لعصابه', ['لعصابة', 'العصابة', 'ولاية لعصابه']);
+addWilaya('كوركول', ['ولاية كوركول']);
+addWilaya('لبراكنه', ['البراكنة', 'لبراكنة', 'ولاية لبراكنه']);
+addWilaya('الترارزة', ['اترارزه', 'الترارزه']);
+addWilaya('آدرار', ['ولاية آدرار']);
+addWilaya('كيدي ماغا', ['كيدي ماغه', 'گيديماغه', 'كيديماغه', 'ولاية كيدي ماغا', 'ولاية كيدي ماغه']);
+addWilaya('إينشيري', ['اينشيري', 'إنشيري', 'انشيري']);
+addWilaya('تكانت', []);
+addWilaya('تيرس زمور', []);
+addWilaya('داخلت نواذيبو', ['نواذيبو']);
+
+// يحذف بادئة تنقيط شائعة (- – • * ·) قبل كل فقرة — بعض التقارير تكتب
+// "* المقاطعة:" و"* القرية: XX ملم"، وأخرى "– الولاية" بلا أي نقطتين إطلاقاً
+function stripBullet(text: string): string {
+  return text.replace(/^[*\-–•·]+\s*/, '').trim();
+}
+
+// يحذف التطويل (ـ) المستخدم أحياناً لتمديد الكلمات بصرياً في النص المُبَرَّر
+// (مثال: "بـــقـــلـــه" ← "بقله")
+function stripTatweel(text: string): string {
+  return text.replace(/ـ+/g, '').trim();
+}
+
+// ينظّف أي اسم مُستخرج (ولاية/مقاطعة/قرية) من زخارف التنسيق الشائعة —
+// يُطبَّق على مخرجات كلا المُحلِّلين (الجدول والفقرات) لأن نفس المشاكل
+// (تطويل، بادئة تنقيط) تظهر أحياناً حتى داخل خلايا الجدول
+function cleanName(text: string): string {
+  return stripTatweel(stripBullet(text)).replace(/:$/, '').trim();
+}
+
+// سطر تصنيف (وليس قرية+كمية) قد يكون اسم ولاية معروفاً أو اسم مقاطعة —
+// لكن الفقرة التمهيدية لأي تقرير تذكر أحياناً اسم ولاية ضمن جملة كاملة
+// ("...من ولايتي الحوض الغربي ولعصابه...")؛ رفض أي "تصنيف" أطول من طول
+// معقول لاسم إداري، أو يحوي علامات ترقيم جملة، يمنع هذا الالتباس
+function classifyLabel(rawLabel: string): { kind: 'wilaya' | 'moughataa' | 'ignore'; value: string } {
+  const label = cleanName(rawLabel).replace(/^(ولاية|لولاية)\s+/, '').trim();
+  if (!label || label.length > 25 || /[،.؟!]/.test(label)) return { kind: 'ignore', value: '' };
+  const canonical = WILAYA_CANONICAL[label];
+  if (canonical) return { kind: 'wilaya', value: canonical };
+  return { kind: 'moughataa', value: label };
+}
+
 function parseRainTable($: cheerio.CheerioAPI, table: any): RainRow[] {
   const rows = $(table).find('tr').toArray();
   if (rows.length < 2) return [];
@@ -86,17 +142,18 @@ function parseRainTable($: cheerio.CheerioAPI, table: any): RainRow[] {
 
     if (wilayaLeft <= 0) {
       const cell = tds.eq(idx);
-      currentWilaya = cell.text().replace(/\s+/g, ' ').trim();
+      const cls = classifyLabel(cell.text());
+      currentWilaya = cls.kind === 'wilaya' ? cls.value : cleanName(cell.text());
       wilayaLeft = parseInt(cell.attr('rowspan') || '1', 10) || 1;
       idx++;
     }
     if (moughataaLeft <= 0) {
       const cell = tds.eq(idx);
-      currentMoughataa = cell.text().replace(/\s+/g, ' ').trim();
+      currentMoughataa = cleanName(cell.text());
       moughataaLeft = parseInt(cell.attr('rowspan') || '1', 10) || 1;
       idx++;
     }
-    const village = tds.eq(idx).text().replace(/\s+/g, ' ').trim(); idx++;
+    const village = cleanName(tds.eq(idx).text()); idx++;
     const mmText  = normalizeDigits(tds.eq(idx).text());
     wilayaLeft--; moughataaLeft--;
 
@@ -112,32 +169,6 @@ function parseRainTable($: cheerio.CheerioAPI, table: any): RainRow[] {
   return results;
 }
 
-// بعض التقارير لا تُصاغ كجدول HTML، بل كسلسلة فقرات: "الولاية:" ثم
-// "المقاطعة:" ثم "القرية XX ملم" لكل قرية — يُستخدم كبديل عندما لا يوجد
-// جدول صالح. نميّز سطر الولاية عن سطر المقاطعة بمطابقته لقائمة أسماء
-// الولايات المعروفة (بمتغيّراتها الإملائية المختلفة لدى AMI).
-const WILAYA_ROOTS = [
-  'نواكشوط الشمالية', 'نواكشوط الغربية', 'نواكشوط الجنوبية',
-  'الحوض الشرقي', 'الحوض الغربي', 'لعصابه', 'العصابة', 'كوركول', 'لبراكنه', 'البراكنة',
-  'الترارزة', 'اترارزه', 'آدرار', 'كيدي ماغه', 'كيدي ماغا', 'گيديماغه',
-  'اينشيري', 'إنشيري', 'انشيري', 'تكانت', 'تيرس زمور', 'داخلت نواذيبو', 'نواذيبو',
-];
-function isWilayaLabel(text: string): boolean {
-  return WILAYA_ROOTS.some((w) => text.includes(w) || w.includes(text));
-}
-
-// يحذف بادئة تنقيط شائعة (- – • * ·) قبل كل فقرة — بعض التقارير تكتب
-// "* المقاطعة:" و"* القرية: XX ملم"، وأخرى "– الولاية" بلا أي نقطتين إطلاقاً
-function stripBullet(text: string): string {
-  return text.replace(/^[*\-–•·]+\s*/, '').trim();
-}
-
-// يحذف التطويل (ـ) المستخدم أحياناً لتمديد الكلمات بصرياً في النص المُبَرَّر
-// (مثال: "بـــقـــلـــه" ← "بقله")
-function stripTatweel(text: string): string {
-  return text.replace(/ـ+/g, '').trim();
-}
-
 function parseRainParagraphs($: cheerio.CheerioAPI, container: any): RainRow[] {
   const paragraphs = $(container).find('p').toArray();
   const results: RainRow[] = [];
@@ -149,12 +180,13 @@ function parseRainParagraphs($: cheerio.CheerioAPI, container: any): RainRow[] {
     const text = stripBullet(raw);
     if (!text) continue;
 
-    // سطر تصنيف (ولاية أو مقاطعة): لا يحتوي رقماً — بنقطتين أو بدونها
+    // سطر تصنيف (ولاية أو مقاطعة): لا يحتوي رقماً — بنقطتين أو بدونها.
+    // يُتجاهَل تماماً (لا وِلاية ولا مقاطعة) إن كان فقرة تمهيدية طويلة
+    // تذكر اسم ولاية عرضاً ضمن جملة كاملة (classifyLabel.kind === 'ignore')
     if (!/\d/.test(normalizeDigits(text))) {
-      const label = stripTatweel(text.replace(/:$/, ''));
-      if (!label) continue;
-      if (isWilayaLabel(label)) { currentWilaya = label; currentMoughataa = ''; }
-      else { currentMoughataa = label; }
+      const cls = classifyLabel(text);
+      if (cls.kind === 'wilaya') { currentWilaya = cls.value; currentMoughataa = ''; }
+      else if (cls.kind === 'moughataa') { currentMoughataa = cls.value; }
       continue;
     }
 
@@ -164,7 +196,7 @@ function parseRainParagraphs($: cheerio.CheerioAPI, container: any): RainRow[] {
     const m = normalized.match(/^(.*?)[\s:.…]+([\d.]+)\s*(?:ملم|مم)\.?$/);
     if (!m || !currentWilaya) continue;
 
-    const village = stripTatweel(m[1].replace(/:$/, ''));
+    const village = cleanName(m[1]);
     const mm = parseFloat(m[2]);
     if (!village || !Number.isFinite(mm)) continue;
 
