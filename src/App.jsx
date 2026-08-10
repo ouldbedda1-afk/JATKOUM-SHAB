@@ -18,6 +18,7 @@ const NewsArticlePage       = lazy(() => import('./pages/NewsArticlePage'));
 const LivestockReportPage   = lazy(() => import('./pages/LivestockReportPage'));
 const WilayaForecastPage    = lazy(() => import('./pages/WilayaForecastPage'));
 const ForecastArchivePage   = lazy(() => import('./pages/ForecastArchivePage'));
+const MeasurementsPage      = lazy(() => import('./pages/MeasurementsPage'));
 const PrivacyPolicyPage     = lazy(() => import('./pages/PrivacyPolicyPage'));
 const TermsPage             = lazy(() => import('./pages/TermsPage'));
 
@@ -43,6 +44,7 @@ function App() {
               <Route path="/forecast" element={<WeeklyForecastPage />} />
               <Route path="/forecast/:date/:wilayaSlug" element={<WilayaForecastPage />} />
               <Route path="/forecast-archive" element={<ForecastArchivePage />} />
+              <Route path="/measurements" element={<MeasurementsPage />} />
               <Route path="/althala" element={<AlThalaPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/bloggers" element={<BloggersPage />} />

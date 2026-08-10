@@ -605,6 +605,49 @@ export async function getVisitStats(days = 30) {
   return { total: total || 0, daily };
 }
 
+// ═══════════════════════════════════════════════════
+// مقاييس الأمطار الرسمية (منقولة من الوكالة الموريتانية للأنباء AMI)
+// ═══════════════════════════════════════════════════
+
+/**
+ * تقارير مقاييس الأمطار مُجمَّعة (تقرير واحد = مقال AMI واحد، بداخله كل
+ * قراءات القرى). limit/offset على مستوى التقارير لا القراءات الفردية.
+ */
+export async function getRainMeasurementReports({ limit = 10, offset = 0, wilaya = null } = {}) {
+  if (!isSupabaseConfigured) return { reports: [], count: 0 };
+
+  // قائمة روابط التقارير الفريدة (الأحدث أولاً) لتحديد صفحة التقارير المطلوبة
+  let urlsQuery = supabase
+    .from('rain_measurements')
+    .select('report_url, report_title, report_published_at')
+    .order('report_published_at', { ascending: false });
+  if (wilaya) urlsQuery = urlsQuery.eq('wilaya', wilaya);
+
+  const { data: allRows } = await urlsQuery;
+  const seen = new Set();
+  const orderedReports = [];
+  (allRows || []).forEach((r) => {
+    if (seen.has(r.report_url)) return;
+    seen.add(r.report_url);
+    orderedReports.push(r);
+  });
+
+  const pageReports = orderedReports.slice(offset, offset + limit);
+  if (pageReports.length === 0) return { reports: [], count: orderedReports.length };
+
+  const { data: readings } = await supabase
+    .from('rain_measurements')
+    .select('report_url, wilaya, moughataa, village, mm')
+    .in('report_url', pageReports.map((r) => r.report_url));
+
+  const reports = pageReports.map((r) => ({
+    ...r,
+    readings: (readings || []).filter((row) => row.report_url === r.report_url),
+  }));
+
+  return { reports, count: orderedReports.length };
+}
+
 export async function createPost(bloggerId, { title, content, cover_url, wilaya }) {
   const { data, error } = await supabase
     .from('posts')
