@@ -1,24 +1,28 @@
 // Supabase Edge Function: forecast-publisher
 // يُستدعى مرتين يومياً عبر pg_cron (9:00 و21:00 UTC — بعد توفر تشغيلتي ECMWF)
-// يجلب توقعات Open-Meteo لأهم مدن موريتانيا
-// وينشر تلقائياً أخبار التوقعات إذا وُجدت أمطار أو عواصف خلال 48 ساعة
-// كما ينشر نفس الخبر فوراً على صفحة فيسبوك عبر fb-post-article (بلا مراجعة، عند أول نشر فقط)
+// يجلب توقعات Open-Meteo لأهم مدن موريتانيا وينشر تلقائياً أخبار التوقعات
+// إذا وُجدت أمطار أو عواصف مهمة. كما ينشر نفس الخبر فوراً على صفحة فيسبوك
+// عبر fb-post-article (بلا مراجعة، عند أول نشر فقط).
 //
-// كل جولة (AM يعتمد ECMWF 00Z، PM يعتمد ECMWF 12Z) تُنتج أو تُحدِّث مقال
-// اليوم نفسه: forecast-daily-YYYY-MM-DD-AM هو المقال المرجعي الوحيد لكل يوم؛
-// إن نُشر AM ثم اختلفت توقعات PM جوهرياً، لا يُنشأ مقال PM منفصل — يُحدَّث
-// مقال AM في مكانه (يبقى نفس الرابط) ليعرض منشور "تحديث" بقسمين واضحين:
-// 📌 التوقع السابق ثم 🔄 التحديث الجديد (البلديات المضافة/المحذوفة/التي
-// تغيّرت شدتها، وقائمة التوقعات الحالية الكاملة) — لا يُترك القارئ يخمّن
-// الفرق بنفسه، ولا يُعتبر التحديث تكراراً فيُتجاهل.
+// الجولتان غير متماثلتين عمداً:
+// • AM (ECMWF 00Z): يعتمد بيانات daily، وينشر مقالاً مستقلاً لكل من يوم+1
+//   ويوم+2 (48 ساعة)، بـslug forecast-daily-YYYY-MM-DD-AM لكل يوم.
+// • PM (ECMWF 12Z): يعتمد بيانات hourly ويبني توقعاً موحّداً واحداً بدقة
+//   الساعة لآخر PM_WINDOW_HOURS ساعة بالضبط من لحظة النشر (لا تقسيم حسب
+//   اليوم التقويمي) — مقال واحد بـslug forecast-window-YYYY-MM-DD-PM.
 //
-// كل نشر (أول مرة أو تحديث) يقارن توقيعاً مبنياً على البيانات الخام
-// (المدن المتأثرة بالعواصف/الأمطار مُجمَّعة حسب الولاية، تصنيف الشدة، كمية
-// الأمطار القصوى) — وليس نص المقال المُولَّد. يُخزَّن التوقيع الكامل في
-// forecast_signature (JSONB، مخفي وغير معروض في أي واجهة) ليكون مرجع
-// "التوقع السابق" عند المقارنة القادمة، وتُخزَّن بصمة SHA-256 له بعد تطبيعه
-// (ترتيب المفاتيح أبجدياً) في forecast_signature_hash لمقارنة سريعة. إن
-// تطابقت البصمتان فلا تغيّر حقيقي، ولا يُنشأ أو يُحدَّث أي شيء.
+// في كلتا الجولتين: كل استدعاء لاحق لنفس الـslug (نفس اليوم × نفس الجولة)
+// يقارن توقيعاً جديداً بالتوقيع المخزَّن من آخر نشر لنفس الـslug. إن تطابقا
+// تماماً، لا يُنشأ ولا يُحدَّث أي شيء. إن اختلفا، يُحدَّث المقال نفسه في
+// مكانه (يبقى نفس الرابط) ليعرض منشور "تحديث" بقسمين واضحين: 📌 التوقع
+// السابق ثم 🔄 التحديث الجديد (البلديات المضافة/المحذوفة/التي تغيّرت
+// شدتها، وقائمة التوقعات الحالية الكاملة) — لا يُترك القارئ يخمّن الفرق
+// بنفسه، ولا يُعتبر التحديث تكراراً فيُتجاهل.
+//
+// التوقيع (forecast_signature، JSONB مخفي) مبني على البيانات الخام (المدن
+// المتأثرة بالعواصف/الأمطار مُجمَّعة حسب الولاية، تصنيف الشدة، كمية الأمطار
+// القصوى) — وليس نص المقال المُولَّد. بصمة SHA-256 له بعد تطبيعه (ترتيب
+// المفاتيح أبجدياً) تُخزَّن في forecast_signature_hash لمقارنة سريعة.
 // ملاحظة: هذه الدالة لا تجلب حرارة أو رياحاً حالياً (فقط weathercode/
 // precipitation)، فالتوقيع مبني على ما هو متاح فعلياً من بيانات.
 
@@ -193,8 +197,8 @@ function diffSignatures(prev: SignatureData | null | undefined, curr: SignatureD
 // ── عرض قسمي "📌 التوقع السابق" و"🔄 التحديث الجديد" داخل نفس المقال ───────
 function bucketLabel(b: Bucket): string { return b === 'storm' ? 'عواصف رعدية' : 'أمطار'; }
 
-function renderPreviousSummary(prevSig: SignatureData | null | undefined, dayAr: string, dateAr: string): string {
-  let s = `📌 **التوقع السابق (${dayAr} ${dateAr}):**\n\n`;
+function renderPreviousSummary(prevSig: SignatureData | null | undefined, periodLabel: string): string {
+  let s = `📌 **التوقع السابق (${periodLabel}):**\n\n`;
   const entries = Object.entries(prevSig?.by_wilaya || {});
   if (!entries.length) return s + '— لا توجد بيانات سابقة —\n\n';
   entries.forEach(([w, v]) => {
@@ -204,8 +208,8 @@ function renderPreviousSummary(prevSig: SignatureData | null | undefined, dayAr:
   return s + '\n';
 }
 
-function renderDiff(diff: SignatureDiff, currSig: SignatureData, prevSig: SignatureData | null | undefined, dayAr: string, dateAr: string): string {
-  let s = `🔄 **التحديث الجديد (${dayAr} ${dateAr}):**\n\n`;
+function renderDiff(diff: SignatureDiff, currSig: SignatureData, prevSig: SignatureData | null | undefined, periodLabel: string): string {
+  let s = `🔄 **التحديث الجديد (${periodLabel}):**\n\n`;
   for (const [w, d] of Object.entries(diff.perWilaya)) {
     s += `**${w}:**\n`;
     if (d.added.length)   s += `➕ أُضيفت: ${d.added.map((a) => a.city).join('، ')}\n`;
@@ -248,40 +252,216 @@ async function tg(text: string) {
   });
 }
 
+// ── نشر مقال جديد بـslug معيّن، أو تحديثه في مكانه إن تغيّرت توقعاته جوهرياً ──
+// (مشترك بين مقالات AM اليومية ومقال نافذة PM الموحّد) — التوقيع المخزَّن على
+// كل مقال هو مرجع "التوقع السابق" لمقارنة كل استدعاء لاحق بنفس الـslug.
+async function publishOrUpdate(opts: {
+  slug: string;
+  title: string;
+  body: string;
+  category: string;
+  wilaya: string;
+  tags: string[];
+  signatureData: SignatureData;
+  signatureHash: string;
+  periodLabel: string;
+  link: string;
+  freshLabel: string;
+  updateLabel: string;
+}): Promise<'published' | 'updated' | 'skipped'> {
+  const cols = 'id, title, content, forecast_signature, forecast_signature_hash';
+  const { data: rows } = await supabase.from('news_articles').select(cols).eq('slug', opts.slug).limit(1);
+  const existing: ArticleRow | null = rows?.[0] || null;
+
+  if (!existing) {
+    const { error } = await supabase.from('news_articles').insert([{
+      title: opts.title, slug: opts.slug, excerpt: opts.title, content: opts.body,
+      category: opts.category, wilaya: opts.wilaya,
+      author: 'جاتكم اسحاب', is_published: true, published_at: new Date().toISOString(),
+      tags: opts.tags,
+      forecast_signature: opts.signatureData, forecast_signature_hash: opts.signatureHash,
+      featured_image: '',
+    }]);
+    if (error) return 'skipped';
+    await tg(`📰 *${opts.freshLabel}:*\n${opts.title}\n\n🔗 ${opts.link}`);
+    await postToFacebookPage(opts.title, opts.body, opts.slug);
+    return 'published';
+  }
+
+  // بصمتان متطابقتان = لا تغيير جوهري — لا يُنشأ ولا يُحدَّث أي شيء
+  if (existing.forecast_signature_hash === opts.signatureHash) return 'skipped';
+
+  // تغيّر جوهري — تحديث المقال في مكانه (يبقى نفس الرابط)، مع قسمي
+  // "📌 التوقع السابق" و"🔄 التحديث الجديد" إن وُجد توقيع سابق صالح للمقارنة
+  const diff = existing.forecast_signature ? diffSignatures(existing.forecast_signature, opts.signatureData) : null;
+  const diffBlock = diff && diff.hasChanges
+    ? renderPreviousSummary(existing.forecast_signature, opts.periodLabel) + renderDiff(diff, opts.signatureData, existing.forecast_signature, opts.periodLabel)
+    : '';
+  const content = `${opts.body}\n\n${diffBlock}`.trimEnd();
+
+  const { error } = await supabase.from('news_articles').update({
+    title: opts.title, excerpt: opts.title, content, category: opts.category, wilaya: opts.wilaya,
+    published_at: new Date().toISOString(), tags: opts.tags,
+    forecast_signature: opts.signatureData, forecast_signature_hash: opts.signatureHash,
+  }).eq('id', existing.id);
+
+  if (error) return 'skipped';
+  await tg(`🔄 *${opts.updateLabel}:*\n${opts.title}\n\n🔗 ${opts.link}`);
+  return 'updated';
+}
+
+// نافذة الجولة المسائية: توقع موحّد لآخر 24 ساعة بدقة الساعة (بدل التقسيم
+// حسب اليوم التقويمي) — بيانات hourly من Open-Meteo، وليس daily
+const PM_WINDOW_HOURS = 24;
+
+interface CityAgg { storm: string[]; rain: string[]; stormWilaya: string[]; rainWilaya: string[]; maxMm: number }
+
+function buildPmWindowEntry(results: any[], now: Date): CityAgg {
+  const windowEnd = new Date(now.getTime() + PM_WINDOW_HOURS * 3600 * 1000);
+  const entry: CityAgg = { storm: [], rain: [], stormWilaya: [], rainWilaya: [], maxMm: 0 };
+
+  results.forEach((r: any, idx: number) => {
+    const cityInfo = CITIES[idx];
+    if (!r?.hourly?.time) return;
+
+    let maxCode = 0, sumMm = 0, maxProb = 0;
+    r.hourly.time.forEach((tStr: string, hi: number) => {
+      const t = new Date(tStr + ':00Z');
+      if (t < now || t >= windowEnd) return;
+      maxCode = Math.max(maxCode, r.hourly.weathercode?.[hi] ?? 0);
+      sumMm  += r.hourly.precipitation?.[hi] ?? 0;
+      maxProb = Math.max(maxProb, r.hourly.precipitation_probability?.[hi] ?? 0);
+    });
+
+    const { isRain, isStorm } = classifyCode(maxCode);
+    const significant = (isRain && sumMm >= 3 && maxProb >= 40) || isStorm;
+    if (!significant) return;
+
+    entry.maxMm = Math.max(entry.maxMm, sumMm);
+    if (isStorm) {
+      if (!entry.storm.includes(cityInfo.city)) entry.storm.push(cityInfo.city);
+      if (!entry.stormWilaya.includes(cityInfo.wilaya)) entry.stormWilaya.push(cityInfo.wilaya);
+    } else {
+      if (!entry.rain.includes(cityInfo.city)) entry.rain.push(cityInfo.city);
+      if (!entry.rainWilaya.includes(cityInfo.wilaya)) entry.rainWilaya.push(cityInfo.wilaya);
+    }
+  });
+
+  return entry;
+}
+
+function buildTitle(cityNames: string, intensity: string, hasStorm: boolean, periodPhrase: string): string {
+  return hasStorm
+    ? `يتوقع بإذن الله هطول أمطار ${intensity} على ${cityNames} ${periodPhrase} مصحوبة بعواصف رعدية`
+    : `يتوقع بإذن الله هطول أمطار ${intensity} على ${cityNames} ${periodPhrase}`;
+}
+
+function buildBody(entry: { storm: string[]; rain: string[] }, intensity: string, periodPhrase: string): string {
+  let body = '';
+  entry.storm.forEach((city) => {
+    const w = CITIES.find((c) => c.city === city)?.wilaya || '';
+    body += `يتوقع بإذن الله ⛈️ هطول أمطار ${intensity} على ${city}${w ? ` (${w})` : ''} ${periodPhrase} مصحوبة بعواصف رعدية.\n\n`;
+  });
+  entry.rain.forEach((city) => {
+    const w = CITIES.find((c) => c.city === city)?.wilaya || '';
+    body += `يتوقع بإذن الله 🌧️ هطول أمطار ${intensity} على ${city}${w ? ` (${w})` : ''} ${periodPhrase}.\n\n`;
+  });
+  body += `جعلها الله خيراً وبركة.`;
+  return body;
+}
+
 Deno.serve(async () => {
   try {
     const now   = new Date();
     const today = isoDate(now);
 
-    // جولة النشر: صباحية (تشغيلة ECMWF 00Z، تُستدعى ~9:00 UTC) أو مسائية
-    // (تشغيلة ECMWF 12Z، تُستدعى ~21:00 UTC). كل جولة تُنتج مقالها المستقل
-    // بدل الكتابة فوق مقال الجولة الأخرى لنفس اليوم.
+    // جولة النشر: صباحية (تشغيلة ECMWF 00Z، تُستدعى ~9:00 UTC، توقعات يوم+1
+    // ويوم+2 كل منها بمقاله الخاص) أو مسائية (تشغيلة ECMWF 12Z، تُستدعى
+    // ~21:00 UTC، توقع موحّد لآخر 24 ساعة بدقة الساعة بدل تقسيم الأيام).
     const run        = now.getUTCHours() < 12 ? 'AM' : 'PM';
     const modelCycle = run === 'AM' ? '00Z' : '12Z';
 
-    // ── 1. جلب توقعات Open-Meteo لجميع المدن دفعة واحدة ──
+    // ── 1. جلب توقعات Open-Meteo لجميع المدن دفعة واحدة (daily + hourly معاً) ──
     const lats = CITIES.map((c) => c.lat).join(',');
     const lons = CITIES.map((c) => c.lon).join(',');
 
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}` +
       `&daily=weathercode,precipitation_sum,precipitation_probability_max` +
+      `&hourly=weathercode,precipitation,precipitation_probability` +
       `&timezone=Africa%2FAbidjan&forecast_days=3`;
 
     const res  = await fetch(url);
     const json = await res.json();
 
     // Open-Meteo يُعيد مصفوفة عند طلب عدة مواقع
-    const results: unknown[] = Array.isArray(json) ? json : [json];
+    const results: any[] = Array.isArray(json) ? json : [json];
+    const link = (slug: string) => `${Deno.env.get('SITE_URL') ?? 'https://www.jatkoumshab.com'}/news/${slug}`;
 
-    // ── 2. تجميع المدن المتأثرة لكل يوم من اليوم+1 حتى اليوم+2 (48 ساعة) ──
-    interface DayEntry {
+    let published = 0, updated = 0;
+
+    // ═══ الجولة المسائية (PM): مقال موحّد واحد لآخر 24 ساعة ═══════════════
+    if (run === 'PM') {
+      const entry = buildPmWindowEntry(results, now);
+
+      if (entry.storm.length === 0 && entry.rain.length === 0) {
+        await tg(`☀️ لا توقعات أمطار مهمة خلال الـ${PM_WINDOW_HOURS} ساعة القادمة.`);
+        return new Response(JSON.stringify({ published: 0, message: 'no significant forecast' }));
+      }
+
+      const allCities  = [...entry.storm, ...entry.rain];
+      const hasStorm   = entry.storm.length > 0;
+      const intensity  = intensityFromMm(entry.maxMm);
+      const cityNames  = allCities.slice(0, 4).join(' و');
+      const category   = hasStorm ? 'عواصف' : 'أمطار';
+      const wilaya     = [...entry.stormWilaya, ...entry.rainWilaya][0] || '';
+      const periodPhrase = `خلال الـ${PM_WINDOW_HOURS} ساعة القادمة`;
+
+      const title = buildTitle(cityNames, intensity, hasStorm, periodPhrase);
+      const body  = buildBody(entry, intensity, periodPhrase);
+      const signatureData = buildSignature(entry, intensity);
+      const signatureHash = await sha256Hex(JSON.stringify(canonicalize(signatureData)));
+      const slug = `forecast-window-${today}-PM`;
+
+      const result = await publishOrUpdate({
+        slug, title, body, category, wilaya,
+        tags: ['توقعات', category, 'أوتوماتيك', 'PM', modelCycle],
+        signatureData, signatureHash,
+        periodLabel: periodPhrase,
+        link: link(slug),
+        freshLabel: `نُشر تلقائياً (الجولة المسائية — ${modelCycle})`,
+        updateLabel: `تحديث الجولة المسائية (${modelCycle})`,
+      });
+      if (result === 'published') published++;
+      if (result === 'updated') updated++;
+
+      if (published + updated > 0) {
+        await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          },
+          body: JSON.stringify({
+            title: '📅 توقعات جديدة — جاتكم اسحاب',
+            body:  `نُشرت توقعات الأمطار لآخر ${PM_WINDOW_HOURS} ساعة في موريتانيا. اضغط للاطلاع على التفاصيل.`,
+            url:   '/',
+            tag:   'forecast-update',
+            dedupeKey: `forecast-${today}-PM`,
+            signature: `forecast-${today}-PM`,
+            windowMinutes: 600,
+          }),
+        }).catch(() => {});
+      }
+
+      return new Response(JSON.stringify({ published, updated }), {
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+
+    // ═══ الجولة الصباحية (AM): مقال مستقل لكل يوم من يوم+1 حتى يوم+2 (48 ساعة) ═══
+    interface DayEntry extends CityAgg {
       date: Date;
       dateStr: string;
-      storm: string[];
-      rain: string[];
-      stormWilaya: string[];
-      rainWilaya: string[];
-      maxMm: number;
     }
 
     const byDay: Record<string, DayEntry> = {};
@@ -327,37 +507,8 @@ Deno.serve(async () => {
       return new Response(JSON.stringify({ published: 0, message: 'no significant forecast' }));
     }
 
-    let published = 0;
-
-    // ── 3. نشر مقال مستقل لكل (يوم × جولة) — إلا إذا لم تتغيّر التوقعات جوهرياً ──
     for (const [dateStr, entry] of Object.entries(byDay)) {
-      // slug حتمي لكل يوم توقّع × جولة نشر — بحد أقصى مقالان لكل يوم (AM/PM)
-      const slug = `forecast-daily-${dateStr}-${run}`;
-
-      const cols = 'id, title, content, forecast_signature, forecast_signature_hash';
-      const { data: existingRows } = await supabase
-        .from('news_articles')
-        .select(cols)
-        .eq('slug', slug)
-        .limit(1);
-      const existing: ArticleRow | null = existingRows?.[0] || null;
-
-      // الجولة المسائية فقط: هل يوجد أصلاً خبر صباحي لنفس اليوم؟ إن وُجد،
-      // هو المقال الذي يُحدَّث في مكانه بدل نشر مقال PM منفصل
-      let amArticle: ArticleRow | null = null;
-      if (run === 'PM') {
-        const amSlug = `forecast-daily-${dateStr}-AM`;
-        const { data: amRows } = await supabase
-          .from('news_articles')
-          .select(cols)
-          .eq('slug', amSlug)
-          .limit(1);
-        amArticle = amRows?.[0] || null;
-      }
-
-      // المقال المستهدف بالتحديث في مكانه إن وُجد تغيّر جوهري: نفس الجولة
-      // المُعاد استدعاؤها لها أولوية، وإلا فمقال الصباح عند جولة PM
-      const target: ArticleRow | null = existing || amArticle;
+      const slug = `forecast-daily-${dateStr}-AM`;
 
       const allCities  = [...entry.storm, ...entry.rain];
       const hasStorm   = entry.storm.length > 0;
@@ -365,108 +516,29 @@ Deno.serve(async () => {
       const dayAr      = arabicDay(entry.date);
       const dateAr     = arabicDate(entry.date);
       const cityNames  = allCities.slice(0, 4).join(' و');
-      const icon       = hasStorm ? '⛈️' : '🌧️';
       const category   = hasStorm ? 'عواصف' : 'أمطار';
       const wilaya     = [...entry.stormWilaya, ...entry.rainWilaya][0] || '';
+      const periodPhrase = `يوم ${dayAr} ${dateAr}`;
 
-      // "تحديث مسائي" له معنى فقط عند دمج تحديث PM داخل مقال الصباح
-      const updateTag = (run === 'PM' && amArticle && !existing) ? ' — تحديث مسائي' : '';
-      let title: string;
-      if (hasStorm) {
-        title = `يتوقع بإذن الله هطول أمطار ${intensity} على ${cityNames} يوم ${dayAr} ${dateAr} مصحوبة بعواصف رعدية${updateTag}`;
-      } else {
-        title = `يتوقع بإذن الله هطول أمطار ${intensity} على ${cityNames} يوم ${dayAr} ${dateAr}${updateTag}`;
-      }
-
-      // ── جسم الخبر (الجزء الجوهري القابل للمقارنة بين الجولتين) ──
-      let body = '';
-      entry.storm.forEach((city) => {
-        const w = CITIES.find((c) => c.city === city)?.wilaya || '';
-        body += `يتوقع بإذن الله ${icon} هطول أمطار ${intensity} على ${city}${w ? ` (${w})` : ''} يوم ${dayAr} ${dateAr} مصحوبة بعواصف رعدية.\n\n`;
-      });
-      entry.rain.forEach((city) => {
-        const w = CITIES.find((c) => c.city === city)?.wilaya || '';
-        body += `يتوقع بإذن الله 🌧️ هطول أمطار ${intensity} على ${city}${w ? ` (${w})` : ''} يوم ${dayAr} ${dateAr}.\n\n`;
-      });
-      body += `جعلها الله خيراً وبركة.`;
-
-      // ── توقيع البيانات الخام (وليس النص) — أساس كل مقارنة "هل تغيّرت التوقعات؟" ──
-      // مُجمَّع حسب الولاية (مرجع "التوقع السابق" عند كل مقارنة قادمة)، مبني على
-      // القيم الفعلية: المدن المتأثرة بالعواصف/الأمطار (مرتّبة أبجدياً لثبات
-      // الترتيب)، تصنيف الشدة، وكمية الأمطار القصوى (مقرّبة لأقرب مم لتفادي
-      // ضجيج الفاصلة العائمة). يُخزَّن كاملاً كـJSONB، وتُحسَب بصمة SHA-256
-      // لنسخته المُطبَّعة (canonicalize) لمقارنة سريعة لا تعتمد على ترتيب المفاتيح.
+      const title = buildTitle(cityNames, intensity, hasStorm, periodPhrase);
+      const body  = buildBody(entry, intensity, periodPhrase);
       const signatureData = buildSignature(entry, intensity);
       const signatureHash = await sha256Hex(JSON.stringify(canonicalize(signatureData)));
 
-      const link = `${Deno.env.get('SITE_URL') ?? 'https://www.jatkoumshab.com'}/news/${slug}`;
-      const tags = ['توقعات', category, 'أوتوماتيك', run, modelCycle];
-
-      // ── لا يوجد أي مقال بعد لهذا اليوم — نشر أول مقال (بلا مقارنة ممكنة) ──
-      if (!target) {
-        const content = body;
-        const { error } = await supabase.from('news_articles').insert([{
-          title, slug, excerpt: title, content, category, wilaya,
-          author: 'جاتكم اسحاب',
-          is_published: true,
-          published_at: new Date().toISOString(),
-          tags,
-          forecast_signature: signatureData,
-          forecast_signature_hash: signatureHash,
-          featured_image: '',
-        }]);
-
-        if (!error) {
-          published++;
-          const roundLabel = run === 'AM' ? 'الجولة الصباحية' : 'الجولة المسائية';
-          await tg(`📰 *نُشر تلقائياً (${roundLabel} — ${modelCycle}):*\n${title}\n\n🔗 ${link}`);
-          await postToFacebookPage(title, content, slug);
-        }
-        continue;
-      }
-
-      // ── يوجد مقال مستهدف (نفس الجولة أُعيد استدعاؤها، أو PM يُحدِّث مقال AM) ──
-      // بصمتان متطابقتان = لا تغيير جوهري — لا يُنشأ ولا يُحدَّث أي شيء
-      if (target.forecast_signature_hash === signatureHash) {
-        if (target === amArticle) {
-          const noChangeNote = `\n\n🔄 **تحديث مسائي:** لا توجد تغييرات جوهرية مقارنة بالنشرة الصباحية.`;
-          if (!(amArticle.content || '').includes('تحديث مسائي:')) {
-            await supabase.from('news_articles')
-              .update({ content: amArticle.content + noChangeNote })
-              .eq('id', amArticle.id);
-            await tg(`✅ *لا تغيير جوهري (PM — ${modelCycle}):* ${dateStr} — أُضيفت ملاحظة تأكيد بدل مقال جديد.`);
-          }
-        }
-        continue;
-      }
-
-      // تغيّر جوهري — تحديث المقال المستهدف في مكانه (يبقى نفس الرابط)، مع
-      // قسمي "📌 التوقع السابق" و"🔄 التحديث الجديد" إن وُجد توقيع سابق صالح للمقارنة
-      const diff = target.forecast_signature ? diffSignatures(target.forecast_signature, signatureData) : null;
-      const diffBlock = diff && diff.hasChanges
-        ? renderPreviousSummary(target.forecast_signature, dayAr, dateAr) + renderDiff(diff, signatureData, target.forecast_signature, dayAr, dateAr)
-        : '';
-      const content = `${body}\n\n${diffBlock}`.trimEnd();
-
-      const { error } = await supabase.from('news_articles').update({
-        title, excerpt: title, content, category, wilaya,
-        published_at: new Date().toISOString(), tags,
-        forecast_signature: signatureData,
-        forecast_signature_hash: signatureHash,
-      }).eq('id', target.id);
-
-      if (!error) {
-        published++;
-        const label = target === amArticle ? 'تحديث مسائي على مقال الصباح' : `تحديث ضمن نفس الجولة (${run})`;
-        await tg(`🔄 *${label}:*\n${title}\n\n🔗 ${link}`);
-      }
+      const result = await publishOrUpdate({
+        slug, title, body, category, wilaya,
+        tags: ['توقعات', category, 'أوتوماتيك', 'AM', modelCycle],
+        signatureData, signatureHash,
+        periodLabel: periodPhrase,
+        link: link(slug),
+        freshLabel: `نُشر تلقائياً (الجولة الصباحية — ${modelCycle})`,
+        updateLabel: `تحديث ضمن الجولة الصباحية`,
+      });
+      if (result === 'published') published++;
+      if (result === 'updated') updated++;
     }
 
-    // إرسال إشعار Push بعد نشر التوقعات
-    if (published > 0) {
-      const daysLabel = Object.keys(byDay).length;
-      const pushTitle = '📅 توقعات جديدة — جاتكم اسحاب';
-      const pushBody  = `نُشرت توقعات الأمطار للأيام الـ${daysLabel} القادمة في موريتانيا. اضغط للاطلاع على التفاصيل.`;
+    if (published + updated > 0) {
       await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push`, {
         method: 'POST',
         headers: {
@@ -474,18 +546,18 @@ Deno.serve(async () => {
           Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
         },
         body: JSON.stringify({
-          title: pushTitle,
-          body:  pushBody,
+          title: '📅 توقعات جديدة — جاتكم اسحاب',
+          body:  `نُشرت توقعات الأمطار للأيام الـ${Object.keys(byDay).length} القادمة في موريتانيا. اضغط للاطلاع على التفاصيل.`,
           url:   '/',
           tag:   'forecast-update',
-          dedupeKey: `forecast-${today}-${run}`,
-          signature: `forecast-${today}-${run}`,
-          windowMinutes: 600, // أقل من الفارق بين الجولتين حتى لا تُخمَد جولة PM بنافذة AM
+          dedupeKey: `forecast-${today}-AM`,
+          signature: `forecast-${today}-AM`,
+          windowMinutes: 600,
         }),
       }).catch(() => {});
     }
 
-    return new Response(JSON.stringify({ published, days: Object.keys(byDay).length }), {
+    return new Response(JSON.stringify({ published, updated, days: Object.keys(byDay).length }), {
       headers: { 'content-type': 'application/json' },
     });
 
