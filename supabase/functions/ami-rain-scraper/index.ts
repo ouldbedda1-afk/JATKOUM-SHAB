@@ -53,8 +53,12 @@ function parseFeed(xml: string): FeedItem[] {
   return items;
 }
 
+// شبكة واسعة عمداً — AMI يصوغ العناوين بأشكال مختلفة (تساقطات/تهاطلات/
+// أمطار متفرقة/مقاييس...)، والتصفية الحقيقية والدقيقة تحدث لاحقاً بالتحقق
+// من وجود جدول قياسات فعلي (رأس "الولاية/المقاطعة/القرية/الكمية") في
+// parseRainTable — لا نعتمد على العنوان وحده لتفادي تفويت تقارير حقيقية
 function isRainReportTitle(title: string): boolean {
-  return title.includes('مطر') && (title.includes('تساقط') || title.includes('تهاطل'));
+  return title.includes('مطر') || title.includes('مقاييس');
 }
 
 const ARABIC_INDIC = '٠١٢٣٤٥٦٧٨٩';
@@ -108,6 +112,51 @@ function parseRainTable($: cheerio.CheerioAPI, table: any): RainRow[] {
   return results;
 }
 
+// بعض التقارير لا تُصاغ كجدول HTML، بل كسلسلة فقرات: "الولاية:" ثم
+// "المقاطعة:" ثم "القرية XX ملم" لكل قرية — يُستخدم كبديل عندما لا يوجد
+// جدول صالح. نميّز سطر الولاية عن سطر المقاطعة بمطابقته لقائمة أسماء
+// الولايات المعروفة (بمتغيّراتها الإملائية المختلفة لدى AMI).
+const WILAYA_ROOTS = [
+  'نواكشوط الشمالية', 'نواكشوط الغربية', 'نواكشوط الجنوبية',
+  'الحوض الشرقي', 'الحوض الغربي', 'لعصابه', 'العصابة', 'كوركول', 'لبراكنه', 'البراكنة',
+  'الترارزة', 'اترارزه', 'آدرار', 'كيدي ماغه', 'كيدي ماغا', 'گيديماغه',
+  'اينشيري', 'إنشيري', 'انشيري', 'تكانت', 'تيرس زمور', 'داخلت نواذيبو', 'نواذيبو',
+];
+function isWilayaLabel(text: string): boolean {
+  return WILAYA_ROOTS.some((w) => text.includes(w) || w.includes(text));
+}
+
+function parseRainParagraphs($: cheerio.CheerioAPI, container: any): RainRow[] {
+  const paragraphs = $(container).find('p').toArray();
+  const results: RainRow[] = [];
+  let currentWilaya = '', currentMoughataa = '';
+
+  for (const p of paragraphs) {
+    const text = $(p).text().replace(/\s+/g, ' ').trim();
+    if (!text) continue;
+
+    // سطر تصنيف (ولاية أو مقاطعة): ينتهي بنقطتين ولا يحتوي رقماً
+    if (/:$/.test(text) && !/\d/.test(normalizeDigits(text))) {
+      const label = text.slice(0, -1).trim();
+      if (isWilayaLabel(label)) { currentWilaya = label; currentMoughataa = ''; }
+      else { currentMoughataa = label; }
+      continue;
+    }
+
+    // سطر قرية + كمية: "اسم القرية XX ملم" أو "XX مم"
+    const normalized = normalizeDigits(text).replace(/[،,](?=\d)/g, '.');
+    const m = normalized.match(/^(.*?)\s+([\d.]+)\s*(?:ملم|مم)\.?$/);
+    if (!m || !currentWilaya) continue;
+
+    const village = m[1].trim();
+    const mm = parseFloat(m[2]);
+    if (!village || !Number.isFinite(mm)) continue;
+
+    results.push({ wilaya: currentWilaya, moughataa: currentMoughataa, village, mm });
+  }
+  return results;
+}
+
 Deno.serve(async (req) => {
   try {
     // معالجة يدوية لمقال محدد (نسخ احتياطي/اختبار) — فقط عند تمرير
@@ -133,10 +182,20 @@ Deno.serve(async (req) => {
       const articleRes = await fetch(reportUrl, { headers: { 'User-Agent': UA } });
       const html = await articleRes.text();
       const $ = cheerio.load(html);
-      const table = $('.entry-content table').first();
-      if (table.length === 0) { skippedNoTable++; continue; }
+      // ملاحظة: .entry-content وحدها غير موثوقة — الصفحة تحتوي عنصراً آخر
+      // بنفس الاسم (قائمة تنقّل الشاشة الجانبية) يسبق جسم المقال الحقيقي في
+      // شجرة DOM. .single-post-content مقصورة على المقال نفسه فقط.
+      const article = $('.single-post-content').first();
 
-      const rows = parseRainTable($, table);
+      // العنوان وحده شبكة واسعة (قد يطابق مقالاً غير متعلق بالمقاييس فعلاً) —
+      // التصفية الحقيقية: أول جدول يحمل رأساً فعلياً "الولاية.../القرية..."،
+      // وإلا صيغة الفقرات البديلة (بعض التقارير تُكتب بلا جدول HTML إطلاقاً)
+      const table = $(article).find('table').toArray().find((t) => {
+        const headerText = $(t).find('tr').first().text();
+        return headerText.includes('الولاية') && headerText.includes('القرية');
+      });
+
+      const rows = table ? parseRainTable($, table) : parseRainParagraphs($, article);
       if (rows.length === 0) { skippedNoTable++; continue; }
 
       const publishedAt = new Date(item.pubDate).toISOString();
