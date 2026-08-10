@@ -677,9 +677,11 @@ export async function getRainMeasurementStats() {
     }
   });
 
+  // الترتيب حسب تراكم الهطول (إجمالي كل القراءات المسجَّلة)، لا المتوسط —
+  // "الأكثر هطولاً" يعني الأكثر مطراً تراكمياً منذ بداية تسجيل القياسات
   const wilayaRanking = Object.entries(byWilaya)
-    .map(([wilaya, v]) => ({ wilaya, avg: v.sum / v.count, max: v.max, count: v.count, total: v.sum }))
-    .sort((a, b) => b.avg - a.avg);
+    .map(([wilaya, v]) => ({ wilaya, total: v.sum, avg: v.sum / v.count, max: v.max, count: v.count }))
+    .sort((a, b) => b.total - a.total);
 
   const topByMoughataa = Object.values(byMoughataa).sort((a, b) => b.mm - a.mm);
 

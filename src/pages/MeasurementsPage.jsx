@@ -59,21 +59,21 @@ function StatsSection() {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <p className="text-lg font-black text-blue-700 leading-tight">{topWilaya.wilaya}</p>
             <p className="text-xs font-bold text-gray-400 mt-1">
-              الولاية الأكثر هطولاً (متوسط {topWilaya.avg.toFixed(1)} مم)
+              الولاية الأكثر هطولاً (تراكمياً {topWilaya.total.toFixed(0)} مم)
             </p>
           </div>
         )}
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-        <p className="text-xs font-bold text-gray-400 mb-3">📊 ترتيب الولايات حسب متوسط الهطول</p>
+        <p className="text-xs font-bold text-gray-400 mb-3">📊 ترتيب الولايات حسب تراكم الهطول</p>
         <div className="space-y-2">
           {stats.wilayaRanking.map((w, i) => (
             <div key={w.wilaya} className="flex items-center gap-3">
               <span className="text-xs font-black text-gray-400 w-5 shrink-0">{i + 1}</span>
               <span className="text-sm font-bold text-gray-700 flex-1 truncate">{w.wilaya}</span>
               <span className="text-[11px] text-gray-400">{w.count} قراءة</span>
-              <span className="text-xs font-black text-blue-600 w-16 text-left">{w.avg.toFixed(1)} مم</span>
+              <span className="text-xs font-black text-blue-600 w-20 text-left">{w.total.toFixed(0)} مم</span>
             </div>
           ))}
         </div>
