@@ -1,7 +1,7 @@
 // Supabase Edge Function: forecast-publisher
 // يُستدعى مرتين يومياً عبر pg_cron (9:00 و21:00 UTC — بعد توفر تشغيلتي ECMWF)
 // يجلب توقعات Open-Meteo لأهم مدن موريتانيا
-// وينشر تلقائياً أخبار التوقعات إذا وُجدت أمطار أو عواصف خلال 72 ساعة
+// وينشر تلقائياً أخبار التوقعات إذا وُجدت أمطار أو عواصف خلال 48 ساعة
 // كما ينشر نفس الخبر فوراً على صفحة فيسبوك عبر fb-post-article (بلا مراجعة، عند أول نشر فقط)
 //
 // كل جولة (AM يعتمد ECMWF 00Z، PM يعتمد ECMWF 12Z) تُنتج أو تُحدِّث مقال
@@ -263,7 +263,7 @@ Deno.serve(async () => {
 
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}` +
       `&daily=weathercode,precipitation_sum,precipitation_probability_max` +
-      `&timezone=Africa%2FAbidjan&forecast_days=4`;
+      `&timezone=Africa%2FAbidjan&forecast_days=3`;
 
     const res  = await fetch(url);
     const json = await res.json();
@@ -271,7 +271,7 @@ Deno.serve(async () => {
     // Open-Meteo يُعيد مصفوفة عند طلب عدة مواقع
     const results: unknown[] = Array.isArray(json) ? json : [json];
 
-    // ── 2. تجميع المدن المتأثرة لكل يوم من اليوم+1 حتى اليوم+3 ──
+    // ── 2. تجميع المدن المتأثرة لكل يوم من اليوم+1 حتى اليوم+2 (48 ساعة) ──
     interface DayEntry {
       date: Date;
       dateStr: string;
@@ -321,7 +321,7 @@ Deno.serve(async () => {
     });
 
     if (Object.keys(byDay).length === 0) {
-      await tg('☀️ لا توقعات أمطار مهمة في الـ 72 ساعة القادمة.');
+      await tg('☀️ لا توقعات أمطار مهمة في الـ 48 ساعة القادمة.');
       return new Response(JSON.stringify({ published: 0, message: 'no significant forecast' }));
     }
 

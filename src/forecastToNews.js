@@ -41,7 +41,7 @@ export function extractForecastDays(weatherData) {
     const rains = city.daily?.precipitation_sum  || [];
 
     let count = 0;
-    for (let i = 0; i < dates.length && count < 3; i++) {
+    for (let i = 0; i < dates.length && count < 2; i++) { // يومان مقبلان ≈ 48 ساعة
       if (!dates[i] || dates[i] <= todayStr) continue;
       count++;
       const dateStr   = dates[i];

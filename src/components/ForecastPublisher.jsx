@@ -83,7 +83,7 @@ export default function ForecastPublisher() {
       if (result.published === 0 && result.updated === 0) {
         setAutoResult(result.skipped > 0
           ? `☀️ ${result.skipped} ولاية مُتجاهَلة (لا تغيير حقيقي أو لا أمطار مهمة).`
-          : '☀️ لا توقعات أمطار مهمة خلال 72 ساعة.');
+          : '☀️ لا توقعات أمطار مهمة خلال 48 ساعة.');
       } else {
         const parts = [];
         if (result.published) parts.push(`نُشر ${result.published} خبراً جديداً`);
@@ -218,7 +218,7 @@ export default function ForecastPublisher() {
         <p><strong>⚡ أوتوماتيك:</strong> يقرأ نفس بيانات الصفحة الرئيسية ({weatherData?.length || 0} مدينة) وينشر خبراً لكل ولاية بنفس تنسيق بطاقات التوقعات.</p>
         {weatherLoading && <p className="text-gray-400">⏳ جارٍ تحميل البيانات...</p>}
         {!weatherLoading && autoDetected.length === 0 && (
-          <p>☀️ لا توقعات أمطار أو عواصف مهمة في الـ 72 ساعة القادمة.</p>
+          <p>☀️ لا توقعات أمطار أو عواصف مهمة في الـ 48 ساعة القادمة.</p>
         )}
         {!weatherLoading && autoDetected.length > 0 && (() => {
           // تجميع حسب الولاية للمعاينة
