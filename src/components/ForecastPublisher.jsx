@@ -80,12 +80,15 @@ export default function ForecastPublisher() {
     setAutoRunning(true); setAutoResult(''); setError('');
     try {
       const result = await autoPublishForecastNews(weatherData);
-      if (result.published === 0) {
+      if (result.published === 0 && result.updated === 0) {
         setAutoResult(result.skipped > 0
-          ? `☀️ ${result.skipped} يوم مُتجاهَل (منشور مسبقاً أو لا أمطار مهمة).`
+          ? `☀️ ${result.skipped} ولاية مُتجاهَلة (لا تغيير حقيقي أو لا أمطار مهمة).`
           : '☀️ لا توقعات أمطار مهمة خلال 72 ساعة.');
       } else {
-        setAutoResult(`✅ نُشر ${result.published} خبر تلقائياً من بيانات الصفحة الرئيسية.`);
+        const parts = [];
+        if (result.published) parts.push(`نُشر ${result.published} خبراً جديداً`);
+        if (result.updated)   parts.push(`حُدِّث ${result.updated} خبراً (تغيّرت توقعاته)`);
+        setAutoResult(`✅ ${parts.join(' و')} من بيانات الصفحة الرئيسية.`);
         setAutoPreview(result.results || []);
       }
     } catch (e) {

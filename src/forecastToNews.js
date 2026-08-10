@@ -99,6 +99,120 @@ function bulletList(list) {
   return list.map((c) => `• ${c}`).join('\n');
 }
 
+// ─── 3ب. توقيع التوقع (لمقارنة "هل تغيّر شيء حقيقي؟" بين نشرة وأخرى) ──────
+// يُبنى من نفس بيانات entries المستخدمة لتوليد المحتوى، بشكل مطبَّع
+// (مرتّب أبجدياً) حتى يبقى ثابتاً بغض النظر عن ترتيب المدن في المصدر.
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === 'object') {
+    return Object.keys(value).sort().reduce((acc, k) => {
+      acc[k] = canonicalize(value[k]);
+      return acc;
+    }, {});
+  }
+  return value;
+}
+
+async function hashSignature(signature) {
+  const data = new TextEncoder().encode(JSON.stringify(canonicalize(signature)));
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function buildForecastSignature(entries) {
+  return entries
+    .map(({ day, forecast }) => ({
+      dateStr: day.dateStr,
+      thunder: [...new Set(forecast.thunder.map((t) => t.city))].sort().map((city) => ({
+        city,
+        intensity: forecast.thunder.find((t) => t.city === city)?.intensity || null,
+      })),
+      heavy: [...new Set(forecast.heavy)].sort(),
+      moderate: [...new Set(forecast.moderate)].sort(),
+      weak: [...new Set(forecast.weak)].sort(),
+    }))
+    .sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+}
+
+// ─── 3ج. مقارنة توقيعين (السابق والحالي) وإخراج الفروقات ─────────────────
+const BUCKET_LABEL = { thunder: 'عواصف رعدية', heavy: 'أمطار غزيرة', moderate: 'أمطار متوسطة', weak: 'أمطار خفيفة' };
+
+function cityBucketMap(daySig) {
+  const map = new Map();
+  (daySig?.thunder  || []).forEach((t) => map.set(t.city, 'thunder'));
+  (daySig?.heavy    || []).forEach((c) => map.set(c, 'heavy'));
+  (daySig?.moderate || []).forEach((c) => map.set(c, 'moderate'));
+  (daySig?.weak     || []).forEach((c) => map.set(c, 'weak'));
+  return map;
+}
+
+function diffForecastSignatures(prevSig, currSig) {
+  const dateStrs = [...new Set([...(prevSig || []).map((d) => d.dateStr), ...(currSig || []).map((d) => d.dateStr)])].sort();
+  const days = [];
+  for (const dateStr of dateStrs) {
+    const prevDay = (prevSig || []).find((d) => d.dateStr === dateStr);
+    const currDay = (currSig || []).find((d) => d.dateStr === dateStr);
+    const prevMap = cityBucketMap(prevDay);
+    const currMap = cityBucketMap(currDay);
+
+    const added = [], removed = [], changed = [];
+    currMap.forEach((bucket, city) => {
+      if (!prevMap.has(city)) added.push({ city, bucket });
+      else if (prevMap.get(city) !== bucket) changed.push({ city, from: prevMap.get(city), to: bucket });
+    });
+    prevMap.forEach((bucket, city) => {
+      if (!currMap.has(city)) removed.push({ city, bucket });
+    });
+
+    if (added.length || removed.length || changed.length) {
+      days.push({ dateStr, added, removed, changed, currDay: currDay || { thunder: [], heavy: [], moderate: [], weak: [] } });
+    }
+  }
+  return { days, hasChanges: days.length > 0 };
+}
+
+// ─── 3د. عرض قسمي "التوقع السابق" و"التحديث الجديد" في منشور التحديث ─────
+function renderPreviousSummary(prevSig) {
+  if (!prevSig?.length) return '';
+  let s = `📌 **التوقع السابق:**\n\n`;
+  prevSig.forEach((day) => {
+    s += `**${arabicFullDate(day.dateStr)}**\n`;
+    if (day.thunder.length)  s += `⛈️ عواصف رعدية على:\n${bulletList(day.thunder.map((t) => t.city))}\n`;
+    if (day.heavy.length)    s += `🌧️ أمطار غزيرة على:\n${bulletList(day.heavy)}\n`;
+    if (day.moderate.length) s += `🌦️ أمطار متوسطة على:\n${bulletList(day.moderate)}\n`;
+    if (day.weak.length)     s += `🌦️ أمطار خفيفة على:\n${bulletList(day.weak)}\n`;
+    s += `\n`;
+  });
+  return s;
+}
+
+function renderUpdateSection(diff) {
+  let s = `🔄 **التحديث الجديد:**\n\n`;
+  diff.days.forEach(({ dateStr, added, removed, changed, currDay }) => {
+    s += `**${arabicFullDate(dateStr)}**\n`;
+    if (added.length)   s += `➕ تمت إضافة:\n${bulletList(added.map((a) => a.city))}\n`;
+    if (removed.length) s += `➖ تم حذف:\n${bulletList(removed.map((r) => r.city))}\n`;
+    if (changed.length) {
+      s += `🔁 تغيّرت شدتها:\n${bulletList(changed.map((c) => `${c.city} (${BUCKET_LABEL[c.from]} ← ${BUCKET_LABEL[c.to]})`))}\n`;
+    }
+    const currentAll = [...currDay.thunder.map((t) => t.city), ...currDay.heavy, ...currDay.moderate, ...currDay.weak];
+    s += `📋 أصبحت التوقعات الحالية تشمل:\n${currentAll.length ? bulletList(currentAll) : '— لا مناطق —'}\n\n`;
+  });
+  return s;
+}
+
+function buildWilayaUpdateContent(wilaya, prevSig, diff) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  let content = `🌦️ **تحديث التوقعات الجوية – ولاية ${wilaya}**\n**${arabicFullDateWithYear(todayStr)}**\n**جاتكم اسحاب**\n\n`;
+  content += renderPreviousSummary(prevSig);
+  content += renderUpdateSection(diff);
+  content += `⚠️ **تنبيه:** تمثل هذه التوقعات أفضل قراءة للنماذج الجوية في الوقت الحالي، وهي قابلة للتحديث مع صدور بيانات جديدة.\n\n`;
+  content += `🤲 **اللهم اسقنا الغيث، ولا تجعلنا من القانطين.**\n\n`;
+  const hashtag = `#${wilaya.replace(/\s+/g, '_')}`;
+  content += `${hashtag} #موريتانيا #الأمطار #جاتكم_اسحاب`;
+  return content;
+}
+
 function buildWilayaContent(wilaya, entries) {
   const anyThunder = entries.some((e) => e.forecast.thunder.length > 0);
   const intro = anyThunder
@@ -168,27 +282,31 @@ function makeDailySlug(wilaya) {
   return `forecast-${wilayaToSlug(wilaya)}-${today}`;
 }
 
-// ─── 5. تجنب التكرار ─────────────────────────────────────────────────────
-async function articleExistsForWilaya(wilaya) {
+// ─── 5. جلب المقال الحالي (إن وُجد) لنفس الولاية اليوم ────────────────────
+// كان هذا سابقاً فحص "هل يوجد مقال؟" فقط (تجاهل عند التكرار). الآن يُعيد
+// المقال كاملاً (بما فيه forecast_signature المخزَّن) ليصير مرجعاً تُقارَن
+// به كل نشرة جديدة — فتغيّر حقيقي يُنتج منشور تحديث، لا يُتجاهَل.
+async function getExistingWilayaArticle(wilaya) {
   const slug = makeDailySlug(wilaya);
+  const cols = 'id, title, content, forecast_signature, forecast_signature_hash';
   // أولاً: تحقق بـ slug الحتمي (أكثر دقة)
-  const bySlug = await supabase.from('news_articles').select('id').eq('slug', slug).limit(1);
-  if (bySlug.data?.length > 0) return true;
+  const bySlug = await supabase.from('news_articles').select(cols).eq('slug', slug).limit(1);
+  if (bySlug.data?.length > 0) return bySlug.data[0];
   // ثانياً: احتياطي — تحقق بـ wilaya + تاريخ اليوم (للتوافق مع المقالات القديمة)
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
-  const byWilaya = await supabase.from('news_articles').select('id')
+  const byWilaya = await supabase.from('news_articles').select(cols)
     .eq('wilaya', wilaya).gte('published_at', todayStart.toISOString()).limit(1);
-  return byWilaya.data?.length > 0;
+  return byWilaya.data?.[0] || null;
 }
 
 // ─── 6. الدالة الرئيسية ──────────────────────────────────────────────────
 export async function autoPublishForecastNews(weatherData) {
   const days = extractForecastDays(weatherData);
-  if (!days.length) return { published: 0, skipped: 0, message: 'لا توقعات مهمة' };
+  if (!days.length) return { published: 0, updated: 0, skipped: 0, message: 'لا توقعات مهمة' };
 
   const wilayaGroups = groupByWilaya(days);
-  let published = 0, skipped = 0;
+  let published = 0, updated = 0, skipped = 0;
   const results = [];
 
   for (const [wilaya, entries] of wilayaGroups) {
@@ -198,13 +316,53 @@ export async function autoPublishForecastNews(weatherData) {
     );
     if (!hasSignificant) { skipped++; continue; }
 
-    // تجنب التكرار
-    const exists = await articleExistsForWilaya(wilaya);
-    if (exists) { skipped++; continue; }
+    const currSig  = buildForecastSignature(entries);
+    const currHash = await hashSignature(currSig);
+    const hasStorm = entries.some((e) => e.forecast.thunder.length > 0);
+    const existing = await getExistingWilayaArticle(wilaya);
 
+    if (existing) {
+      // نفس التوقيع تماماً — لا تغيير حقيقي، لا يُنشأ أي منشور
+      if (existing.forecast_signature_hash === currHash) { skipped++; continue; }
+
+      // مقال قديم بلا مرجع مخزَّن (سابق لهذا التحديث) — لا توجد قاعدة موثوقة
+      // للمقارنة، فنكتفي بتسجيل التوقيع الحالي كمرجع أول لمقارنات لاحقة
+      if (!existing.forecast_signature) {
+        await supabase.from('news_articles')
+          .update({ forecast_signature: currSig, forecast_signature_hash: currHash })
+          .eq('id', existing.id);
+        skipped++;
+        continue;
+      }
+
+      // تغيّر حقيقي — تحديث المقال في مكانه بمنشور يوضح الفرق (السابق/الجديد)
+      const diff = diffForecastSignatures(existing.forecast_signature, currSig);
+      if (!diff.hasChanges) { skipped++; continue; }
+
+      const title   = `${buildWilayaTitle(wilaya, entries)} — تحديث`;
+      const content = buildWilayaUpdateContent(wilaya, existing.forecast_signature, diff);
+
+      try {
+        const { error } = await supabase.from('news_articles').update({
+          title, excerpt: title, content,
+          category: hasStorm ? 'عواصف' : 'أمطار',
+          published_at: new Date().toISOString(),
+          tags: ['توقعات', wilaya, hasStorm ? 'عواصف' : 'أمطار', 'تحديث'],
+          forecast_signature: currSig,
+          forecast_signature_hash: currHash,
+        }).eq('id', existing.id);
+        if (error) throw new Error(error.message);
+        updated++;
+        results.push({ wilaya, title });
+      } catch (e) {
+        console.error(`خطأ في تحديث ${wilaya}:`, e);
+      }
+      continue;
+    }
+
+    // لا يوجد مقال بعد لهذه الولاية اليوم — نشر أول نشرة (بلا مقارنة)
     const title   = buildWilayaTitle(wilaya, entries);
     const content = buildWilayaContent(wilaya, entries);
-    const hasStorm  = entries.some((e) => e.forecast.thunder.length > 0);
 
     try {
       await adminCreateNews({
@@ -218,6 +376,8 @@ export async function autoPublishForecastNews(weatherData) {
         is_published: true,
         tags: ['توقعات', wilaya, hasStorm ? 'عواصف' : 'أمطار'],
         featured_image: getImageForAlert(hasStorm ? 'عواصف' : 'أمطار', title),
+        forecast_signature: currSig,
+        forecast_signature_hash: currHash,
       });
       published++;
       results.push({ wilaya, title });
@@ -233,12 +393,17 @@ export async function autoPublishForecastNews(weatherData) {
     console.warn('تحذير: فشل حفظ snapshot:', e);
   }
 
-  // إشعار Push بعد نشر التوقعات (مرة واحدة في اليوم)
-  if (published > 0) {
+  // إشعار Push بعد نشر أو تحديث التوقعات (مرة واحدة في اليوم)
+  if (published > 0 || updated > 0) {
     const today = new Date().toISOString().slice(0, 10);
+    const body = published > 0 && updated > 0
+      ? `نُشرت توقعات جديدة لـ ${published} ولاية، وتحديث توقعات ${updated} ولاية. اضغط للاطلاع على التفاصيل.`
+      : published > 0
+        ? `نُشرت توقعات الأمطار لـ ${published} ولاية. اضغط للاطلاع على التفاصيل.`
+        : `تحديث في توقعات الأمطار لـ ${updated} ولاية. اضغط للاطلاع على التفاصيل.`;
     broadcastPush({
       title: '📅 توقعات جديدة — جاتكم اسحاب',
-      body: `نُشرت توقعات الأمطار لـ ${published} ولاية. اضغط للاطلاع على التفاصيل.`,
+      body,
       url: '/',
       tag: 'forecast-update',
       dedupeKey: `forecast-${today}`,
@@ -247,7 +412,7 @@ export async function autoPublishForecastNews(weatherData) {
     }).catch(() => {});
   }
 
-  return { published, skipped, results };
+  return { published, updated, skipped, results };
 }
 
 // ─── 7. تحذيرات الرياح / الغبار / الحرارة / البرودة ─────────────────────────

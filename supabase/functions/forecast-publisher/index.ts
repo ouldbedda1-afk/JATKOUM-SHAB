@@ -4,18 +4,21 @@
 // وينشر تلقائياً أخبار التوقعات إذا وُجدت أمطار أو عواصف خلال 72 ساعة
 // كما ينشر نفس الخبر فوراً على صفحة فيسبوك عبر fb-post-article (بلا مراجعة، عند أول نشر فقط)
 //
-// كل جولة (AM يعتمد ECMWF 00Z، PM يعتمد ECMWF 12Z) مستقلة تماماً عن الأخرى:
-// لكل (يوم × جولة) slug خاص به (forecast-daily-YYYY-MM-DD-AM أو ...-PM).
-// كل مقال يذكر بوضوح وقتين منفصلين: وقت صدور تشغيلة النموذج ووقت نشر الخبر.
+// كل جولة (AM يعتمد ECMWF 00Z، PM يعتمد ECMWF 12Z) تُنتج أو تُحدِّث مقال
+// اليوم نفسه: forecast-daily-YYYY-MM-DD-AM هو المقال المرجعي الوحيد لكل يوم؛
+// إن نُشر AM ثم اختلفت توقعات PM جوهرياً، لا يُنشأ مقال PM منفصل — يُحدَّث
+// مقال AM في مكانه (يبقى نفس الرابط) ليعرض منشور "تحديث" بقسمين واضحين:
+// 📌 التوقع السابق ثم 🔄 التحديث الجديد (البلديات المضافة/المحذوفة/التي
+// تغيّرت شدتها، وقائمة التوقعات الحالية الكاملة) — لا يُترك القارئ يخمّن
+// الفرق بنفسه، ولا يُعتبر التحديث تكراراً فيُتجاهل.
 //
-// الجولة المسائية (PM) تقارن قبل النشر توقيعاً مبنياً على البيانات الخام لنفس اليوم
-// (المدن/الولايات المتأثرة بالعواصف والأمطار، تصنيف الشدة، كمية الأمطار القصوى)
-// — وليس نص المقال المُولَّد. يُخزَّن التوقيع الكامل في forecast_signature (JSONB،
-// مخفي وغير معروض في أي واجهة) للمراجعة ولإتاحة توليد ملخص "ما الذي تغيّر" لاحقاً،
-// وتُخزَّن بصمة SHA-256 له بعد تطبيعه (ترتيب المفاتيح أبجدياً) في
-// forecast_signature_hash لمقارنة سريعة دون الحاجة لمقارنة الـ JSONB كاملاً.
-// إن تطابقت البصمتان، لا يُنشأ مقال PM منفصل — تُضاف فقط ملاحظة تأكيد قصيرة على
-// مقال الصباح. إن اختلفتا، يُنشر مقال PM مستقل (لا يمحو أو يستبدل مقال AM).
+// كل نشر (أول مرة أو تحديث) يقارن توقيعاً مبنياً على البيانات الخام
+// (المدن المتأثرة بالعواصف/الأمطار مُجمَّعة حسب الولاية، تصنيف الشدة، كمية
+// الأمطار القصوى) — وليس نص المقال المُولَّد. يُخزَّن التوقيع الكامل في
+// forecast_signature (JSONB، مخفي وغير معروض في أي واجهة) ليكون مرجع
+// "التوقع السابق" عند المقارنة القادمة، وتُخزَّن بصمة SHA-256 له بعد تطبيعه
+// (ترتيب المفاتيح أبجدياً) في forecast_signature_hash لمقارنة سريعة. إن
+// تطابقت البصمتان فلا تغيّر حقيقي، ولا يُنشأ أو يُحدَّث أي شيء.
 // ملاحظة: هذه الدالة لا تجلب حرارة أو رياحاً حالياً (فقط weathercode/
 // precipitation)، فالتوقيع مبني على ما هو متاح فعلياً من بيانات.
 
@@ -103,6 +106,124 @@ function canonicalize(value: unknown): unknown {
 async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ── توقيع مُجمَّع حسب الولاية (مرجع "التوقع السابق" للمقارنة) ──────────────
+interface WilayaBucket { storm: string[]; rain: string[] }
+interface SignatureData {
+  by_wilaya: Record<string, WilayaBucket>;
+  intensity: string;
+  max_precip_mm: number;
+}
+interface ArticleRow {
+  id: string;
+  title?: string;
+  content: string;
+  forecast_signature?: SignatureData | null;
+  forecast_signature_hash: string | null;
+}
+
+function cityWilaya(city: string): string {
+  return CITIES.find((c) => c.city === city)?.wilaya || 'أخرى';
+}
+
+function buildSignature(entry: { storm: string[]; rain: string[]; maxMm: number }, intensity: string): SignatureData {
+  const byWilaya: Record<string, WilayaBucket> = {};
+  entry.storm.forEach((city) => {
+    const w = cityWilaya(city);
+    (byWilaya[w] ||= { storm: [], rain: [] }).storm.push(city);
+  });
+  entry.rain.forEach((city) => {
+    const w = cityWilaya(city);
+    (byWilaya[w] ||= { storm: [], rain: [] }).rain.push(city);
+  });
+  for (const w of Object.keys(byWilaya)) {
+    byWilaya[w].storm.sort();
+    byWilaya[w].rain.sort();
+  }
+  return { by_wilaya: byWilaya, intensity, max_precip_mm: Math.round(entry.maxMm) };
+}
+
+// ── مقارنة توقيعين وإخراج الفروقات مجمَّعة حسب الولاية ─────────────────────
+type Bucket = 'storm' | 'rain';
+interface WilayaDiff {
+  added: { city: string; bucket: Bucket }[];
+  removed: { city: string; bucket: Bucket }[];
+  changed: { city: string; from: Bucket; to: Bucket }[];
+}
+interface SignatureDiff {
+  perWilaya: Record<string, WilayaDiff>;
+  intensityChanged: boolean;
+  hasChanges: boolean;
+}
+
+function cityBucketMap(bucket?: WilayaBucket): Map<string, Bucket> {
+  const map = new Map<string, Bucket>();
+  (bucket?.storm || []).forEach((c) => map.set(c, 'storm'));
+  (bucket?.rain  || []).forEach((c) => map.set(c, 'rain'));
+  return map;
+}
+
+function diffSignatures(prev: SignatureData | null | undefined, curr: SignatureData): SignatureDiff {
+  const wilayas = new Set([...Object.keys(prev?.by_wilaya || {}), ...Object.keys(curr.by_wilaya)]);
+  const perWilaya: Record<string, WilayaDiff> = {};
+
+  for (const w of wilayas) {
+    const prevMap = cityBucketMap(prev?.by_wilaya?.[w]);
+    const currMap = cityBucketMap(curr.by_wilaya[w]);
+    const added: WilayaDiff['added'] = [];
+    const removed: WilayaDiff['removed'] = [];
+    const changed: WilayaDiff['changed'] = [];
+
+    currMap.forEach((bucket, city) => {
+      if (!prevMap.has(city)) added.push({ city, bucket });
+      else if (prevMap.get(city) !== bucket) changed.push({ city, from: prevMap.get(city)!, to: bucket });
+    });
+    prevMap.forEach((bucket, city) => {
+      if (!currMap.has(city)) removed.push({ city, bucket });
+    });
+
+    if (added.length || removed.length || changed.length) perWilaya[w] = { added, removed, changed };
+  }
+
+  const intensityChanged = !!prev && (prev.intensity !== curr.intensity || prev.max_precip_mm !== curr.max_precip_mm);
+  return { perWilaya, intensityChanged, hasChanges: Object.keys(perWilaya).length > 0 || intensityChanged };
+}
+
+// ── عرض قسمي "📌 التوقع السابق" و"🔄 التحديث الجديد" داخل نفس المقال ───────
+function bucketLabel(b: Bucket): string { return b === 'storm' ? 'عواصف رعدية' : 'أمطار'; }
+
+function renderPreviousSummary(prevSig: SignatureData | null | undefined, dayAr: string, dateAr: string): string {
+  let s = `📌 **التوقع السابق (${dayAr} ${dateAr}):**\n\n`;
+  const entries = Object.entries(prevSig?.by_wilaya || {});
+  if (!entries.length) return s + '— لا توجد بيانات سابقة —\n\n';
+  entries.forEach(([w, v]) => {
+    if (v.storm.length) s += `⛈️ عواصف رعدية على: ${v.storm.join('، ')} (${w})\n`;
+    if (v.rain.length)  s += `🌧️ أمطار على: ${v.rain.join('، ')} (${w})\n`;
+  });
+  return s + '\n';
+}
+
+function renderDiff(diff: SignatureDiff, currSig: SignatureData, prevSig: SignatureData | null | undefined, dayAr: string, dateAr: string): string {
+  let s = `🔄 **التحديث الجديد (${dayAr} ${dateAr}):**\n\n`;
+  for (const [w, d] of Object.entries(diff.perWilaya)) {
+    s += `**${w}:**\n`;
+    if (d.added.length)   s += `➕ أُضيفت: ${d.added.map((a) => a.city).join('، ')}\n`;
+    if (d.removed.length) s += `➖ حُذفت: ${d.removed.map((r) => r.city).join('، ')}\n`;
+    if (d.changed.length) s += `🔁 تغيّر نوعها: ${d.changed.map((c) => `${c.city} (${bucketLabel(c.from)} ← ${bucketLabel(c.to)})`).join('، ')}\n`;
+    s += '\n';
+  }
+  if (diff.intensityChanged && prevSig) {
+    s += `🌡️ تغيّرت الشدة العامة المتوقعة من "${prevSig.intensity}" (حتى ${prevSig.max_precip_mm} مم) إلى "${currSig.intensity}" (حتى ${currSig.max_precip_mm} مم).\n\n`;
+  }
+  s += `📋 **أصبحت التوقعات الحالية تشمل:**\n`;
+  const currEntries = Object.entries(currSig.by_wilaya);
+  if (!currEntries.length) s += '— لا مناطق —\n';
+  currEntries.forEach(([w, v]) => {
+    const all = [...v.storm, ...v.rain];
+    if (all.length) s += `${w}: ${all.join('، ')}\n`;
+  });
+  return s + '\n';
 }
 
 // تحويل تاريخ إلى أسماء عربية
@@ -218,25 +339,30 @@ Deno.serve(async () => {
       // slug حتمي لكل يوم توقّع × جولة نشر — بحد أقصى مقالان لكل يوم (AM/PM)
       const slug = `forecast-daily-${dateStr}-${run}`;
 
+      const cols = 'id, title, content, forecast_signature, forecast_signature_hash';
       const { data: existingRows } = await supabase
         .from('news_articles')
-        .select('id, content, forecast_signature_hash')
+        .select(cols)
         .eq('slug', slug)
         .limit(1);
-      const existing = existingRows?.[0] || null;
+      const existing: ArticleRow | null = existingRows?.[0] || null;
 
-      // الجولة المسائية فقط: هل يوجد أصلاً خبر صباحي لنفس اليوم؟ يُحدَّد هذا
-      // العنوان ("تحديث مسائي") والمقارنة اللاحقة معاً بدل تكرار الاستعلام
-      let amArticle: { id: string; content: string; forecast_signature_hash: string | null } | null = null;
+      // الجولة المسائية فقط: هل يوجد أصلاً خبر صباحي لنفس اليوم؟ إن وُجد،
+      // هو المقال الذي يُحدَّث في مكانه بدل نشر مقال PM منفصل
+      let amArticle: ArticleRow | null = null;
       if (run === 'PM') {
         const amSlug = `forecast-daily-${dateStr}-AM`;
         const { data: amRows } = await supabase
           .from('news_articles')
-          .select('id, content, forecast_signature_hash')
+          .select(cols)
           .eq('slug', amSlug)
           .limit(1);
         amArticle = amRows?.[0] || null;
       }
+
+      // المقال المستهدف بالتحديث في مكانه إن وُجد تغيّر جوهري: نفس الجولة
+      // المُعاد استدعاؤها لها أولوية، وإلا فمقال الصباح عند جولة PM
+      const target: ArticleRow | null = existing || amArticle;
 
       const allCities  = [...entry.storm, ...entry.rain];
       const hasStorm   = entry.storm.length > 0;
@@ -248,8 +374,8 @@ Deno.serve(async () => {
       const category   = hasStorm ? 'عواصف' : 'أمطار';
       const wilaya     = [...entry.stormWilaya, ...entry.rainWilaya][0] || '';
 
-      // "تحديث مسائي" له معنى فقط إن وُجد أصلاً خبر صباحي لنفس اليوم يُحدَّث عليه
-      const updateTag = amArticle ? ' — تحديث مسائي' : '';
+      // "تحديث مسائي" له معنى فقط عند دمج تحديث PM داخل مقال الصباح
+      const updateTag = (run === 'PM' && amArticle && !existing) ? ' — تحديث مسائي' : '';
       let title: string;
       if (hasStorm) {
         title = `يتوقع بإذن الله هطول أمطار ${intensity} على ${cityNames} يوم ${dayAr} ${dateAr} مصحوبة بعواصف رعدية${updateTag}`;
@@ -270,80 +396,80 @@ Deno.serve(async () => {
       body += `جعلها الله خيراً وبركة.`;
 
       // ── توقيع البيانات الخام (وليس النص) — أساس كل مقارنة "هل تغيّرت التوقعات؟" ──
-      // مبني على القيم الفعلية: المدن/الولايات المتأثرة بالعواصف والأمطار (مرتّبة
-      // أبجدياً لثبات الترتيب)، تصنيف الشدة، وكمية الأمطار القصوى (مقرّبة لأقرب مم
-      // لتفادي ضجيج الفاصلة العائمة). يُخزَّن كاملاً كـJSONB، وتُحسَب بصمة SHA-256
+      // مُجمَّع حسب الولاية (مرجع "التوقع السابق" عند كل مقارنة قادمة)، مبني على
+      // القيم الفعلية: المدن المتأثرة بالعواصف/الأمطار (مرتّبة أبجدياً لثبات
+      // الترتيب)، تصنيف الشدة، وكمية الأمطار القصوى (مقرّبة لأقرب مم لتفادي
+      // ضجيج الفاصلة العائمة). يُخزَّن كاملاً كـJSONB، وتُحسَب بصمة SHA-256
       // لنسخته المُطبَّعة (canonicalize) لمقارنة سريعة لا تعتمد على ترتيب المفاتيح.
-      // ملاحظة: لا تُدرَج run/date داخل الكائن المُوقَّع نفسه — الهدف هو مقارنة
-      // جوهر التوقعات بمعزل عن الجولة أو التوقيت، فيبقى التوقيع قابلاً للمطابقة
-      // بين AM وPM لنفس اليوم. date/run محفوظان في news_articles.slug أصلاً.
-      const signatureData = {
-        storm_cities: [...entry.storm].sort(),
-        rain_cities: [...entry.rain].sort(),
-        storm_wilayas: [...entry.stormWilaya].sort(),
-        rain_wilayas: [...entry.rainWilaya].sort(),
-        intensity,
-        max_precip_mm: Math.round(entry.maxMm),
-      };
+      const signatureData = buildSignature(entry, intensity);
       const signatureHash = await sha256Hex(JSON.stringify(canonicalize(signatureData)));
 
       // ── وقت صدور بيانات النموذج ووقت نشر الخبر، منفصلان بوضوح ──
       const meta =
         `🛰️ صدرت بيانات النموذج (ECMWF ${modelCycle}) الساعة ${issuedTimeStr}\n` +
         `🕓 نُشر هذا الخبر الساعة ${publishedTimeStr}`;
-      const content = `${body}\n\n${meta}`;
       const link = `${Deno.env.get('SITE_URL') ?? 'https://www.jatkoumshab.com'}/news/${slug}`;
       const tags = ['توقعات', category, 'أوتوماتيك', run, modelCycle];
 
-      if (existing) {
-        // نفس الجولة استُدعيت مرتين — حدّث فقط إذا تغيّرت البيانات الخام فعلياً (بصمة مختلفة)، وإلا تجاهل
-        if (existing.forecast_signature_hash === signatureHash) continue;
-
-        const { error } = await supabase.from('news_articles').update({
-          title, excerpt: title, content, category, wilaya,
-          published_at: new Date().toISOString(), tags,
+      // ── لا يوجد أي مقال بعد لهذا اليوم — نشر أول مقال (بلا مقارنة ممكنة) ──
+      if (!target) {
+        const content = `${body}\n\n${meta}`;
+        const { error } = await supabase.from('news_articles').insert([{
+          title, slug, excerpt: title, content, category, wilaya,
+          author: 'جاتكم اسحاب',
+          is_published: true,
+          published_at: new Date().toISOString(),
+          tags,
           forecast_signature: signatureData,
           forecast_signature_hash: signatureHash,
-        }).eq('id', existing.id);
+          featured_image: '',
+        }]);
 
         if (!error) {
           published++;
-          await tg(`🔄 *تحديث ضمن نفس الجولة (${run}):*\n${title}\n\n🔗 ${link}`);
+          const roundLabel = run === 'AM' ? 'الجولة الصباحية' : 'الجولة المسائية';
+          await tg(`📰 *نُشر تلقائياً (${roundLabel} — ${modelCycle}):*\n${title}\n\n🔗 ${link}`);
+          await postToFacebookPage(title, content, slug);
         }
         continue;
       }
 
-      // بصمتان متطابقتان مع خبر الصباح = لا تغيير جوهري — أضف ملاحظة تأكيد بدل نشر مقال مكرر
-      if (amArticle && amArticle.forecast_signature_hash === signatureHash) {
-        const noChangeNote =
-          `\n\n🔄 **تحديث مسائي (${modelCycle} — ${publishedTimeStr}):** لا توجد تغييرات جوهرية ` +
-          `مقارنة بالنشرة الصباحية.`;
-        if (!(amArticle.content || '').includes('تحديث مسائي (')) {
-          await supabase.from('news_articles')
-            .update({ content: amArticle.content + noChangeNote })
-            .eq('id', amArticle.id);
-          await tg(`✅ *لا تغيير جوهري (PM — ${modelCycle}):* ${dateStr} — أُضيفت ملاحظة تأكيد بدل مقال جديد.`);
+      // ── يوجد مقال مستهدف (نفس الجولة أُعيد استدعاؤها، أو PM يُحدِّث مقال AM) ──
+      // بصمتان متطابقتان = لا تغيير جوهري — لا يُنشأ ولا يُحدَّث أي شيء
+      if (target.forecast_signature_hash === signatureHash) {
+        if (target === amArticle) {
+          const noChangeNote =
+            `\n\n🔄 **تحديث مسائي (${modelCycle} — ${publishedTimeStr}):** لا توجد تغييرات جوهرية ` +
+            `مقارنة بالنشرة الصباحية.`;
+          if (!(amArticle.content || '').includes('تحديث مسائي (')) {
+            await supabase.from('news_articles')
+              .update({ content: amArticle.content + noChangeNote })
+              .eq('id', amArticle.id);
+            await tg(`✅ *لا تغيير جوهري (PM — ${modelCycle}):* ${dateStr} — أُضيفت ملاحظة تأكيد بدل مقال جديد.`);
+          }
         }
-        continue; // لا يُنشأ مقال PM منفصل
+        continue;
       }
 
-      // ── نشر جديد (أول ظهور لهذا اليوم، أو تغيّر جوهري في الجولة المسائية) ──
-      const { error } = await supabase.from('news_articles').insert([{
-        title, slug, excerpt: title, content, category, wilaya,
-        author: 'جاتكم اسحاب',
-        is_published: true,
-        published_at: new Date().toISOString(),
-        tags,
+      // تغيّر جوهري — تحديث المقال المستهدف في مكانه (يبقى نفس الرابط)، مع
+      // قسمي "📌 التوقع السابق" و"🔄 التحديث الجديد" إن وُجد توقيع سابق صالح للمقارنة
+      const diff = target.forecast_signature ? diffSignatures(target.forecast_signature, signatureData) : null;
+      const diffBlock = diff && diff.hasChanges
+        ? renderPreviousSummary(target.forecast_signature, dayAr, dateAr) + renderDiff(diff, signatureData, target.forecast_signature, dayAr, dateAr)
+        : '';
+      const content = `${body}\n\n${diffBlock}${meta}`;
+
+      const { error } = await supabase.from('news_articles').update({
+        title, excerpt: title, content, category, wilaya,
+        published_at: new Date().toISOString(), tags,
         forecast_signature: signatureData,
         forecast_signature_hash: signatureHash,
-        featured_image: '',
-      }]);
+      }).eq('id', target.id);
 
       if (!error) {
         published++;
-        const roundLabel = run === 'AM' ? 'الجولة الصباحية' : 'الجولة المسائية';
-        await tg(`📰 *نُشر تلقائياً (${roundLabel} — ${modelCycle}):*\n${title}\n\n🔗 ${link}`);
-        await postToFacebookPage(title, content, slug);
+        const label = target === amArticle ? 'تحديث مسائي على مقال الصباح' : `تحديث ضمن نفس الجولة (${run})`;
+        await tg(`🔄 *${label}:*\n${title}\n\n🔗 ${link}`);
       }
     }
 
