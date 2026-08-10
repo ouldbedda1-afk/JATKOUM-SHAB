@@ -126,29 +126,38 @@ function isWilayaLabel(text: string): boolean {
   return WILAYA_ROOTS.some((w) => text.includes(w) || w.includes(text));
 }
 
+// يحذف بادئة تنقيط شائعة (- – • * ·) قبل كل فقرة — بعض التقارير تكتب
+// "* المقاطعة:" و"* القرية: XX ملم"، وأخرى "– الولاية" بلا أي نقطتين إطلاقاً
+function stripBullet(text: string): string {
+  return text.replace(/^[*\-–•·]+\s*/, '').trim();
+}
+
 function parseRainParagraphs($: cheerio.CheerioAPI, container: any): RainRow[] {
   const paragraphs = $(container).find('p').toArray();
   const results: RainRow[] = [];
   let currentWilaya = '', currentMoughataa = '';
 
   for (const p of paragraphs) {
-    const text = $(p).text().replace(/\s+/g, ' ').trim();
+    const raw = $(p).text().replace(/\s+/g, ' ').trim();
+    if (!raw) continue;
+    const text = stripBullet(raw);
     if (!text) continue;
 
-    // سطر تصنيف (ولاية أو مقاطعة): ينتهي بنقطتين ولا يحتوي رقماً
-    if (/:$/.test(text) && !/\d/.test(normalizeDigits(text))) {
-      const label = text.slice(0, -1).trim();
+    // سطر تصنيف (ولاية أو مقاطعة): لا يحتوي رقماً — بنقطتين أو بدونها
+    if (!/\d/.test(normalizeDigits(text))) {
+      const label = text.replace(/:$/, '').trim();
+      if (!label) continue;
       if (isWilayaLabel(label)) { currentWilaya = label; currentMoughataa = ''; }
       else { currentMoughataa = label; }
       continue;
     }
 
-    // سطر قرية + كمية: "اسم القرية XX ملم" أو "XX مم"
+    // سطر قرية + كمية: "القرية XX ملم" أو "القرية: XX ملم"
     const normalized = normalizeDigits(text).replace(/[،,](?=\d)/g, '.');
-    const m = normalized.match(/^(.*?)\s+([\d.]+)\s*(?:ملم|مم)\.?$/);
+    const m = normalized.match(/^(.*?)[:\s]+([\d.]+)\s*(?:ملم|مم)\.?$/);
     if (!m || !currentWilaya) continue;
 
-    const village = m[1].trim();
+    const village = m[1].replace(/:$/, '').trim();
     const mm = parseFloat(m[2]);
     if (!village || !Number.isFinite(mm)) continue;
 
