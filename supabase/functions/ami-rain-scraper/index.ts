@@ -132,6 +132,12 @@ function stripBullet(text: string): string {
   return text.replace(/^[*\-–•·]+\s*/, '').trim();
 }
 
+// يحذف التطويل (ـ) المستخدم أحياناً لتمديد الكلمات بصرياً في النص المُبَرَّر
+// (مثال: "بـــقـــلـــه" ← "بقله")
+function stripTatweel(text: string): string {
+  return text.replace(/ـ+/g, '').trim();
+}
+
 function parseRainParagraphs($: cheerio.CheerioAPI, container: any): RainRow[] {
   const paragraphs = $(container).find('p').toArray();
   const results: RainRow[] = [];
@@ -145,19 +151,20 @@ function parseRainParagraphs($: cheerio.CheerioAPI, container: any): RainRow[] {
 
     // سطر تصنيف (ولاية أو مقاطعة): لا يحتوي رقماً — بنقطتين أو بدونها
     if (!/\d/.test(normalizeDigits(text))) {
-      const label = text.replace(/:$/, '').trim();
+      const label = stripTatweel(text.replace(/:$/, ''));
       if (!label) continue;
       if (isWilayaLabel(label)) { currentWilaya = label; currentMoughataa = ''; }
       else { currentMoughataa = label; }
       continue;
     }
 
-    // سطر قرية + كمية: "القرية XX ملم" أو "القرية: XX ملم"
+    // سطر قرية + كمية: "القرية XX ملم"، أو "القرية: XX ملم"، أو بفاصل نقاط/إحالة
+    // بصرية بين الاسم والرقم مثل "القرية.......XX ملم"
     const normalized = normalizeDigits(text).replace(/[،,](?=\d)/g, '.');
-    const m = normalized.match(/^(.*?)[:\s]+([\d.]+)\s*(?:ملم|مم)\.?$/);
+    const m = normalized.match(/^(.*?)[\s:.…]+([\d.]+)\s*(?:ملم|مم)\.?$/);
     if (!m || !currentWilaya) continue;
 
-    const village = m[1].replace(/:$/, '').trim();
+    const village = stripTatweel(m[1].replace(/:$/, ''));
     const mm = parseFloat(m[2]);
     if (!village || !Number.isFinite(mm)) continue;
 
