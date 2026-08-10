@@ -5,6 +5,7 @@ import { useWeatherContext } from '../WeatherContext';
 import NewsAdmin from './NewsAdmin';
 import ForecastPublisher from './ForecastPublisher';
 import SnapshotArchive from './SnapshotArchive';
+import VisitorStats from './VisitorStats';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 
@@ -14,6 +15,7 @@ const TABS = [
   { id: 'forecast',  label: '📡 نشر توقعات' },
   { id: 'archive',   label: '📦 أرشيف التوقعات' },
   { id: 'news_mgmt', label: '📰 إدارة الأخبار' },
+  { id: 'visitors',  label: '👥 الزوار' },
   { id: 'rain',      label: 'تبشيرات المطر' },
   { id: 'livestock', label: 'الظالة' },
 ];
@@ -194,6 +196,8 @@ export default function AdminPage() {
               <SnapshotArchive />
             ) : tab === 'news_mgmt' ? (
               <NewsAdmin />
+            ) : tab === 'visitors' ? (
+              <VisitorStats />
             ) : (<>
 
             {error && <p className="text-xs font-bold text-red-600 mb-3">{error}</p>}

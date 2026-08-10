@@ -579,6 +579,32 @@ export function logPageVisit() {
   }).catch(() => {});
 }
 
+/** إحصاءات الزيارات: الإجمالي + عدد كل يوم لآخر days يوماً (الأحدث أولاً) */
+export async function getVisitStats(days = 30) {
+  if (!isSupabaseConfigured) return { total: 0, daily: [] };
+  const { count: total } = await supabase
+    .from('page_visits')
+    .select('id', { count: 'exact', head: true });
+
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  const { data: rows } = await supabase
+    .from('page_visits')
+    .select('created_at')
+    .gte('created_at', since.toISOString());
+
+  const byDay = {};
+  (rows || []).forEach((r) => {
+    const day = r.created_at.slice(0, 10);
+    byDay[day] = (byDay[day] || 0) + 1;
+  });
+  const daily = Object.entries(byDay)
+    .map(([day, visits]) => ({ day, visits }))
+    .sort((a, b) => b.day.localeCompare(a.day));
+
+  return { total: total || 0, daily };
+}
+
 export async function createPost(bloggerId, { title, content, cover_url, wilaya }) {
   const { data, error } = await supabase
     .from('posts')
