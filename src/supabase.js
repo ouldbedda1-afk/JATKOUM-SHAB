@@ -648,6 +648,44 @@ export async function getRainMeasurementReports({ limit = 10, offset = 0, wilaya
   return { reports, count: orderedReports.length };
 }
 
+/**
+ * إحصاءات مقاييس الأمطار: الإجمالي المسجَّل، ترتيب الولايات حسب متوسط
+ * الهطول (الأكثر هطولاً أولاً)، وأعلى قراءة مسجَّلة في كل مقاطعة.
+ */
+export async function getRainMeasurementStats() {
+  if (!isSupabaseConfigured) return { total: 0, wilayaRanking: [], topByMoughataa: [] };
+
+  const { count: total } = await supabase
+    .from('rain_measurements')
+    .select('id', { count: 'exact', head: true });
+
+  const { data: rows } = await supabase
+    .from('rain_measurements')
+    .select('wilaya, moughataa, village, mm');
+
+  const byWilaya = {};
+  const byMoughataa = {};
+  (rows || []).forEach((r) => {
+    if (!byWilaya[r.wilaya]) byWilaya[r.wilaya] = { sum: 0, count: 0, max: 0 };
+    byWilaya[r.wilaya].sum += r.mm;
+    byWilaya[r.wilaya].count += 1;
+    byWilaya[r.wilaya].max = Math.max(byWilaya[r.wilaya].max, r.mm);
+
+    const mKey = `${r.wilaya}||${r.moughataa || '—'}`;
+    if (!byMoughataa[mKey] || r.mm > byMoughataa[mKey].mm) {
+      byMoughataa[mKey] = { wilaya: r.wilaya, moughataa: r.moughataa || '—', village: r.village, mm: r.mm };
+    }
+  });
+
+  const wilayaRanking = Object.entries(byWilaya)
+    .map(([wilaya, v]) => ({ wilaya, avg: v.sum / v.count, max: v.max, count: v.count, total: v.sum }))
+    .sort((a, b) => b.avg - a.avg);
+
+  const topByMoughataa = Object.values(byMoughataa).sort((a, b) => b.mm - a.mm);
+
+  return { total: total || 0, wilayaRanking, topByMoughataa };
+}
+
 export async function createPost(bloggerId, { title, content, cover_url, wilaya }) {
   const { data, error } = await supabase
     .from('posts')

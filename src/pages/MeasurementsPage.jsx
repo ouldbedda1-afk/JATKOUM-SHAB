@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { getRainMeasurementReports } from '../supabase';
+import { getRainMeasurementReports, getRainMeasurementStats } from '../supabase';
 import Navbar from '../components/Navbar';
 
 const WILAYAS = [
@@ -33,6 +33,74 @@ function groupReadings(readings) {
       villages: [...villages].sort((a, b) => b.mm - a.mm),
     })),
   }));
+}
+
+function StatsSection() {
+  const [stats, setStats] = useState(null);
+  const [showAllMoughataa, setShowAllMoughataa] = useState(false);
+
+  useEffect(() => {
+    getRainMeasurementStats().then(setStats);
+  }, []);
+
+  if (!stats || stats.total === 0) return null;
+
+  const topWilaya = stats.wilayaRanking[0];
+  const visibleMoughataa = showAllMoughataa ? stats.topByMoughataa : stats.topByMoughataa.slice(0, 12);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <p className="text-2xl font-black text-gray-900">{stats.total.toLocaleString('en-US')}</p>
+          <p className="text-xs font-bold text-gray-400 mt-1">مقياس مسجَّل لحد الآن</p>
+        </div>
+        {topWilaya && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <p className="text-lg font-black text-blue-700 leading-tight">{topWilaya.wilaya}</p>
+            <p className="text-xs font-bold text-gray-400 mt-1">
+              الولاية الأكثر هطولاً (متوسط {topWilaya.avg.toFixed(1)} مم)
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <p className="text-xs font-bold text-gray-400 mb-3">📊 ترتيب الولايات حسب متوسط الهطول</p>
+        <div className="space-y-2">
+          {stats.wilayaRanking.map((w, i) => (
+            <div key={w.wilaya} className="flex items-center gap-3">
+              <span className="text-xs font-black text-gray-400 w-5 shrink-0">{i + 1}</span>
+              <span className="text-sm font-bold text-gray-700 flex-1 truncate">{w.wilaya}</span>
+              <span className="text-[11px] text-gray-400">{w.count} قراءة</span>
+              <span className="text-xs font-black text-blue-600 w-16 text-left">{w.avg.toFixed(1)} مم</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <p className="text-xs font-bold text-gray-400 mb-3">🏆 أعلى قراءة مسجَّلة في كل مقاطعة</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {visibleMoughataa.map((m, i) => (
+            <div key={`${m.wilaya}-${m.moughataa}`} className="bg-gray-50 rounded-xl px-3 py-2 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-gray-700 truncate">{m.moughataa} <span className="text-gray-400">({m.wilaya})</span></p>
+                <p className="text-[11px] text-gray-400 truncate">{m.village}</p>
+              </div>
+              <span className="text-xs font-black text-blue-600 shrink-0">{m.mm} مم</span>
+            </div>
+          ))}
+        </div>
+        {stats.topByMoughataa.length > 12 && (
+          <button onClick={() => setShowAllMoughataa((v) => !v)}
+            className="text-xs font-bold text-blue-600 hover:underline mt-3">
+            {showAllMoughataa ? '← عرض أقل' : `عرض كل المقاطعات (${stats.topByMoughataa.length}) →`}
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function ReportCard({ report }) {
@@ -129,7 +197,9 @@ export default function MeasurementsPage() {
       </div>
 
       <main className="max-w-4xl mx-auto px-4 mt-6 space-y-5">
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 flex-wrap -mt-4 shadow-sm relative z-10">
+        <StatsSection />
+
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 flex-wrap shadow-sm">
           <select value={wilaya} onChange={(e) => setWilaya(e.target.value)}
             className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
             {WILAYAS.map((w) => <option key={w}>{w}</option>)}
