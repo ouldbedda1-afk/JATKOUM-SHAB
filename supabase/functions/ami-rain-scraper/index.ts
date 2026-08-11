@@ -95,16 +95,18 @@ addWilaya('تكانت', []);
 addWilaya('تيرس زمور', []);
 addWilaya('داخلت نواذيبو', ['نواذيبو']);
 
-// AMI يخلط أحياناً بين "ة" (تاء مربوطة) و"ه" (هاء) في نهاية نفس الاسم عبر
-// تقارير مختلفة (مثال حقيقي: "اترارزة" في تقرير، "اترارزه" في آخر) — بدل
-// إضافة كل صيغة يدوياً، تُطابَق الوِلاية بتوحيد الحرفين لحرف واحد فقط عند
-// المقارنة (لا يُغيَّر الاسم المُخزَّن، فقط منطق المطابقة)
-function foldTaMarbuta(s: string): string {
-  return s.replace(/[ةه]$/, 'ه').replace(/[ةه](?=\s)/g, 'ه');
+// AMI يكتب نفس الولاية بإملاءات مختلفة عبر التقارير — ليس فقط ة/ه (اترارزة/
+// اترارزه) بل أيضاً همزات الألف (اترارزه/أترارزه) والمسافة بين الكلمات
+// (كيدي ماغا/كيديماغا، أمثلة حقيقية وُجدت جميعها فعلياً). بدل إضافة كل صيغة
+// يدوياً كلما ظهرت واحدة جديدة، تُطابَق الولاية بتطبيع شامل عند المقارنة
+// فقط (الاسم المُخزَّن نفسه لا يتغيّر): توحيد كل أشكال الألف (أ/إ/آ ← ا)،
+// توحيد ة/ه، وحذف المسافات بين الكلمات بالكامل.
+function normalizeArabicForMatch(s: string): string {
+  return s.replace(/[أإآ]/g, 'ا').replace(/[ةه]/g, 'ه').replace(/\s+/g, '');
 }
 const WILAYA_LOOKUP: Record<string, string> = {};
 for (const [k, v] of Object.entries(WILAYA_CANONICAL)) {
-  WILAYA_LOOKUP[foldTaMarbuta(k)] = v;
+  WILAYA_LOOKUP[normalizeArabicForMatch(k)] = v;
 }
 
 // يحذف بادئة تنقيط شائعة (- – • * ·) قبل كل فقرة — بعض التقارير تكتب
@@ -139,7 +141,7 @@ function cleanMoughataa(text: string): string {
 function classifyLabel(rawLabel: string): { kind: 'wilaya' | 'moughataa' | 'ignore'; value: string } {
   const label = cleanName(rawLabel).replace(/^(ولاية|لولاية)\s+/, '').trim();
   if (!label || label.length > 25 || /[،.؟!]/.test(label)) return { kind: 'ignore', value: '' };
-  const canonical = WILAYA_LOOKUP[foldTaMarbuta(label)];
+  const canonical = WILAYA_LOOKUP[normalizeArabicForMatch(label)];
   if (canonical) return { kind: 'wilaya', value: canonical };
   return { kind: 'moughataa', value: cleanMoughataa(label) };
 }
