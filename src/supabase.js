@@ -616,14 +616,16 @@ export async function getVisitStats(days = 30) {
 export async function getRainMeasurementReports({ limit = 10, offset = 0, wilaya = null } = {}) {
   if (!isSupabaseConfigured) return { reports: [], count: 0 };
 
-  // قائمة روابط التقارير الفريدة (الأحدث أولاً) لتحديد صفحة التقارير المطلوبة
-  let urlsQuery = supabase
-    .from('rain_measurements')
-    .select('report_url, report_title, report_published_at')
-    .order('report_published_at', { ascending: false });
-  if (wilaya) urlsQuery = urlsQuery.eq('wilaya', wilaya);
-
-  const { data: allRows } = await urlsQuery;
+  // قائمة روابط التقارير الفريدة (الأحدث أولاً) — يستخدم fetchAllRainMeasurements
+  // لأن الجدول يتجاوز 1000 صف وأي استعلام مباشر يُقطَع بصمت عند هذا الحد
+  const allRows = await fetchAllRainMeasurements(
+    'report_url, report_title, report_published_at',
+    (q) => {
+      let r = q.order('report_published_at', { ascending: false });
+      if (wilaya) r = r.eq('wilaya', wilaya);
+      return r;
+    }
+  );
   const seen = new Set();
   const orderedReports = [];
   (allRows || []).forEach((r) => {
