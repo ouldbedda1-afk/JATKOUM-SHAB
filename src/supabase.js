@@ -1015,7 +1015,7 @@ export async function getPublishedNews({ limit = 20, offset = 0, wilaya = null, 
 export const FORECAST_CATEGORIES = ['أمطار', 'عواصف', 'طقس', 'طقس حار'];
 
 /** جلب أرشيف أخبار التوقعات/التحذيرات الجوية فقط (وليس كل الأخبار) */
-export async function getForecastArchive({ limit = 20, offset = 0, wilaya = null, category = null, search = null } = {}) {
+export async function getForecastArchive({ limit = 500, offset = 0, wilaya = null, category = null, search = null, year = null, month = null } = {}) {
   if (!isSupabaseConfigured) return { data: [], count: 0 };
   try {
     let q = supabase
@@ -1025,8 +1025,16 @@ export async function getForecastArchive({ limit = 20, offset = 0, wilaya = null
       .in('category', category ? [category] : FORECAST_CATEGORIES)
       .order('published_at', { ascending: false })
       .range(offset, offset + limit - 1);
-    if (wilaya) q = q.eq('wilaya', wilaya);
-    if (search) q = q.ilike('title', `%${search}%`);
+    if (wilaya)  q = q.eq('wilaya', wilaya);
+    if (search)  q = q.ilike('title', `%${search}%`);
+    if (year && month) {
+      const from = new Date(year, month - 1, 1).toISOString();
+      const to   = new Date(year, month,     1).toISOString();
+      q = q.gte('published_at', from).lt('published_at', to);
+    } else if (year) {
+      q = q.gte('published_at', `${year}-01-01T00:00:00.000Z`)
+           .lt('published_at',  `${year + 1}-01-01T00:00:00.000Z`);
+    }
     const { data, count, error } = await q;
     if (error) throw error;
     return { data: data || [], count: count || 0 };
