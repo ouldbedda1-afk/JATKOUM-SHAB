@@ -252,15 +252,62 @@ async function fetchWpMeta(articleUrl: string): Promise<{ title: string; pubDate
   }
 }
 
+// ══════════════════════════════════════════════════════════════════
+// وضع إصلاح التواريخ (?fix-dates) — يُشغَّل مرة واحدة فقط
+// يجلب تاريخ النشر الحقيقي من WP REST API لكل report_url مخزَّن
+// ويُحدِّث report_published_at + report_title في الجدول
+// ══════════════════════════════════════════════════════════════════
+async function fixDates(): Promise<Response> {
+  // جلب كل الروابط الفريدة المخزَّنة
+  const { data: rows, error } = await supabase
+    .from('rain_measurements')
+    .select('report_url, report_title, report_published_at');
+  if (error || !rows) return new Response(JSON.stringify({ error: String(error) }), { status: 500 });
+
+  const seen = new Map<string, { title: string; pubDate: string }>();
+  for (const r of rows) {
+    if (!seen.has(r.report_url)) seen.set(r.report_url, { title: r.report_title, pubDate: r.report_published_at });
+  }
+
+  let updated = 0, skipped = 0, failed = 0;
+  for (const [url, current] of seen) {
+    const meta = await fetchWpMeta(url);
+    // تجاهل إذا لم يتغيّر التاريخ أو كان الـ API غير متاح (يعيد fallback)
+    const samePubDate = Math.abs(new Date(meta.pubDate).getTime() - new Date(current.pubDate).getTime()) < 60_000;
+    const sameTitle = meta.title === current.title || meta.title === '(معالجة يدوية)';
+    if (samePubDate && sameTitle) { skipped++; continue; }
+
+    const { error: upErr } = await supabase
+      .from('rain_measurements')
+      .update({
+        report_published_at: meta.pubDate,
+        ...(meta.title !== '(معالجة يدوية)' ? { report_title: meta.title } : {}),
+      })
+      .eq('report_url', url);
+
+    if (upErr) { failed++; } else { updated++; }
+  }
+
+  const msg = `✅ fix-dates: ${updated} روابط مُحدَّثة، ${skipped} بدون تغيير، ${failed} فشل`;
+  await tg(msg);
+  return new Response(JSON.stringify({ updated, skipped, failed, total: seen.size }), { headers: { 'content-type': 'application/json' } });
+}
+
 Deno.serve(async (req) => {
   try {
+    const params = new URL(req.url).searchParams;
+
+    // وضع إصلاح التواريخ — يُشغَّل بـ ?fix-dates=1
+    if (params.has('fix-dates')) return fixDates();
+
     // معالجة يدوية لمقال محدد (نسخ احتياطي/اختبار) — فقط عند تمرير
     // ?url=... صراحةً؛ التشغيل الدوري العادي (بلا معامل) لا يتأثر إطلاقاً
-    const manualUrl = new URL(req.url).searchParams.get('url');
+    const manualUrl = params.get('url');
     const items: FeedItem[] = manualUrl
       ? [{ ...(await fetchWpMeta(manualUrl)), link: manualUrl }]
       : parseFeed(await (await fetch(AMI_FEED_URL, { headers: { 'User-Agent': UA } })).text());
     const candidates = manualUrl ? items : items.filter((it) => isRainReportTitle(it.title));
+
 
     let reportsProcessed = 0, inserted = 0, skippedExisting = 0, skippedNoTable = 0;
 
