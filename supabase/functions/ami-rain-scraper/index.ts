@@ -226,13 +226,39 @@ function parseRainParagraphs($: cheerio.CheerioAPI, container: any): RainRow[] {
   return results;
 }
 
+// يجلب عنوان المقال وتاريخ نشره الحقيقيَّين من WordPress REST API
+// (عند المعالجة اليدوية ?url= لا يوجد RSS item، فنُعوّض بالـ API)
+async function fetchWpMeta(articleUrl: string): Promise<{ title: string; pubDate: string }> {
+  const fallback = { title: '(معالجة يدوية)', pubDate: new Date().toISOString() };
+  try {
+    const postId = articleUrl.match(/\/archives\/(\d+)/)?.[1];
+    if (!postId) return fallback;
+    const res = await fetch(
+      `${new URL(articleUrl).origin}/wp-json/wp/v2/posts/${postId}`,
+      { headers: { 'User-Agent': UA } }
+    );
+    if (!res.ok) return fallback;
+    const post = await res.json();
+    const raw = post.date_gmt ?? post.date;
+    const pubDate = raw
+      ? new Date(raw.endsWith('Z') ? raw : raw + 'Z').toISOString()
+      : fallback.pubDate;
+    const title = post.title?.rendered
+      ? post.title.rendered.replace(/<[^>]+>/g, '').trim() || fallback.title
+      : fallback.title;
+    return { title, pubDate };
+  } catch {
+    return fallback;
+  }
+}
+
 Deno.serve(async (req) => {
   try {
     // معالجة يدوية لمقال محدد (نسخ احتياطي/اختبار) — فقط عند تمرير
     // ?url=... صراحةً؛ التشغيل الدوري العادي (بلا معامل) لا يتأثر إطلاقاً
     const manualUrl = new URL(req.url).searchParams.get('url');
     const items: FeedItem[] = manualUrl
-      ? [{ title: '(معالجة يدوية)', link: manualUrl, pubDate: new Date().toISOString() }]
+      ? [{ ...(await fetchWpMeta(manualUrl)), link: manualUrl }]
       : parseFeed(await (await fetch(AMI_FEED_URL, { headers: { 'User-Agent': UA } })).text());
     const candidates = manualUrl ? items : items.filter((it) => isRainReportTitle(it.title));
 
