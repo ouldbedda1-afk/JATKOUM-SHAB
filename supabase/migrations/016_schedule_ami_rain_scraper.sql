@@ -2,9 +2,7 @@
 -- يُشغَّل كل 3 ساعات للتحقق من خلاصة RSS لموقع الوكالة الموريتانية للأنباء
 -- ويستخرج تقارير المقاييس الجديدة تلقائياً دون أي تدخّل يدوي.
 --
--- ⚠️ قبل تشغيل هذا الـ migration، استبدل القيمتين الآتيتين:
---    YOUR_PROJECT_REF  ← مرجع مشروعك في Supabase (Project Settings → General)
---    YOUR_ANON_KEY     ← anon/public key  (Project Settings → API)
+-- القيم أدناه مأخوذة من .env تلقائياً — لا حاجة لتعديل يدوي
 
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
@@ -19,10 +17,10 @@ select cron.schedule(
   '0 */3 * * *',
   $$
     select net.http_post(
-      url     := 'https://YOUR_PROJECT_REF.supabase.co/functions/v1/ami-rain-scraper',
+      url     := 'https://udtdfkvtmqfxjezhxaah.supabase.co/functions/v1/ami-rain-scraper',
       headers := jsonb_build_object(
         'Content-Type',  'application/json',
-        'Authorization', 'Bearer YOUR_ANON_KEY'
+        'Authorization', 'Bearer sb_publishable_tS-r6elQa1GomTr_XEoYgA_bzCWCfFb'
       ),
       body    := '{}'::jsonb
     ) as request_id;
