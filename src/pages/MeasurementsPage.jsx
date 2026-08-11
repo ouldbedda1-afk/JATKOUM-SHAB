@@ -34,12 +34,12 @@ const PER_PAGE = 8;
 
 function fmtDate(d) {
   if (!d) return '';
-  return new Date(d).toLocaleDateString('ar-SA', { day: 'numeric', month: 'long', year: 'numeric', calendar: 'gregory' });
+  return new Date(d).toLocaleDateString('ar-u-nu-latn', { day: 'numeric', month: 'long', year: 'numeric', calendar: 'gregory' });
 }
 
 function fmtShortDate(d) {
   if (!d) return '';
-  return new Date(d).toLocaleDateString('ar-SA', { day: 'numeric', month: 'short', year: 'numeric', calendar: 'gregory' });
+  return new Date(d).toLocaleDateString('ar-u-nu-latn', { day: 'numeric', month: 'short', year: 'numeric', calendar: 'gregory' });
 }
 
 function groupReadings(readings) {

@@ -616,44 +616,33 @@ export async function getVisitStats(days = 30) {
 export async function getRainMeasurementReports({ limit = 10, offset = 0, wilaya = null, year = null } = {}) {
   if (!isSupabaseConfigured) return { reports: [], count: 0 };
 
-  // قائمة روابط التقارير الفريدة (الأحدث أولاً) — يستخدم fetchAllRainMeasurements
-  // لأن الجدول يتجاوز 1000 صف وأي استعلام مباشر يُقطَع بصمت عند هذا الحد
-  const allRows = await fetchAllRainMeasurements(
-    'report_url, report_title, report_published_at',
-    (q) => {
-      let r = q.order('report_published_at', { ascending: false });
-      if (wilaya) r = r.eq('wilaya', wilaya);
-      if (year) {
-        r = r.gte('report_published_at', `${year}-01-01T00:00:00.000Z`);
-        r = r.lt('report_published_at', `${year + 1}-01-01T00:00:00.000Z`);
-      }
-      return r;
-    }
-  );
-  const seen = new Set();
-  const orderedReports = [];
-  (allRows || []).forEach((r) => {
-    if (seen.has(r.report_url)) return;
-    seen.add(r.report_url);
-    orderedReports.push(r);
+  const { data: rpcRows, error: rpcErr } = await supabase.rpc('get_rain_reports', {
+    p_wilaya: wilaya || null,
+    p_year:   year   || null,
+    p_limit:  limit,
+    p_offset: offset,
   });
 
-  const pageReports = orderedReports.slice(offset, offset + limit);
-  if (pageReports.length === 0) return { reports: [], count: orderedReports.length };
+  if (rpcErr || !rpcRows || rpcRows.length === 0) return { reports: [], count: 0 };
+
+  const count = Number(rpcRows[0].total_count);
+  const pageUrls = rpcRows.map((r) => r.report_url);
 
   const { data: readings } = await supabase
     .from('rain_measurements')
     .select('report_url, wilaya, moughataa, village, mm')
-    .in('report_url', pageReports.map((r) => r.report_url));
+    .in('report_url', pageUrls);
 
-  const reports = pageReports.map((r) => ({
-    ...r,
+  const reports = rpcRows.map((r) => ({
+    report_url:          r.report_url,
+    report_title:        r.report_title,
+    report_published_at: r.report_published_at,
     readings: (readings || [])
       .filter((row) => row.report_url === r.report_url)
       .map((row) => ({ ...row, wilaya: normWilaya(row.wilaya) })),
   }));
 
-  return { reports, count: orderedReports.length };
+  return { reports, count };
 }
 
 /** يجلب كل صفوف rain_measurements للأعمدة المطلوبة، متجاوزاً حد الـ1000

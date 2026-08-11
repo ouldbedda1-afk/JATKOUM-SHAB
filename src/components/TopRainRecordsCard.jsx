@@ -6,7 +6,7 @@ const MEDALS = ['🥇', '🥈', '🥉'];
 
 function fmtDate(d) {
   if (!d) return '';
-  return new Date(d).toLocaleDateString('ar-SA', {
+  return new Date(d).toLocaleDateString('ar-u-nu-latn', {
     day: 'numeric', month: 'long', year: 'numeric', calendar: 'gregory',
   });
 }
