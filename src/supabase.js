@@ -613,7 +613,7 @@ export async function getVisitStats(days = 30) {
  * تقارير مقاييس الأمطار مُجمَّعة (تقرير واحد = مقال AMI واحد، بداخله كل
  * قراءات القرى). limit/offset على مستوى التقارير لا القراءات الفردية.
  */
-export async function getRainMeasurementReports({ limit = 10, offset = 0, wilaya = null } = {}) {
+export async function getRainMeasurementReports({ limit = 10, offset = 0, wilaya = null, year = null } = {}) {
   if (!isSupabaseConfigured) return { reports: [], count: 0 };
 
   // قائمة روابط التقارير الفريدة (الأحدث أولاً) — يستخدم fetchAllRainMeasurements
@@ -623,6 +623,10 @@ export async function getRainMeasurementReports({ limit = 10, offset = 0, wilaya
     (q) => {
       let r = q.order('report_published_at', { ascending: false });
       if (wilaya) r = r.eq('wilaya', wilaya);
+      if (year) {
+        r = r.gte('report_published_at', `${year}-01-01T00:00:00.000Z`);
+        r = r.lt('report_published_at', `${year + 1}-01-01T00:00:00.000Z`);
+      }
       return r;
     }
   );
@@ -644,7 +648,9 @@ export async function getRainMeasurementReports({ limit = 10, offset = 0, wilaya
 
   const reports = pageReports.map((r) => ({
     ...r,
-    readings: (readings || []).filter((row) => row.report_url === r.report_url),
+    readings: (readings || [])
+      .filter((row) => row.report_url === r.report_url)
+      .map((row) => ({ ...row, wilaya: normWilaya(row.wilaya) })),
   }));
 
   return { reports, count: orderedReports.length };
@@ -669,6 +675,25 @@ async function fetchAllRainMeasurements(select, filterFn) {
   return all;
 }
 
+// تطبيع أسماء الولايات — يُدمج الأسماء المتعددة في الاسم القانوني الواحد
+const WILAYA_NORMALIZE = {
+  'اسابه': 'لعصابه', 'لعصابة': 'لعصابه', 'العصابة': 'لعصابه', 'العصابه': 'لعصابه',
+  'ولاية لعصابه': 'لعصابه', 'ولاية لعصابة': 'لعصابه', 'آسابه': 'لعصابه',
+  'أسابه': 'لعصابه', 'عصابه': 'لعصابه',
+  'البراكنة': 'لبراكنه', 'لبراكنة': 'لبراكنه', 'البراكنه': 'لبراكنه',
+  'اترارزه': 'الترارزة', 'الترارزه': 'الترارزة', 'اترارزة': 'الترارزة',
+  'ادرار': 'آدرار', 'أدرار': 'آدرار', 'ولاية آدرار': 'آدرار',
+  'ولاية الحوض الشرقي': 'الحوض الشرقي', 'ولاية الحوض الغربي': 'الحوض الغربي',
+  'ولاية كوركول': 'كوركول', 'ولاية كيدي ماغا': 'كيدي ماغا',
+  'كيدي ماغه': 'كيدي ماغا', 'گيديماغه': 'كيدي ماغا',
+  'اينشيري': 'إينشيري', 'انشيري': 'إينشيري',
+  'نواكشوط الشماليه': 'نواكشوط الشمالية', 'انواكشوط الشمالية': 'نواكشوط الشمالية',
+  'نواكشوط الغربيه': 'نواكشوط الغربية', 'انواكشوط الغربية': 'نواكشوط الغربية',
+  'نواكشوط الجنوبيه': 'نواكشوط الجنوبية', 'انواكشوط الجنوبية': 'نواكشوط الجنوبية',
+  'نواذيبو': 'داخلت نواذيبو', 'داخلة نواذيبو': 'داخلت نواذيبو',
+};
+function normWilaya(w) { return WILAYA_NORMALIZE[w] || w; }
+
 /**
  * إحصاءات مقاييس الأمطار: الإجمالي المسجَّل، ترتيب الولايات حسب متوسط
  * الهطول (الأكثر هطولاً أولاً)، وأعلى قراءة مسجَّلة في كل مقاطعة.
@@ -685,14 +710,15 @@ export async function getRainMeasurementStats() {
   const byWilaya = {};
   const byMoughataa = {};
   (rows || []).forEach((r) => {
-    if (!byWilaya[r.wilaya]) byWilaya[r.wilaya] = { sum: 0, count: 0, max: 0 };
-    byWilaya[r.wilaya].sum += r.mm;
-    byWilaya[r.wilaya].count += 1;
-    byWilaya[r.wilaya].max = Math.max(byWilaya[r.wilaya].max, r.mm);
+    const wilaya = normWilaya(r.wilaya);
+    if (!byWilaya[wilaya]) byWilaya[wilaya] = { sum: 0, count: 0, max: 0 };
+    byWilaya[wilaya].sum += r.mm;
+    byWilaya[wilaya].count += 1;
+    byWilaya[wilaya].max = Math.max(byWilaya[wilaya].max, r.mm);
 
-    const mKey = `${r.wilaya}||${r.moughataa || '—'}`;
+    const mKey = `${wilaya}||${r.moughataa || '—'}`;
     if (!byMoughataa[mKey] || r.mm > byMoughataa[mKey].mm) {
-      byMoughataa[mKey] = { wilaya: r.wilaya, moughataa: r.moughataa || '—', village: r.village, mm: r.mm };
+      byMoughataa[mKey] = { wilaya, moughataa: r.moughataa || '—', village: r.village, mm: r.mm };
     }
   });
 
@@ -715,6 +741,32 @@ export async function getWilayaReadings(wilaya) {
     (q) => q.eq('wilaya', wilaya)
   );
   return rows.sort((a, b) => b.report_published_at.localeCompare(a.report_published_at) || b.mm - a.mm);
+}
+
+/** بحث نصي في كل القراءات (قرية / مقاطعة / ولاية) — يعيد النتائج مرتبة تنازلياً */
+export async function searchRainMeasurements(query) {
+  if (!isSupabaseConfigured || !query?.trim()) return [];
+  const rows = await fetchAllRainMeasurements(
+    'wilaya, moughataa, village, mm, report_url, report_title, report_published_at'
+  );
+  const q = query.trim();
+  return (rows || [])
+    .map((r) => ({ ...r, wilaya: normWilaya(r.wilaya) }))
+    .filter((r) => r.village?.includes(q) || r.moughataa?.includes(q) || r.wilaya?.includes(q))
+    .sort((a, b) => b.mm - a.mm)
+    .slice(0, 300);
+}
+
+/** أعلى N قراءة في تاريخ الأرشيف (مرتبة تنازلياً) */
+export async function getTopRainRecords(limit = 20) {
+  if (!isSupabaseConfigured) return [];
+  const rows = await fetchAllRainMeasurements(
+    'wilaya, moughataa, village, mm, report_published_at'
+  );
+  return (rows || [])
+    .map((r) => ({ ...r, wilaya: normWilaya(r.wilaya) }))
+    .sort((a, b) => b.mm - a.mm)
+    .slice(0, limit);
 }
 
 export async function createPost(bloggerId, { title, content, cover_url, wilaya }) {

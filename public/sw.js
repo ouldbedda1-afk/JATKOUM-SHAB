@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jatkoum-shab-v5'; // تحديث النسخة لإجبار المتصفح على تجاوز الكاش القديم
+const CACHE_NAME = 'jatkoum-shab-v6'; // تحديث النسخة لإجبار المتصفح على تجاوز الكاش القديم
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
