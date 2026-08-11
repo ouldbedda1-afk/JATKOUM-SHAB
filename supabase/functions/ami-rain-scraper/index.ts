@@ -24,6 +24,10 @@ const supabase = createClient(
 const TOKEN    = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
 const ADMIN_ID = Deno.env.get('TELEGRAM_CHAT_ID') ?? '';
 
+const FB_PAGE_ID    = Deno.env.get('FB_PAGE_ID') ?? '';
+const FB_PAGE_TOKEN = Deno.env.get('FB_PAGE_ACCESS_TOKEN') ?? '';
+const SITE_URL      = Deno.env.get('SITE_URL') ?? 'https://www.jatkoumshab.com';
+
 async function tg(text: string) {
   if (!TOKEN || !ADMIN_ID) return;
   await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
@@ -252,6 +256,40 @@ async function fetchWpMeta(articleUrl: string): Promise<{ title: string; pubDate
   }
 }
 
+// ينشر تقرير المقاييس على صفحة فيسبوك — يُستدعى بعد كل إدراج ناجح
+async function postToFacebook(rows: RainRow[], title: string, reportUrl: string): Promise<void> {
+  if (!FB_PAGE_ID || !FB_PAGE_TOKEN) return;
+
+  // أعلى 5 قراءات تنازلياً
+  const top5 = [...rows].sort((a, b) => b.mm - a.mm).slice(0, 5);
+
+  // الولايات المشمولة (فريدة، مرتبة أبجدياً)
+  const wilayas = [...new Set(rows.map((r) => r.wilaya))].sort().join(' | ');
+
+  const topLines = top5
+    .map((r) => `• ${r.village}${r.moughataa ? ` (${r.moughataa})` : ''} — ${r.mm} مم`)
+    .join('\n');
+
+  const message =
+    `🌧️ ${title}\n\n` +
+    `📊 ${rows.length} موقع مُسجَّل\n\n` +
+    `🏆 أعلى القراءات:\n${topLines}\n\n` +
+    `📍 الولايات: ${wilayas}\n\n` +
+    `🔗 التفاصيل الكاملة: ${SITE_URL}/measurements\n\n` +
+    `المصدر: الوكالة الموريتانية للأنباء`;
+
+  const res = await fetch(`https://graph.facebook.com/v19.0/${FB_PAGE_ID}/feed`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ message, access_token: FB_PAGE_TOKEN }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    await tg(`⚠️ فشل النشر على فيسبوك: ${err.slice(0, 200)}`).catch(() => {});
+  }
+}
+
 // ══════════════════════════════════════════════════════════════════
 // وضع إصلاح التواريخ (?fix-dates) — يُشغَّل مرة واحدة فقط
 // يجلب تاريخ النشر الحقيقي من WP REST API لكل report_url مخزَّن
@@ -355,7 +393,10 @@ Deno.serve(async (req) => {
       if (!error) {
         inserted += insertRows.length;
         reportsProcessed++;
-        await tg(`🌧️ *تقرير مقاييس أمطار جديد (AMI):*\n${item.title}\n${insertRows.length} قراءة\n🔗 ${reportUrl}`);
+        await Promise.all([
+          tg(`🌧️ *تقرير مقاييس أمطار جديد (AMI):*\n${item.title}\n${insertRows.length} قراءة\n🔗 ${reportUrl}`),
+          postToFacebook(rows, item.title, reportUrl),
+        ]);
       }
     }
 
