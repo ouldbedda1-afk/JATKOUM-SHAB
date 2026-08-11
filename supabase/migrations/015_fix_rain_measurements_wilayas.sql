@@ -97,7 +97,7 @@ WHERE wilaya NOT IN (
 --
 -- ⚠️ احذف التعليقين التاليين فقط إذا أردت حذف كل البيانات وإعادة جلبها:
 
--- TRUNCATE public.rain_measurements;
+TRUNCATE public.rain_measurements;
 
 -- ══════════════════════════════════════════════════════════════════
 -- التحقق (شغّله يدوياً بعد تطبيق الـ migration للتأكد)
