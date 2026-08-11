@@ -648,6 +648,25 @@ export async function getRainMeasurementReports({ limit = 10, offset = 0, wilaya
   return { reports, count: orderedReports.length };
 }
 
+/** يجلب كل صفوف rain_measurements للأعمدة المطلوبة، متجاوزاً حد الـ1000
+ * صف الافتراضي لكل استعلام عبر الترقيم (pagination) — ضروري لأن الجدول
+ * تجاوز هذا الحد فعلياً (>1900 صف)، وأي استعلام بلا ترقيم يُقطَع بصمت. */
+async function fetchAllRainMeasurements(select, filterFn) {
+  const PAGE = 1000;
+  let from = 0;
+  const all = [];
+  for (;;) {
+    let q = supabase.from('rain_measurements').select(select).range(from, from + PAGE - 1);
+    if (filterFn) q = filterFn(q);
+    const { data, error } = await q;
+    if (error || !data) break;
+    all.push(...data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
+
 /**
  * إحصاءات مقاييس الأمطار: الإجمالي المسجَّل، ترتيب الولايات حسب متوسط
  * الهطول (الأكثر هطولاً أولاً)، وأعلى قراءة مسجَّلة في كل مقاطعة.
@@ -659,9 +678,7 @@ export async function getRainMeasurementStats() {
     .from('rain_measurements')
     .select('id', { count: 'exact', head: true });
 
-  const { data: rows } = await supabase
-    .from('rain_measurements')
-    .select('wilaya, moughataa, village, mm');
+  const rows = await fetchAllRainMeasurements('wilaya, moughataa, village, mm');
 
   const byWilaya = {};
   const byMoughataa = {};
@@ -686,6 +703,16 @@ export async function getRainMeasurementStats() {
   const topByMoughataa = Object.values(byMoughataa).sort((a, b) => b.mm - a.mm);
 
   return { total: total || 0, wilayaRanking, topByMoughataa };
+}
+
+/** كل القرى/التواريخ التي سُجِّلت فيها قراءات لولاية معيّنة (الأحدث أولاً) */
+export async function getWilayaReadings(wilaya) {
+  if (!isSupabaseConfigured) return [];
+  const rows = await fetchAllRainMeasurements(
+    'village, moughataa, mm, report_published_at',
+    (q) => q.eq('wilaya', wilaya)
+  );
+  return rows.sort((a, b) => b.report_published_at.localeCompare(a.report_published_at) || b.mm - a.mm);
 }
 
 export async function createPost(bloggerId, { title, content, cover_url, wilaya }) {

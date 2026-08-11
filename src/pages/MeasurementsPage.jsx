@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { getRainMeasurementReports, getRainMeasurementStats } from '../supabase';
+import { getRainMeasurementReports, getRainMeasurementStats, getWilayaReadings } from '../supabase';
 import Navbar from '../components/Navbar';
 
 const WILAYAS = [
@@ -35,13 +35,54 @@ function groupReadings(readings) {
   }));
 }
 
+function fmtShortDate(d) {
+  if (!d) return '';
+  return new Date(d).toLocaleDateString('ar-SA', { day: 'numeric', month: 'short', calendar: 'gregory' });
+}
+
+// قائمة قرى/تواريخ ولاية واحدة — تُحمَّل عند أول توسيع فقط وتُخزَّن مؤقتاً
+function WilayaDetailList({ readings, loading }) {
+  if (loading) {
+    return <p className="text-xs text-gray-400 text-center py-4">جارٍ التحميل...</p>;
+  }
+  if (!readings || readings.length === 0) {
+    return <p className="text-xs text-gray-400 text-center py-4">لا قراءات.</p>;
+  }
+  return (
+    <div className="max-h-72 overflow-y-auto space-y-1 pr-1">
+      {readings.map((r, i) => (
+        <div key={i} className="flex items-center gap-2 text-xs bg-gray-50 rounded-lg px-2.5 py-1.5">
+          <span className="text-gray-400 w-16 shrink-0">{fmtShortDate(r.report_published_at)}</span>
+          <span className="font-bold text-gray-700 flex-1 truncate">
+            {r.village}{r.moughataa ? <span className="text-gray-400"> ({r.moughataa})</span> : null}
+          </span>
+          <span className="font-black text-blue-600 shrink-0">{r.mm} مم</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function StatsSection() {
   const [stats, setStats] = useState(null);
   const [showAllMoughataa, setShowAllMoughataa] = useState(false);
+  const [expandedWilaya, setExpandedWilaya] = useState(null);
+  const [detailCache, setDetailCache] = useState({});
+  const [detailLoading, setDetailLoading] = useState(null);
 
   useEffect(() => {
     getRainMeasurementStats().then(setStats);
   }, []);
+
+  async function toggleWilaya(wilaya) {
+    if (expandedWilaya === wilaya) { setExpandedWilaya(null); return; }
+    setExpandedWilaya(wilaya);
+    if (detailCache[wilaya]) return;
+    setDetailLoading(wilaya);
+    const readings = await getWilayaReadings(wilaya);
+    setDetailCache((c) => ({ ...c, [wilaya]: readings }));
+    setDetailLoading(null);
+  }
 
   if (!stats || stats.total === 0) return null;
 
@@ -66,14 +107,23 @@ function StatsSection() {
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-        <p className="text-xs font-bold text-gray-400 mb-3">📊 ترتيب الولايات حسب تراكم الهطول</p>
-        <div className="space-y-2">
+        <p className="text-xs font-bold text-gray-400 mb-3">📊 ترتيب الولايات حسب تراكم الهطول — اضغط على أي ولاية لعرض القرى والتواريخ</p>
+        <div className="space-y-1">
           {stats.wilayaRanking.map((w, i) => (
-            <div key={w.wilaya} className="flex items-center gap-3">
-              <span className="text-xs font-black text-gray-400 w-5 shrink-0">{i + 1}</span>
-              <span className="text-sm font-bold text-gray-700 flex-1 truncate">{w.wilaya}</span>
-              <span className="text-[11px] text-gray-400">{w.count} قراءة</span>
-              <span className="text-xs font-black text-blue-600 w-20 text-left">{w.total.toFixed(0)} مم</span>
+            <div key={w.wilaya}>
+              <button onClick={() => toggleWilaya(w.wilaya)}
+                className="w-full flex items-center gap-3 text-right py-1.5 rounded-lg hover:bg-gray-50 transition-colors">
+                <span className="text-xs font-black text-gray-400 w-5 shrink-0">{i + 1}</span>
+                <span className="text-sm font-bold text-gray-700 flex-1 truncate">{w.wilaya}</span>
+                <span className="text-[11px] text-gray-400">{w.count} قراءة</span>
+                <span className="text-xs font-black text-blue-600 w-20 text-left">{w.total.toFixed(0)} مم</span>
+                <span className="text-gray-300 text-xs shrink-0">{expandedWilaya === w.wilaya ? '▲' : '▼'}</span>
+              </button>
+              {expandedWilaya === w.wilaya && (
+                <div className="mt-1 mb-2 pr-8">
+                  <WilayaDetailList readings={detailCache[w.wilaya]} loading={detailLoading === w.wilaya} />
+                </div>
+              )}
             </div>
           ))}
         </div>
