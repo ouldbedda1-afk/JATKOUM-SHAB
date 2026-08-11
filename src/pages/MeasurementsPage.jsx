@@ -222,7 +222,7 @@ function SearchResults({ results, loading, query }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // تبويب الإحصاءات
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function StatsTab({ stats, onWilayaClick }) {
+function StatsTab({ stats, statsYear, setStatsYear, onWilayaClick }) {
   const [expandedWilaya, setExpandedWilaya] = useState(null);
   const [detailCache, setDetailCache] = useState({});
   const [detailLoading, setDetailLoading] = useState(null);
@@ -253,10 +253,30 @@ function StatsTab({ stats, onWilayaClick }) {
 
   return (
     <div className="space-y-5">
+      {/* منتقي السنة */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-black text-gray-500 ml-1">📅 السنة:</span>
+        {YEARS.map((y) => (
+          <button
+            key={y}
+            onClick={() => setStatsYear(y)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              statsYear === y ? 'bg-blue-600 text-white shadow' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            }`}
+          >
+            {y}
+          </button>
+        ))}
+      </div>
+
       {/* ترتيب الولايات */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
-          <p className="text-xs font-black text-gray-500">📊 ترتيب الولايات حسب إجمالي الأمطار المسجَّلة — اضغط لعرض التفاصيل</p>
+          <p className="text-xs font-black text-gray-500">
+            📊 ترتيب الولايات حسب إجمالي الأمطار المسجَّلة
+            {statsYear !== 'الكل' ? ` — ${statsYear}` : ' — كل الأعوام'}
+            {' '}— اضغط لعرض التفاصيل
+          </p>
         </div>
         <div className="p-4 space-y-1">
           {stats.wilayaRanking.map((w, i) => {
@@ -484,6 +504,7 @@ function ArchiveTab({ wilaya, setWilaya, year, setYear, reports, count, loading,
 export default function MeasurementsPage() {
   const [tab, setTab] = useState('archive');
   const [stats, setStats] = useState(null);
+  const [statsYear, setStatsYear] = useState(String(CURRENT_YEAR));
   const [topRecords, setTopRecords] = useState(null);
 
   // Archive state
@@ -501,8 +522,9 @@ export default function MeasurementsPage() {
   const searchTimer = useRef(null);
 
   useEffect(() => {
-    getRainMeasurementStats().then(setStats);
-  }, []);
+    setStats(null);
+    getRainMeasurementStats(statsYear === 'الكل' ? null : parseInt(statsYear)).then(setStats);
+  }, [statsYear]);
 
   useEffect(() => {
     if (tab === 'records' && topRecords === null) {
@@ -645,7 +667,7 @@ export default function MeasurementsPage() {
                 page={page} setPage={setPage}
               />
             )}
-            {tab === 'stats' && <StatsTab stats={stats} onWilayaClick={goToWilaya} />}
+            {tab === 'stats' && <StatsTab stats={stats} statsYear={statsYear} setStatsYear={setStatsYear} onWilayaClick={goToWilaya} />}
             {tab === 'records' && <TopRecordsTab records={topRecords} />}
           </>
         )}

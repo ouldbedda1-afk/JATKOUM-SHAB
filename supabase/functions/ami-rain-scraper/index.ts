@@ -340,7 +340,8 @@ Deno.serve(async (req) => {
 
     // معالجة يدوية لمقال محدد (نسخ احتياطي/اختبار) — فقط عند تمرير
     // ?url=... صراحةً؛ التشغيل الدوري العادي (بلا معامل) لا يتأثر إطلاقاً
-    const manualUrl = params.get('url');
+    const manualUrl  = params.get('url');
+    const noFacebook = params.get('no-fb') === '1';
     const items: FeedItem[] = manualUrl
       ? [{ ...(await fetchWpMeta(manualUrl)), link: manualUrl }]
       : parseFeed(await (await fetch(AMI_FEED_URL, { headers: { 'User-Agent': UA } })).text());
@@ -395,7 +396,7 @@ Deno.serve(async (req) => {
         reportsProcessed++;
         await Promise.all([
           tg(`🌧️ *تقرير مقاييس أمطار جديد (AMI):*\n${item.title}\n${insertRows.length} قراءة\n🔗 ${reportUrl}`),
-          postToFacebook(rows, item.title, reportUrl),
+          noFacebook ? Promise.resolve() : postToFacebook(rows, item.title, reportUrl),
         ]);
       }
     }

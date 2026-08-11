@@ -698,14 +698,17 @@ function normWilaya(w) { return WILAYA_NORMALIZE[w] || w; }
  * إحصاءات مقاييس الأمطار: الإجمالي المسجَّل، ترتيب الولايات حسب متوسط
  * الهطول (الأكثر هطولاً أولاً)، وأعلى قراءة مسجَّلة في كل مقاطعة.
  */
-export async function getRainMeasurementStats() {
+export async function getRainMeasurementStats(year = null) {
   if (!isSupabaseConfigured) return { total: 0, wilayaRanking: [], topByMoughataa: [] };
 
   const { count: total } = await supabase
     .from('rain_measurements')
     .select('id', { count: 'exact', head: true });
 
-  const rows = await fetchAllRainMeasurements('wilaya, moughataa, village, mm');
+  const rows = await fetchAllRainMeasurements('wilaya, moughataa, village, mm, report_published_at', year
+    ? (q) => q.gte('report_published_at', `${year}-01-01T00:00:00.000Z`).lt('report_published_at', `${year + 1}-01-01T00:00:00.000Z`)
+    : null
+  );
 
   const byWilaya = {};
   const byMoughataa = {};
