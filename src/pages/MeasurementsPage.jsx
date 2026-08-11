@@ -29,7 +29,7 @@ const WILAYAS = [
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();
-const YEARS = ['الكل', ...Array.from({ length: CURRENT_YEAR - 2022 }, (_, i) => String(CURRENT_YEAR - i))];
+const YEARS = ['الكل', ...Array.from({ length: CURRENT_YEAR - 2019 }, (_, i) => String(CURRENT_YEAR - i))];
 const PER_PAGE = 8;
 
 function fmtDate(d) {
