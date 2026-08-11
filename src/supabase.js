@@ -772,6 +772,21 @@ export async function getTopRainRecords(limit = 20) {
     .slice(0, limit);
 }
 
+/** أعلى N قراءة خلال آخر 10 سنوات */
+export async function getTopRainRecords10Years(limit = 3) {
+  if (!isSupabaseConfigured) return [];
+  const tenYearsAgo = new Date();
+  tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
+  const rows = await fetchAllRainMeasurements(
+    'wilaya, moughataa, village, mm, report_published_at',
+    (q) => q.gte('report_published_at', tenYearsAgo.toISOString())
+  );
+  return (rows || [])
+    .map((r) => ({ ...r, wilaya: normWilaya(r.wilaya) }))
+    .sort((a, b) => b.mm - a.mm)
+    .slice(0, limit);
+}
+
 export async function createPost(bloggerId, { title, content, cover_url, wilaya }) {
   const { data, error } = await supabase
     .from('posts')
