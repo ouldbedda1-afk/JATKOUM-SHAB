@@ -165,6 +165,7 @@ function parseRainTable($: cheerio.CheerioAPI, table: any): RainRow[] {
       const cls = classifyLabel(cell.text());
       currentWilaya = cls.kind === 'wilaya' ? cls.value : cleanName(cell.text());
       wilayaLeft = parseInt(cell.attr('rowspan') || '1', 10) || 1;
+      moughataaLeft = 0; // ولاية جديدة → أعِد قراءة المقاطعة دائماً
       idx++;
     }
     if (moughataaLeft <= 0) {
