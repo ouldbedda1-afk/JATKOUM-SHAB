@@ -130,19 +130,21 @@ const Navbar = ({ onCitySelect }) => {
             </AnimatePresence>
           </div>
 
-          {/* زر متابعة فيسبوك */}
-          <a
-            href="https://www.facebook.com/Beddetiii"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 bg-[#1877F2] hover:bg-[#166fe5] active:bg-[#1464d8] text-white text-sm font-black px-4 py-2 rounded-xl shadow-lg shadow-blue-900/40 transition-all shrink-0"
-            aria-label="تابعنا على فيسبوك"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 shrink-0">
-              <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.884v2.25h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
-            </svg>
-            <span className="hidden sm:inline">متابعة</span>
-          </a>
+          {/* زر متابعة فيسبوك — مخفي في صفحة الإدارة */}
+          {location.pathname !== '/admin' && (
+            <a
+              href="https://www.facebook.com/Beddetiii"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 bg-[#1877F2] hover:bg-[#166fe5] active:bg-[#1464d8] text-white text-sm font-black px-4 py-2 rounded-xl shadow-lg shadow-blue-900/40 transition-all shrink-0"
+              aria-label="تابعنا على فيسبوك"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 shrink-0">
+                <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.884v2.25h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
+              </svg>
+              <span className="hidden sm:inline">متابعة</span>
+            </a>
+          )}
 
           {/* جرس */}
           <button className="hidden sm:flex p-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-all border border-transparent hover:border-white/15" aria-label="الإشعارات">

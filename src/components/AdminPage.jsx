@@ -169,23 +169,25 @@ export default function AdminPage() {
               )}
             </div>
 
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex bg-gray-100 p-1 rounded-xl">
-                {TABS.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setTab(t.id)}
-                    className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${tab === t.id ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+            <div className="flex items-center gap-2 mb-4">
+              <div className="flex-1 overflow-x-auto">
+                <div className="flex bg-gray-100 p-1 rounded-xl w-max min-w-full">
+                  {TABS.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setTab(t.id)}
+                      className={`px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${tab === t.id ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <button onClick={load} className="p-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50" title="تحديث">
                   <SafeIcon icon={FiRefreshCw} className={`text-gray-700 ${loading ? 'animate-spin' : ''}`} />
                 </button>
-                <button onClick={logout} className="text-xs font-bold text-gray-500 hover:text-red-600 px-3 py-2">خروج</button>
+                <button onClick={logout} className="text-xs font-bold text-gray-500 hover:text-red-600 px-3 py-2 bg-white border border-gray-200 rounded-xl">خروج</button>
               </div>
             </div>
 
