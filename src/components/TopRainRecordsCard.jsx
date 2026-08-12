@@ -28,7 +28,7 @@ export default function TopRainRecordsCard() {
         <span className="text-2xl">🏆</span>
         <div>
           <p className="text-sm font-black text-white leading-tight">أعلى مقاييس الأمطار</p>
-          <p className="text-[11px] text-blue-200/70 mt-0.5">آخر 10 سنوات · من قاعدة بيانات AMI</p>
+          <p className="text-[11px] text-blue-200/70 mt-0.5">آخر 10 سنوات</p>
         </div>
       </div>
 
