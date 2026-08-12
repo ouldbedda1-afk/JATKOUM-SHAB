@@ -188,7 +188,26 @@ export default function ForecastPublisher() {
         is_published: true,
         featured_image: '',
       });
-      if (article?.slug) navigate(`/news/${article.slug}`);
+      if (article?.slug) {
+        // إشعار تيليجرام
+        fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/notify-telegram`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({
+            table: 'forecast',
+            record: {
+              title:    built.title,
+              slug:     article.slug,
+              wilaya:   built.wilaya,
+              category: built.category,
+            },
+          }),
+        }).catch(() => {});
+        navigate(`/news/${article.slug}`);
+      }
     } catch (e) {
       setError(e.message);
     } finally {

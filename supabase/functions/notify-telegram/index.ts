@@ -18,6 +18,7 @@ const KIND: Record<string, string> = {
   livestock_reports: 'livestock',
   rain_reports: 'rain',
   news_submissions: 'news',
+  forecast: 'forecast',
 };
 
 function buildCaption(table: string, r: Record<string, unknown>): string {
@@ -38,6 +39,13 @@ function buildCaption(table: string, r: Record<string, unknown>): string {
   }
   if (table === 'news_submissions') {
     return `📰 خبر جديد بانتظار المراجعة\n` + (r.title ? `العنوان: ${r.title}\n` : '');
+  }
+  if (table === 'forecast') {
+    const catIcon = r.category === 'عواصف' ? '⛈️' : r.category === 'طقس حار' ? '🔥' : '🌧️';
+    return `${catIcon} *توقّع جوي جديد نُشر:*\n\n` +
+      `📌 ${r.title}\n` +
+      (r.wilaya ? `📍 ${r.wilaya}\n` : '') +
+      `\n🔗 ${SITE}/news/${r.slug}`;
   }
   return `🔔 إدخال جديد في ${table} بانتظار المراجعة`;
 }
