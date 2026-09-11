@@ -588,10 +588,22 @@ export async function getVisitStats(days = 30) {
 
   const since = new Date();
   since.setDate(since.getDate() - days);
-  const { data: rows } = await supabase
-    .from('page_visits')
-    .select('created_at')
-    .gte('created_at', since.toISOString());
+
+  // يتجاوز حد الـ1000 صف الافتراضي لكل استعلام عبر الترقيم — ضروري لأن
+  // الجدول يستقبل آلاف الزيارات شهرياً، وأي استعلام بلا ترقيم يُقطَع بصمت
+  // (نفس مشكلة fetchAllRainMeasurements أعلاه).
+  const PAGE = 1000;
+  const rows = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('page_visits')
+      .select('created_at')
+      .gte('created_at', since.toISOString())
+      .range(from, from + PAGE - 1);
+    if (error || !data) break;
+    rows.push(...data);
+    if (data.length < PAGE) break;
+  }
 
   const byDay = {};
   (rows || []).forEach((r) => {
@@ -603,6 +615,41 @@ export async function getVisitStats(days = 30) {
     .sort((a, b) => b.day.localeCompare(a.day));
 
   return { total: total || 0, daily };
+}
+
+/** إحصاءات أسئلة البوّاه عن البلديات: عدد الأسئلة التي ذُكرت فيها بلدية
+ * محدَّدة + ترتيب البلديات الأكثر سؤالاً، لآخر days يوماً. */
+export async function getAgentCityStats(days = 30) {
+  if (!isSupabaseConfigured) return { totalCityQuestions: 0, topCities: [] };
+
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+
+  const PAGE = 1000;
+  const rows = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('agent_queries')
+      .select('city')
+      .not('city', 'is', null)
+      .gte('created_at', since.toISOString())
+      .range(from, from + PAGE - 1);
+    if (error || !data) break;
+    rows.push(...data);
+    if (data.length < PAGE) break;
+  }
+
+  const byCity = {};
+  rows.forEach((r) => {
+    if (!r.city) return;
+    byCity[r.city] = (byCity[r.city] || 0) + 1;
+  });
+  const topCities = Object.entries(byCity)
+    .map(([city, count]) => ({ city, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  return { totalCityQuestions: rows.length, topCities };
 }
 
 // ═══════════════════════════════════════════════════

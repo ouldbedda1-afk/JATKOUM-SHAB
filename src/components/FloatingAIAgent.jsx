@@ -882,11 +882,18 @@ export default function FloatingAIAgent({ onCitySelect }) {
     setShowBubble(false);
     setMessages((prev) => [...prev, { from: 'user', text: q }]);
     setTyping(true);
-    logAgentQuery(q, null);
 
     await new Promise((r) => setTimeout(r, 700));
 
     const result = buildAnswer(q, allData, ctx);
+
+    // نسجّل البلدية المكتشفة (إن وُجدت) لإحصاء أكثر البلديات سؤالاً في لوحة الأدمن
+    const cityAsked =
+      result.cityData?.city ||
+      (result.text === '__FETCH_COMMUNE__' ? result.communeAr : null) ||
+      (result.text === '__FETCH_14DAY__' ? result.cityToRefetch?.city : null) ||
+      null;
+    logAgentQuery(q, cityAsked);
 
     // استفسارات البلديات محدودة بمرتين كل 12 ساعة
     if (result.cityData || result.text === '__FETCH_COMMUNE__') {

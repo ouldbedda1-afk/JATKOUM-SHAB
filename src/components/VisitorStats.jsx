@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getVisitStats } from '../supabase';
+import { getVisitStats, getAgentCityStats } from '../supabase';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 
@@ -13,6 +13,7 @@ function dayLabel(dateStr) {
 
 export default function VisitorStats() {
   const [stats, setStats] = useState(null);
+  const [agentStats, setAgentStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -20,7 +21,9 @@ export default function VisitorStats() {
     setLoading(true);
     setError('');
     try {
-      setStats(await getVisitStats(30));
+      const [visits, agent] = await Promise.all([getVisitStats(30), getAgentCityStats(30)]);
+      setStats(visits);
+      setAgentStats(agent);
     } catch (e) {
       setError(e.message || 'فشل تحميل الإحصاءات');
     } finally {
@@ -90,6 +93,42 @@ export default function VisitorStats() {
           <p className="text-[11px] text-gray-400">
             "الزيارة" تُحتسب مرة واحدة لكل جلسة متصفّح (لا لكل صفحة)، فهي تقريب لعدد الجلسات وليس عدداً دقيقاً للزوار الفريدين.
           </p>
+
+          <div className="pt-2">
+            <p className="text-xs font-bold text-gray-400 mb-3">🤖 أسئلة البوّاه عن البلديات (آخر 30 يوماً)</p>
+            {agentStats && agentStats.totalCityQuestions > 0 ? (
+              <>
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4 mb-3">
+                  <div className="bg-amber-50 text-amber-600 p-3 rounded-xl"><SafeIcon icon={FiUsers} className="text-xl" /></div>
+                  <div>
+                    <p className="text-2xl font-black text-gray-900">{agentStats.totalCityQuestions.toLocaleString('en-US')}</p>
+                    <p className="text-xs font-bold text-gray-400">سؤال عن بلدية محدَّدة</p>
+                  </div>
+                </div>
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <p className="text-xs font-bold text-gray-400 mb-3">الأكثر سؤالاً</p>
+                  <div className="space-y-2">
+                    {agentStats.topCities.map(({ city, count }, i) => (
+                      <div key={city} className="flex items-center gap-3">
+                        <span className={`text-xs font-black w-6 shrink-0 ${i === 0 ? 'text-amber-500' : 'text-gray-400'}`}>
+                          {i === 0 ? '🥇' : `#${i + 1}`}
+                        </span>
+                        <span className="flex-1 text-sm font-bold text-gray-700 truncate">{city}</span>
+                        <span className="text-xs font-black text-gray-500">{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-4 bg-white rounded-2xl border border-gray-100">
+                لا أسئلة عن بلديات مسجّلة بعد.
+              </p>
+            )}
+            <p className="text-[11px] text-gray-400 mt-3">
+              يُحتسب السؤال فقط عندما يتعرّف البوّاه على اسم بلدية في الرسالة (لا يُعدّ زواراً فريدين).
+            </p>
+          </div>
         </>
       ) : null}
     </div>
