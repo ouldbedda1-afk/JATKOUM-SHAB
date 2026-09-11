@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.jatkoumshab.app",
+      "sha256_cert_fingerprints": [
+        "F9:50:B4:57:AC:87:3D:6E:C7:C9:B6:EF:AA:0D:34:87:C5:4C:8B:6B:3A:DB:18:DA:72:1C:E0:D8:29:87:A1:80"
+      ]
+    }
+  }
+]
