@@ -1703,6 +1703,17 @@ export const mauritaniaCommunesList = [
     "source": "open-admin-data"
   },
   {
+    "city": "Yaghref",
+    "name": "Yaghref",
+    "lat": 17.438361049747225,
+    "lon": -14.643276749261544,
+    "type": "قرية",
+    "wilaya": "الترارزة",
+    "moughataa": "Boutilimit",
+    "id": "MR01339",
+    "source": "manual"
+  },
+  {
     "city": "Keurmacen",
     "name": "Keurmacen",
     "lat": 16.568,
@@ -2207,6 +2218,17 @@ export const mauritaniaCommunesList = [
     "moughataa": "Tidjikja",
     "id": "MR01300",
     "source": "open-admin-data"
+  },
+  {
+    "city": "El Ghadia",
+    "name": "El Ghadia",
+    "lat": 17.835417417845235,
+    "lon": -11.557617079407654,
+    "type": "بلدية",
+    "wilaya": "تكانت",
+    "moughataa": "Tidjikja",
+    "id": "MR01340",
+    "source": "manual"
   },
   {
     "city": "Lehsira",
