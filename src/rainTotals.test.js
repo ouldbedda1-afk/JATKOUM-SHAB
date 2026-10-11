@@ -43,7 +43,7 @@ describe('توحيد الأسماء', () => {
 });
 
 describe('المجاميع', () => {
-  it('يجمع القراءات عبر التقارير لكل مقاطعة ثم لكل ولاية', () => {
+  it('مجموع الموقع يُجمع عبر التقارير؛ الولاية والمقاطعة بمتوسط مجاميع مواقعهما', () => {
     const totals = buildRainTotals(cleanRainReadings([
       row('كوركول', 'أمبود', 'الخلوه', 95, '01'),
       row('كوركول', 'امبود', 'الخلوة', 20, '02'),
@@ -53,19 +53,31 @@ describe('المجاميع', () => {
 
     expect(totals).toHaveLength(1);
     const [gorgol] = totals;
-    expect(gorgol.total).toBe(205);
+    // ثلاثة مواقع مجاميعها 115 و80 و10 → متوسط الولاية 68.3، لا «مجموع» 205
     expect(gorgol.villageCount).toBe(3);
+    expect(gorgol.avgPerVillage).toBe(68.3);
+    expect(gorgol.total).toBeUndefined();
+    expect(gorgol.readingsSum).toBe(205);
+    expect(gorgol.topSite).toEqual({ village: 'الخلوه', total: 115 });
     expect(gorgol.moughataas.map((m) => m.moughataa)).toEqual(['أمبود', 'كيهيدي']);
 
     const mbout = gorgol.moughataas[0];
-    expect(mbout).toMatchObject({ total: 195, count: 3, max: 95, villageCount: 2, avgPerVillage: 97.5 });
+    expect(mbout).toMatchObject({ count: 3, max: 95, villageCount: 2, avgPerVillage: 97.5, topSite: { village: 'الخلوه', total: 115 } });
     expect(mbout.last).toContain('2026-08-02');
+  });
+
+  it('الترتيب بمتوسط مجموع الموقع: ولاية كثيرة المواقع لا تتقدم بعددها', () => {
+    const many = Array.from({ length: 10 }, (_, i) => row('كيدي ماغا', 'غابو', `قرية ${i}`, 20, '01'));
+    const few = [row('الحوض الغربي', 'كوبني', 'أ', 60, '01'), row('الحوض الغربي', 'كوبني', 'ب', 50, '01')];
+    const totals = buildRainTotals(cleanRainReadings([...many, ...few]));
+    // كيدي ماغا: 10 مواقع × 20 = «200» جمعاً لكن متوسط موقعها 20؛ الحوض الغربي متوسطه 55
+    expect(totals.map((w) => [w.wilaya, w.avgPerVillage])).toEqual([['الحوض الغربي', 55], ['كيدي ماغا', 20]]);
   });
 
   it('تقرير أُدرج أربع مرات يُحسب مرة واحدة', () => {
     const once = [row('لعصابه', 'كرو', 'اودي اجريد', 40), row('لعصابه', 'كرو', 'كامور', 20)];
     const totals = buildRainTotals(cleanRainReadings([...once, ...once, ...once, ...once]));
-    expect(totals[0].total).toBe(60);
+    expect(totals[0].readingsSum).toBe(60);
     expect(totals[0].count).toBe(2);
   });
 
@@ -75,7 +87,7 @@ describe('المجاميع', () => {
       row('لعصابه', 'كرو', 'الطبال', 30),
       row('لعصابه', 'كرو', 'كامور', 20),
     ]));
-    expect(totals[0].total).toBe(80);
+    expect(totals[0].readingsSum).toBe(80);
     expect(totals[0].count).toBe(3);
   });
 
@@ -84,7 +96,7 @@ describe('المجاميع', () => {
       row('لعصابه', 'كرو', 'كامور', 20, '01'),
       row('لعصابه', 'كرو', 'كامور', 20, '02'),
     ]));
-    expect(totals[0].total).toBe(40);
+    expect(totals[0].topSite).toEqual({ village: 'كامور', total: 40 });
   });
 
   it('يصحّح الولاية من المقاطعة المعروفة ويحفظ الاسم الأصلي', () => {

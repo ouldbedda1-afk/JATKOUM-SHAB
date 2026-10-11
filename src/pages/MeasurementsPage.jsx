@@ -326,7 +326,7 @@ function StatsTab({ stats, statsYear, setStatsYear, onWilayaClick }) {
     );
   }
 
-  const maxTotal = stats.wilayaRanking[0]?.total || 1;
+  const maxMean = stats.wilayaRanking[0]?.avgPerVillage || 1;
   const visibleMoughataa = showAllMoughataa ? stats.topByMoughataa : stats.topByMoughataa.slice(0, 12);
 
   return (
@@ -353,18 +353,18 @@ function StatsTab({ stats, statsYear, setStatsYear, onWilayaClick }) {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
           <p className="text-xs font-black text-gray-500">
-            📊 المجاميع المطرية لكل ولاية
+            📊 متوسط المجموع المطري للموقع في كل ولاية
             {statsYear !== 'الكل' ? ` — ${statsYear}` : ' — كل الأعوام'}
-            {' '}— اضغط الولاية لعرض مجاميع مقاطعاتها
+            {' '}— اضغط الولاية لعرض مقاطعاتها
           </p>
-          <p className="text-[10px] text-gray-400 mt-1 leading-relaxed">
-            المجموع هو حاصل جمع كل ما سُجِّل في مواقع الولاية أو المقاطعة خلال الفترة،
-            لذا يُعرض معه معدل الموقع الواحد للمقارنة بين المناطق.
+          <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+            المجموع المطري يخص موقع الرصد: حاصل جمع قراءاته خلال الفترة. رقم الولاية أو المقاطعة هو متوسط مجاميع
+            مواقعها، لا حاصل جمعها؛ فجمع قراءات كل القرى يكبر بعدد القرى المرصودة لا بكمية المطر.
           </p>
         </div>
         <div className="p-4 space-y-1">
           {stats.wilayaRanking.map((w, i) => {
-            const pct = Math.round((w.total / maxTotal) * 100);
+            const pct = Math.round((w.avgPerVillage / maxMean) * 100);
             return (
               <div key={w.wilaya}>
                 <button
@@ -375,7 +375,7 @@ function StatsTab({ stats, statsYear, setStatsYear, onWilayaClick }) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 mb-1.5">
                       <span className="text-sm font-black text-gray-800">{w.wilaya}</span>
-                      <span className="text-xs font-black text-blue-600">{w.total.toFixed(0)} مم</span>
+                      <span className="text-xs font-black text-blue-600">{w.avgPerVillage} مم</span>
                     </div>
                     <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                       <div
@@ -384,7 +384,7 @@ function StatsTab({ stats, statsYear, setStatsYear, onWilayaClick }) {
                       />
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1">
-                      {w.villageCount} موقع · {w.count} قراءة · معدل الموقع: {w.avgPerVillage} مم · أعلى قراءة: {w.max} مم
+                      متوسط {w.villageCount} موقع · {w.count} قراءة · أعلى مجموع: {w.topSite.village} {w.topSite.total} مم · أعلى قراءة واحدة: {w.max} مم
                     </p>
                   </div>
                   <span className="text-gray-300 text-xs shrink-0">{expandedWilaya === w.wilaya ? '▲' : '▼'}</span>
@@ -401,10 +401,10 @@ function StatsTab({ stats, statsYear, setStatsYear, onWilayaClick }) {
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-black text-gray-800 truncate">{m.moughataa}</p>
                             <p className="text-[10px] text-gray-400 mt-0.5">
-                              {m.villageCount} موقع · {m.count} قراءة · معدل الموقع: {m.avgPerVillage} مم · أعلى قراءة: {m.max} مم
+                              متوسط {m.villageCount} موقع · {m.count} قراءة · أعلى مجموع: {m.topSite.village} {m.topSite.total} مم
                             </p>
                           </div>
-                          <span className="text-xs font-black text-blue-600 shrink-0">{m.total} مم</span>
+                          <span className="text-xs font-black text-blue-600 shrink-0">{m.avgPerVillage} مم</span>
                         </div>
                       ))}
                     </div>
@@ -704,15 +704,16 @@ export default function MeasurementsPage() {
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-white/10 rounded-2xl px-4 py-3 text-center border border-white/10">
                 <p className="text-2xl font-black">{stats.total.toLocaleString('en-US')}</p>
-                <p className="text-[11px] text-blue-200/60 mt-0.5">موقع مُرصَد</p>
+                <p className="text-[11px] text-blue-200/60 mt-0.5">قراءة مسجَّلة</p>
               </div>
               <div className="bg-white/10 rounded-2xl px-4 py-3 text-center border border-white/10">
                 <p className="text-2xl font-black">{count || '—'}</p>
                 <p className="text-[11px] text-blue-200/60 mt-0.5">تقرير رسمي</p>
               </div>
               <div className="bg-white/10 rounded-2xl px-4 py-3 text-center border border-white/10">
-                <p className="text-base font-black leading-tight">{stats.wilayaRanking[0]?.wilaya || '—'}</p>
-                <p className="text-[11px] text-blue-200/60 mt-0.5">الأعلى هطولاً</p>
+                {/* الأعلى بمتوسط مجموع الموقع، بين الولايات ذات عشرة مواقع فأكثر (متوسط بضعة مواقع لا يُعتدّ به) */}
+                <p className="text-base font-black leading-tight">{(stats.wilayaRanking.find((w) => w.villageCount >= 10) || stats.wilayaRanking[0])?.wilaya || '—'}</p>
+                <p className="text-[11px] text-blue-200/60 mt-0.5">الأعلى بمتوسط الموقع</p>
               </div>
             </div>
           )}

@@ -185,12 +185,14 @@ function addTo(bucket, r) {
 const round1 = (n) => Math.round(n * 10) / 10;
 
 /**
- * المجاميع التراكمية من قراءات نظيفة (ناتج cleanRainReadings).
- * يعيد قائمة الولايات مرتبة تنازلياً بالمجموع؛ داخل كل ولاية مقاطعاتها —
- * كلٌّ بمجموعه وعدد قراءاته وأعلى قراءة وآخر تاريخ.
- * total: مجموع القراءات المسجَّلة في كل مواقع الرصد (القرى) — يكبر بعددها،
- *        وليس كمية المطر على مساحة الولاية.
- * avgPerVillage: متوسط مجموع الموقع الواحد — الأنسب للمقارنة بين المناطق.
+ * المجاميع المطرية من قراءات نظيفة (ناتج cleanRainReadings).
+ *
+ * المجموع المطري يخص موقع الرصد (القرية): حاصل جمع قراءاته خلال الفترة. أما الولاية
+ * والمقاطعة فلا «مجموع» لهما — جمع مجاميع قراهما يكبر بعدد القرى المرصودة لا بالمطر —
+ * وإنما يمثّلهما متوسط مجاميع مواقعهما (avgPerVillage)، وبه تُرتَّبان.
+ *
+ * لكل ولاية ومقاطعة: متوسط مجموع الموقع، عدد المواقع والقراءات، أعلى قراءة واحدة،
+ * والموقع الأعلى مجموعاً (topSite). readingsSum (حاصل جمع كل القراءات) يبقى للتدقيق فقط.
  */
 export function buildRainTotals(readings) {
   const wilayas = new Map();
@@ -201,39 +203,49 @@ export function buildRainTotals(readings) {
     addTo(w, r);
 
     if (!w.moughataas.has(r.moughataaKey)) {
-      w.moughataas.set(r.moughataaKey, { ...newBucket(), moughataa: r.moughataa, villages: new Set() });
+      w.moughataas.set(r.moughataaKey, { ...newBucket(), moughataa: r.moughataa, villages: new Map() });
     }
     const m = w.moughataas.get(r.moughataaKey);
     addTo(m, r);
-    m.villages.add(r.villageKey);
+    const site = m.villages.get(r.villageKey) || { village: r.village, total: 0 };
+    site.total += r.mm;
+    m.villages.set(r.villageKey, site);
   });
 
-  const byTotal = (a, b) => b.total - a.total;
+  const byMean = (a, b) => b.avgPerVillage - a.avgPerVillage;
+  const top = (sites) => {
+    const best = sites.reduce((x, y) => (y.total > x.total ? y : x));
+    return { village: best.village, total: round1(best.total) };
+  };
 
   return [...wilayas.entries()].map(([wilaya, w]) => {
-    const moughataas = [...w.moughataas.values()].map((m) => ({
-      moughataa: m.moughataa,
-      total: round1(m.total),
-      count: m.count,
-      max: m.max,
-      last: m.last,
-      villageCount: m.villages.size,
-      avgPerVillage: round1(m.total / m.villages.size),
-    })).sort(byTotal);
+    const moughataas = [...w.moughataas.values()].map((m) => {
+      const sites = [...m.villages.values()];
+      return {
+        moughataa: m.moughataa,
+        readingsSum: round1(m.total),
+        count: m.count,
+        max: m.max,
+        last: m.last,
+        villageCount: sites.length,
+        avgPerVillage: round1(m.total / sites.length),
+        topSite: top(sites),
+      };
+    }).sort(byMean);
 
     const villageCount = moughataas.reduce((n, m) => n + m.villageCount, 0);
     return {
       wilaya,
-      total: round1(w.total),
+      readingsSum: round1(w.total),
       count: w.count,
       max: w.max,
       last: w.last,
       villageCount,
       avgPerVillage: round1(w.total / villageCount),
-      avg: w.total / w.count,
+      topSite: moughataas.map((m) => m.topSite).reduce((x, y) => (y.total > x.total ? y : x)),
       moughataas,
     };
-  }).sort(byTotal);
+  }).sort(byMean);
 }
 
 /**
