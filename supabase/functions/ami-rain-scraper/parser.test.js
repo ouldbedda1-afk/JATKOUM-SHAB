@@ -326,3 +326,26 @@ describe('parseRainReport — تقرير كامل مطابق للمصدر', () =
     expect(res.issues.filter((i) => i.startsWith('unknown-wilaya') || i.startsWith('no-wilaya'))).toEqual([]);
   });
 });
+
+describe('inferGroupMoughataas — المقاطعة من مركزها داخل المجموعة (264203)', () => {
+  const rows = (list) => list.map(([village, mm]) => ({ wilaya: 'الحوض الشرقي', moughataa: '', village, mm }));
+
+  it('ينسب كل مجموعة تنازلية لمقاطعة مركزها الوارد فيها', async () => {
+    const { inferGroupMoughataas } = await import('./parser.ts');
+    const list = rows([
+      ['لكعيدة', 50], ['رأس الفيل', 35], ['عدل بكرو', 25], ['بقله', 15],
+      ['الصفحة الحمراء', 75], ['الملس', 30], ['أمرج', 4],
+      ['بوسطيله', 35], ['تنعزه', 35], ['ابحيره', 8],
+    ]);
+    expect(inferGroupMoughataas(list)).toBe(7);
+    expect(list.map((r) => r.moughataa)).toEqual([
+      'عدل بكرو', 'عدل بكرو', 'عدل بكرو', 'عدل بكرو', 'أمرج', 'أمرج', 'أمرج', '', '', '',
+    ]);
+  });
+
+  it('قائمة غير مرتّبة لا تُقسَّم إلى مجموعات وهمية', async () => {
+    const { inferGroupMoughataas } = await import('./parser.ts');
+    const list = rows([['أ', 12], ['عدل بكرو', 2], ['ب', 10], ['ج', 4], ['د', 9], ['هـ', 3], ['و', 8]]);
+    expect(inferGroupMoughataas(list)).toBe(0);
+  });
+});

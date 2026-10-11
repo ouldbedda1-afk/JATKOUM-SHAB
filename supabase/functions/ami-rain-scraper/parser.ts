@@ -333,6 +333,45 @@ function parseRainLines(lines: string[], title: string, issues: string[], skippe
   return drafts.filter((d) => d.wilaya);
 }
 
+/**
+ * تقارير تسرد تحت الولاية قرى كل مقاطعة مجموعةً مرتّبة تنازلياً بالكمية، بلا عنوان
+ * للمقاطعة: اسمها يَرِد كأحد مواقع المجموعة («عدل بكرو: 25 ملم» بين قرى عدل بكرو).
+ * تُنسب المجموعة لمقاطعتها حين تضم مركز مقاطعة واحداً بعينه من ولايتها؛ مجموعة
+ * بلا مركز أو بمركزين تبقى بلا مقاطعة. لا تُطبَّق إلا على قائمة مرتّبة فعلاً
+ * (مجموعات قليلة وطويلة)، حتى لا تُقسَّم قائمة غير مرتّبة إلى «مجموعات» وهمية.
+ * يعيد عدد القراءات التي نُسبت.
+ *
+ * لا يستدعيها parseRainReport: دقتها وحدها نحو 93% على الأرشيف (مجموعتان متتاليتان
+ * قد تندمجان إن لم تزد الكمية بينهما). تُستعمل في تدقيق الأرشيف مع تحقق إضافي:
+ * تُقبل المجموعة فقط إن أيّدتها قرى معروفة المقاطعة من تقارير أخرى (دقة 99%).
+ */
+export function inferGroupMoughataas(rows: RainRow[]): number {
+  let filled = 0;
+  let start = 0;
+  while (start < rows.length) {
+    let end = start;
+    while (end < rows.length && rows[end].wilaya === rows[start].wilaya) end++;
+    const run = rows.slice(start, end);
+    start = end;
+    if (run.length < 6 || run.some((r) => r.moughataa)) continue;
+
+    const segments: RainRow[][] = [];
+    run.forEach((r, i) => {
+      if (i === 0 || r.mm > run[i - 1].mm) segments.push([]);
+      segments[segments.length - 1].push(r);
+    });
+    if (segments.length > run.length / 3) continue;
+
+    segments.forEach((segment) => {
+      const capitals = segment.filter((r) => knownMoughataa(r.village)?.wilaya === r.wilaya);
+      const names = new Set(capitals.map((r) => knownMoughataa(r.village)!.name));
+      if (names.size !== 1) return;
+      segment.forEach((r) => { r.moughataa = capitals[0].village; filled++; });
+    });
+  }
+  return filled;
+}
+
 /** يسجّل تعارض الولاية المكتوبة مع ولاية المقاطعة المعروفة — بلا أي تعديل على الصفوف */
 function auditRows(rows: RainRow[], issues: string[]) {
   const conflicts = new Set<string>();
