@@ -256,7 +256,7 @@ function Era5ComparisonCard({ year }) {
         </p>
         <p className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5 mt-2 leading-relaxed">
           {data.partial
-            ? `آخر بيانات مستخدمة: ${fmtDate(data.through)}. النتائج تخص الفترة المنقضية من السنة فقط، وقد تتغير بما يهطل في بقية الموسم.`
+            ? `آخر يوم متاح في بيانات ERA5: ${fmtDate(data.through)} (تصدر عن المركز الأوروبي بتأخر نحو خمسة أيام). النتائج تخص الفترة المنقضية من السنة فقط، وقد تتغير بما يهطل في بقية الموسم. هذا التاريخ لا يخص نشرات مقاييس المطر المسجلة؛ تلك تُجلب تلقائياً وتظهر في تبويبها.`
             : `بيانات السنة كاملة، حتى 31 ديسمبر ${data.year}.`}
         </p>
         <p className="text-[10px] text-gray-400 mt-1 leading-relaxed">
