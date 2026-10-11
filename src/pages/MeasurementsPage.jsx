@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   getRainMeasurementReports,
   getRainMeasurementStats,
-  getWilayaReadings,
   searchRainMeasurements,
   getTopRainRecords,
 } from '../supabase';
@@ -224,18 +223,10 @@ function SearchResults({ results, loading, query }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function StatsTab({ stats, statsYear, setStatsYear, onWilayaClick }) {
   const [expandedWilaya, setExpandedWilaya] = useState(null);
-  const [detailCache, setDetailCache] = useState({});
-  const [detailLoading, setDetailLoading] = useState(null);
   const [showAllMoughataa, setShowAllMoughataa] = useState(false);
 
-  async function toggleWilaya(wilaya) {
-    if (expandedWilaya === wilaya) { setExpandedWilaya(null); return; }
-    setExpandedWilaya(wilaya);
-    if (detailCache[wilaya]) return;
-    setDetailLoading(wilaya);
-    const readings = await getWilayaReadings(wilaya);
-    setDetailCache((c) => ({ ...c, [wilaya]: readings }));
-    setDetailLoading(null);
+  function toggleWilaya(wilaya) {
+    setExpandedWilaya((cur) => (cur === wilaya ? null : wilaya));
   }
 
   if (!stats) {
@@ -273,9 +264,13 @@ function StatsTab({ stats, statsYear, setStatsYear, onWilayaClick }) {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
           <p className="text-xs font-black text-gray-500">
-            📊 ترتيب الولايات حسب إجمالي الأمطار المسجَّلة
+            📊 المجاميع المطرية لكل ولاية
             {statsYear !== 'الكل' ? ` — ${statsYear}` : ' — كل الأعوام'}
-            {' '}— اضغط لعرض التفاصيل
+            {' '}— اضغط الولاية لعرض مجاميع مقاطعاتها
+          </p>
+          <p className="text-[10px] text-gray-400 mt-1 leading-relaxed">
+            المجموع هو حاصل جمع كل ما سُجِّل في مواقع الولاية أو المقاطعة خلال الفترة،
+            لذا يُعرض معه معدل الموقع الواحد للمقارنة بين المناطق.
           </p>
         </div>
         <div className="p-4 space-y-1">
@@ -300,7 +295,7 @@ function StatsTab({ stats, statsYear, setStatsYear, onWilayaClick }) {
                       />
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1">
-                      {w.count} قراءة · أعلى قراءة: {w.max} مم
+                      {w.villageCount} موقع · {w.count} قراءة · معدل الموقع: {w.avgPerVillage} مم · أعلى قراءة: {w.max} مم
                     </p>
                   </div>
                   <span className="text-gray-300 text-xs shrink-0">{expandedWilaya === w.wilaya ? '▲' : '▼'}</span>
@@ -308,22 +303,22 @@ function StatsTab({ stats, statsYear, setStatsYear, onWilayaClick }) {
 
                 {expandedWilaya === w.wilaya && (
                   <div className="mx-2 mb-2 mt-1 bg-gray-50 rounded-xl p-3">
-                    {detailLoading === w.wilaya ? (
-                      <p className="text-xs text-gray-400 text-center py-3">جارٍ التحميل...</p>
-                    ) : (
-                      <div className="max-h-56 overflow-y-auto space-y-1">
-                        {(detailCache[w.wilaya] || []).map((r, idx) => (
-                          <div key={idx} className="flex items-center gap-2 text-xs bg-white rounded-lg px-3 py-1.5 border border-gray-100">
-                            <span className="text-gray-400 w-24 shrink-0">{fmtShortDate(r.report_published_at)}</span>
-                            <span className="font-bold text-gray-700 flex-1 truncate">
-                              {r.village}
-                              {r.moughataa && <span className="text-gray-400"> · {r.moughataa}</span>}
-                            </span>
-                            <span className="font-black text-blue-600 shrink-0">{r.mm} مم</span>
+                    <div className="space-y-1.5">
+                      {w.moughataas.map((m) => (
+                        <div
+                          key={m.moughataa}
+                          className="bg-white rounded-lg border border-gray-100 flex items-center gap-2 px-3 py-2"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-black text-gray-800 truncate">{m.moughataa}</p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">
+                              {m.villageCount} موقع · {m.count} قراءة · معدل الموقع: {m.avgPerVillage} مم · أعلى قراءة: {m.max} مم
+                            </p>
                           </div>
-                        ))}
-                      </div>
-                    )}
+                          <span className="text-xs font-black text-blue-600 shrink-0">{m.total} مم</span>
+                        </div>
+                      ))}
+                    </div>
                     <button
                       onClick={() => onWilayaClick(w.wilaya)}
                       className="mt-2 text-[11px] font-bold text-blue-600 hover:underline w-full text-right"
@@ -570,7 +565,7 @@ export default function MeasurementsPage() {
 
   const TABS = [
     { id: 'archive', label: '🗂️ الأرشيف' },
-    { id: 'stats',   label: '📊 الإحصاءات' },
+    { id: 'stats',   label: '📊 المجاميع المطرية' },
     { id: 'records', label: '🥇 أعلى القياسات' },
   ];
 

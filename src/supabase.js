@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { buildRainTotals, cleanRainReadings } from './rainTotals';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -694,19 +695,28 @@ export async function getRainMeasurementReports({ limit = 10, offset = 0, wilaya
 
 /** يجلب كل صفوف rain_measurements للأعمدة المطلوبة، متجاوزاً حد الـ1000
  * صف الافتراضي لكل استعلام عبر الترقيم (pagination) — ضروري لأن الجدول
- * تجاوز هذا الحد فعلياً (>1900 صف)، وأي استعلام بلا ترقيم يُقطَع بصمت. */
+ * تجاوز هذا الحد فعلياً (عشرات الآلاف)، وأي استعلام بلا ترقيم يُقطَع بصمت.
+ * الصفحات تُجلب بالتوازي (الأرشيف نحو 80 صفحة)، ومرتَّبة بـ id حتى لا يتكرر
+ * صف أو يسقط بين صفحتين. */
 async function fetchAllRainMeasurements(select, filterFn) {
   const PAGE = 1000;
-  let from = 0;
+  const CONCURRENCY = 6;
+
+  let countQuery = supabase.from('rain_measurements').select('id', { count: 'exact', head: true });
+  if (filterFn) countQuery = filterFn(countQuery);
+  const { count, error: countErr } = await countQuery;
+  if (countErr || !count) return [];
+
+  const offsets = Array.from({ length: Math.ceil(count / PAGE) }, (_, i) => i * PAGE);
   const all = [];
-  for (;;) {
-    let q = supabase.from('rain_measurements').select(select).range(from, from + PAGE - 1);
-    if (filterFn) q = filterFn(q);
-    const { data, error } = await q;
-    if (error || !data) break;
-    all.push(...data);
-    if (data.length < PAGE) break;
-    from += PAGE;
+  for (let i = 0; i < offsets.length; i += CONCURRENCY) {
+    const pages = await Promise.all(offsets.slice(i, i + CONCURRENCY).map((from) => {
+      let q = supabase.from('rain_measurements').select(select).order('id').range(from, from + PAGE - 1);
+      if (filterFn) q = filterFn(q);
+      return q;
+    }));
+    if (pages.some((p) => p.error || !p.data)) break;
+    pages.forEach((p) => all.push(...p.data));
   }
   return all;
 }
@@ -741,31 +751,25 @@ export async function getRainMeasurementStats(year = null) {
     .from('rain_measurements')
     .select('id', { count: 'exact', head: true });
 
-  const rows = await fetchAllRainMeasurements('wilaya, moughataa, village, mm, report_published_at', year
+  const rows = await fetchAllRainMeasurements('report_url, wilaya, moughataa, village, mm, report_published_at', year
     ? (q) => q.gte('report_published_at', `${year}-01-01T00:00:00.000Z`).lt('report_published_at', `${year + 1}-01-01T00:00:00.000Z`)
     : null
   );
 
-  const byWilaya = {};
-  const byMoughataa = {};
-  (rows || []).forEach((r) => {
-    const wilaya = normWilaya(r.wilaya);
-    if (!byWilaya[wilaya]) byWilaya[wilaya] = { sum: 0, count: 0, max: 0 };
-    byWilaya[wilaya].sum += r.mm;
-    byWilaya[wilaya].count += 1;
-    byWilaya[wilaya].max = Math.max(byWilaya[wilaya].max, r.mm);
+  // تنظيف (تكرار/إملاء/ولاية خاطئة) ثم تجميع تراكمي: ولاية ← مقاطعة ← بلدة
+  const readings = cleanRainReadings(rows, normWilaya);
 
-    const mKey = `${wilaya}||${r.moughataa || '—'}`;
+  const byMoughataa = {};
+  readings.forEach((r) => {
+    const mKey = `${r.wilaya}||${r.moughataaKey}`;
     if (!byMoughataa[mKey] || r.mm > byMoughataa[mKey].mm) {
-      byMoughataa[mKey] = { wilaya, moughataa: r.moughataa || '—', village: r.village, mm: r.mm };
+      byMoughataa[mKey] = { wilaya: r.wilaya, moughataa: r.moughataa, village: r.village, mm: r.mm };
     }
   });
 
   // الترتيب حسب تراكم الهطول (إجمالي كل القراءات المسجَّلة)، لا المتوسط —
   // "الأكثر هطولاً" يعني الأكثر مطراً تراكمياً منذ بداية تسجيل القياسات
-  const wilayaRanking = Object.entries(byWilaya)
-    .map(([wilaya, v]) => ({ wilaya, total: v.sum, avg: v.sum / v.count, max: v.max, count: v.count }))
-    .sort((a, b) => b.total - a.total);
+  const wilayaRanking = buildRainTotals(readings);
 
   const topByMoughataa = Object.values(byMoughataa).sort((a, b) => b.mm - a.mm);
 

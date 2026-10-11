@@ -1,20 +1,29 @@
 // Supabase Edge Function: ami-rain-scraper
-// يُستدعى دورياً عبر pg_cron. يفحص خلاصة RSS للوكالة الموريتانية للأنباء
-// (ami.mr) بحثاً عن تقارير "مقاييس الأمطار" الرسمية الدورية الصادرة عن
-// وزارة الداخلية (عنوان يحتوي "تساقط"/"تهاطل" + "مطر")، ويحفظ قراءات كل
-// قرية (ولاية/مقاطعة/قرية/كمية بالمم) في جدول rain_measurements — دون أي
-// محاولة لربط القرية ببلديتها (AMI لا يوفر هذا الربط، والبيانات تُنشر كما
-// وردت: ولاية/مقاطعة/قرية).
+// يحفظ تقارير «مقاييس الأمطار» الرسمية (وزارة الداخلية عبر الوكالة الموريتانية
+// للأنباء ami.mr) في جدول rain_measurements: صف لكل قراءة (ولاية/مقاطعة/قرية/مم)
+// كما وردت في التقرير، دون أي ربط للقرية ببلديتها.
 //
-// جدول AMI الأصلي يستخدم rowspan لعمودي الولاية والمقاطعة (لا يتكرر
-// الاسم في كل صف)، لذا يتتبّع المُحلِّل (parseRainTable) عدد الصفوف
-// المتبقية تحت كل قيمة عبر خاصية rowspan HTML بدل افتراض تكرارها.
+// أوضاع التشغيل:
+//   (بلا معامل)        التشغيل الدوري عبر pg_cron: يراجع أرشيف آخر LOOKBACK_DAYS
+//                      يوماً عبر بحث WordPress (لا آخر عناصر RSS وحدها)، فيُستدرك
+//                      في كل تشغيل أي تقرير فات جلبه. RSS احتياط إن تعطّل البحث.
+//   ?backfill=1&from=YYYY-MM-DD&to=YYYY-MM-DD[&max=20]
+//                      استيراد تاريخي على دفعات. بلا أي إشعار أو نشر.
+//   ?url=<رابط مقال>   معالجة مقال واحد يدوياً. بلا إشعار إلا مع notify=1.
+//   ?dry=1             (مع أي وضع) تحليل فقط: لا كتابة ولا إشعار، ويعيد ما كان سيُحفظ.
+//   ?fix-dates=1       إصلاح تواريخ النشر المخزَّنة (يُشغَّل يدوياً).
 //
-// report_url (رابط المقال) هو مفتاح منع التكرار: تقرير سبقت معالجته
-// (توجد له صفوف في الجدول) يُتجاهَل بالكامل ولا يُعاد تحليله أو حفظه.
+// الإشعارات (تيليغرام لكل تقرير + فيسبوك) تخص التقارير الجديدة فقط: تقرير نُشر
+// خلال FRESH_HOURS ساعة. ما يلتقطه الأرشيف من تقارير أقدم يُحفظ بصمت ويُذكر في
+// ملخص واحد. no-fb=1 يمنع فيسبوك في كل الأحوال.
+//
+// منع التكرار: report_url مفتاح التقرير — تقرير له صفوف في الجدول يُتجاهَل. وإن
+// وُجد جدول rain_report_log (ترحيل 019) يُحجز التقرير فيه قبل الإدراج، فيمتنع
+// إدراجه مرتين عند تزامن تشغيلين، ويُسجَّل فيه نجاح كل محاولة أو سبب فشلها.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import * as cheerio from 'npm:cheerio@1';
+import { parseRainReport, type RainRow } from './parser.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -37,227 +46,158 @@ async function tg(text: string) {
   });
 }
 
-const AMI_FEED_URL = 'https://www.ami.mr/feed';
+const AMI_ORIGIN   = 'https://www.ami.mr';
+const AMI_FEED_URL = `${AMI_ORIGIN}/feed`;
+const AMI_POSTS    = `${AMI_ORIGIN}/wp-json/wp/v2/posts`;
 const UA = 'Mozilla/5.0 (compatible; JatkoumShabBot/1.0)';
 
-interface FeedItem { title: string; link: string; pubDate: string }
+const LOOKBACK_DAYS = 21;
+const FRESH_HOURS   = 48;
+// كلمات عناوين تقارير المقاييس كما وردت فعلاً في أرشيف الوكالة (بحث WordPress
+// يطابق جزء الكلمة: «أمطار» تطابق «الأمطار»)
+const ARCHIVE_TERMS = ['تساقط', 'تهاطل', 'أمطار', 'امطار', 'مطرية', 'هطول', 'مقاييس'];
+const MIN_ROWS = 3;
+
+// html: جسم المقال إن جاء مع نتيجة البحث (يُغني عن طلب إضافي لكل مقال)
+interface Candidate { link: string; title: string; pubDate: string; wpId: string | null; html?: string }
+
+function wpIdOf(link: string): string | null {
+  return link.match(/\/archives\/(\d+)/)?.[1] ?? null;
+}
+
+function isAmiUrl(link: string): boolean {
+  try {
+    const host = new URL(link).hostname;
+    return host === 'www.ami.mr' || host === 'ami.mr';
+  } catch {
+    return false;
+  }
+}
+
+function stripTags(html: string): string {
+  return html.replace(/<[^>]+>/g, '').replace(/&#8211;/g, '–').replace(/&amp;/g, '&').trim();
+}
 
 // تحليل RSS بسيط بالتعابير النمطية — الخلاصة بلا CDATA حول العنوان (تحقّقنا يدوياً)
-function parseFeed(xml: string): FeedItem[] {
-  const items: FeedItem[] = [];
+function parseFeed(xml: string): Candidate[] {
+  const items: Candidate[] = [];
   const blocks = xml.split('<item>').slice(1);
   for (const block of blocks) {
     const title   = (block.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '';
     const link    = (block.match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '';
     const pubDate = (block.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '';
     if (title.trim() && link.trim()) {
-      items.push({ title: title.trim(), link: link.trim(), pubDate: pubDate.trim() });
+      items.push({ title: title.trim(), link: link.trim(), pubDate: pubDate.trim(), wpId: wpIdOf(link.trim()) });
     }
   }
   return items;
 }
 
 // شبكة واسعة عمداً — AMI يصوغ العناوين بأشكال مختلفة (تساقطات/تهاطلات/
-// أمطار متفرقة/مقاييس...)، والتصفية الحقيقية والدقيقة تحدث لاحقاً بالتحقق
-// من وجود جدول قياسات فعلي (رأس "الولاية/المقاطعة/القرية/الكمية") في
-// parseRainTable — لا نعتمد على العنوان وحده لتفادي تفويت تقارير حقيقية
+// أمطار متفرقة/مقاييس...)، والتصفية الحقيقية تحدث بتحليل جسم المقال.
+// «مطار» لا «مطر»: كلمة «الأمطار» لا تحوي «مطر»، وهذا ما كان يُسقط أغلب التقارير.
 function isRainReportTitle(title: string): boolean {
-  return title.includes('مطر') || title.includes('مقاييس');
+  return /مطر|مطار|مقاييس|تساقط|تهاطل|هطول/.test(title);
 }
 
-const ARABIC_INDIC = '٠١٢٣٤٥٦٧٨٩';
-function normalizeDigits(s: string): string {
-  return s.replace(/[٠-٩]/g, (d) => String(ARABIC_INDIC.indexOf(d)));
+function gmtToIso(raw: string): string {
+  return new Date(raw.endsWith('Z') ? raw : `${raw}Z`).toISOString();
 }
 
-const HEADER_LABELS = new Set(['الولاية', 'المقاطعة', 'القرية', 'الكمية']);
-
-interface RainRow { wilaya: string; moughataa: string; village: string; mm: number }
-
-// ── تطبيع أسماء الولايات (AMI يكتبها بإملاءات مختلفة عبر التقارير: لعصابه/
-// لعصابة/العصابة...) — بلا هذا التطبيع تتشتّت نفس الولاية إلى عدة "ولايات"
-// مختلفة في الإحصاءات. المطابقة تامة فقط (بعد التنظيف) لتفادي مطابقة اسم
-// ولاية يظهر عرضاً داخل جملة طويلة (كفقرة تمهيدية تذكر عدة ولايات).
-const WILAYA_CANONICAL: Record<string, string> = {};
-function addWilaya(canonical: string, variants: string[]) {
-  WILAYA_CANONICAL[canonical] = canonical;
-  for (const v of variants) WILAYA_CANONICAL[v] = canonical;
-}
-addWilaya('نواكشوط الشمالية', ['نواكشوط الشماليه', 'انواكشوط الشمالية', 'انواكشوط الشماليه']);
-addWilaya('نواكشوط الغربية', ['نواكشوط الغربيه', 'انواكشوط الغربية', 'انواكشوط الغربيه']);
-addWilaya('نواكشوط الجنوبية', ['نواكشوط الجنوبيه', 'انواكشوط الجنوبية', 'انواكشوط الجنوبيه']);
-addWilaya('الحوض الشرقي', ['ولاية الحوض الشرقي']);
-addWilaya('الحوض الغربي', ['ولاية الحوض الغربي']);
-addWilaya('لعصابه', ['لعصابة', 'العصابة', 'ولاية لعصابه']);
-addWilaya('كوركول', ['ولاية كوركول']);
-addWilaya('لبراكنه', ['البراكنة', 'لبراكنة', 'ولاية لبراكنه']);
-addWilaya('الترارزة', ['اترارزه', 'الترارزه']);
-addWilaya('آدرار', ['ولاية آدرار']);
-addWilaya('كيدي ماغا', ['كيدي ماغه', 'گيديماغه', 'كيديماغه', 'ولاية كيدي ماغا', 'ولاية كيدي ماغه']);
-addWilaya('إينشيري', ['اينشيري', 'إنشيري', 'انشيري']);
-addWilaya('تكانت', []);
-addWilaya('تيرس زمور', []);
-addWilaya('داخلت نواذيبو', ['نواذيبو']);
-
-// AMI يكتب نفس الولاية بإملاءات مختلفة عبر التقارير — ليس فقط ة/ه (اترارزة/
-// اترارزه) بل أيضاً همزات الألف (اترارزه/أترارزه) والمسافة بين الكلمات
-// (كيدي ماغا/كيديماغا، أمثلة حقيقية وُجدت جميعها فعلياً). بدل إضافة كل صيغة
-// يدوياً كلما ظهرت واحدة جديدة، تُطابَق الولاية بتطبيع شامل عند المقارنة
-// فقط (الاسم المُخزَّن نفسه لا يتغيّر): توحيد كل أشكال الألف (أ/إ/آ ← ا)،
-// توحيد ة/ه، وحذف المسافات بين الكلمات بالكامل.
-function normalizeArabicForMatch(s: string): string {
-  return s.replace(/[أإآ]/g, 'ا').replace(/[ةه]/g, 'ه').replace(/\s+/g, '');
-}
-const WILAYA_LOOKUP: Record<string, string> = {};
-for (const [k, v] of Object.entries(WILAYA_CANONICAL)) {
-  WILAYA_LOOKUP[normalizeArabicForMatch(k)] = v;
-}
-
-// يحذف بادئة تنقيط شائعة (- – • * ·) قبل كل فقرة — بعض التقارير تكتب
-// "* المقاطعة:" و"* القرية: XX ملم"، وأخرى "– الولاية" أو ".العصابة" بلا أي نقطتين إطلاقاً
-function stripBullet(text: string): string {
-  return text.replace(/^[.*\-–•·]+\s*/, '').trim();
-}
-
-// يحذف التطويل (ـ) المستخدم أحياناً لتمديد الكلمات بصرياً في النص المُبَرَّر
-// (مثال: "بـــقـــلـــه" ← "بقله")
-function stripTatweel(text: string): string {
-  return text.replace(/ـ+/g, '').trim();
-}
-
-// ينظّف أي اسم مُستخرج (ولاية/مقاطعة/قرية) من زخارف التنسيق الشائعة —
-// يُطبَّق على مخرجات كلا المُحلِّلين (الجدول والفقرات) لأن نفس المشاكل
-// (تطويل، بادئة تنقيط) تظهر أحياناً حتى داخل خلايا الجدول
-function cleanName(text: string): string {
-  return stripTatweel(stripBullet(text)).replace(/:$/, '').trim();
-}
-
-// يحذف بادئة "مقاطعة"/"بمقاطعة" — بعض التقارير تكتب "مقاطعة كنكوصه" وأخرى
-// "كنكوصه" فقط لنفس المقاطعة، فتتشتّت إحصائياً كمقاطعتين مختلفتين بلا هذا التوحيد
-function cleanMoughataa(text: string): string {
-  return cleanName(text).replace(/^(مقاطعة|بمقاطعة)\s+/, '').trim();
-}
-
-// سطر تصنيف (وليس قرية+كمية) قد يكون اسم ولاية معروفاً أو اسم مقاطعة —
-// لكن الفقرة التمهيدية لأي تقرير تذكر أحياناً اسم ولاية ضمن جملة كاملة
-// ("...من ولايتي الحوض الغربي ولعصابه...")؛ رفض أي "تصنيف" أطول من طول
-// معقول لاسم إداري، أو يحوي علامات ترقيم جملة، يمنع هذا الالتباس
-function classifyLabel(rawLabel: string): { kind: 'wilaya' | 'moughataa' | 'ignore'; value: string } {
-  const label = cleanName(rawLabel).replace(/^(ولاية|لولاية)\s+/, '').trim();
-  if (!label || label.length > 25 || /[،.؟!]/.test(label)) return { kind: 'ignore', value: '' };
-  const canonical = WILAYA_LOOKUP[normalizeArabicForMatch(label)];
-  if (canonical) return { kind: 'wilaya', value: canonical };
-  return { kind: 'moughataa', value: cleanMoughataa(label) };
-}
-
-function parseRainTable($: cheerio.CheerioAPI, table: any): RainRow[] {
-  const rows = $(table).find('tr').toArray();
-  if (rows.length < 2) return [];
-
-  const results: RainRow[] = [];
-  let currentWilaya = '', wilayaLeft = 0;
-  let currentMoughataa = '', moughataaLeft = 0;
-
-  // تجاهل الصف الأول (رأس الجدول)
-  for (let i = 1; i < rows.length; i++) {
-    const tds = $(rows[i]).find('td');
-    if (tds.length === 0) continue;
-    let idx = 0;
-
-    if (wilayaLeft <= 0) {
-      const cell = tds.eq(idx);
-      const cls = classifyLabel(cell.text());
-      currentWilaya = cls.kind === 'wilaya' ? cls.value : cleanName(cell.text());
-      wilayaLeft = parseInt(cell.attr('rowspan') || '1', 10) || 1;
-      moughataaLeft = 0; // ولاية جديدة → أعِد قراءة المقاطعة دائماً
-      idx++;
+// مقالات الأمطار المنشورة بين تاريخين، عبر بحث WordPress REST (العنوان + المحتوى)
+async function searchArchive(afterIso: string, beforeIso: string | null): Promise<Candidate[]> {
+  // موقع الوكالة بطيء (نحو 10 ثوانٍ للطلب): الكلمات تُبحث بالتوازي حتى لا
+  // تستنفد الدالة مهلتها
+  const perTerm = await Promise.all(ARCHIVE_TERMS.map(async (term) => {
+    const hits: Candidate[] = [];
+    let page = 1, totalPages = 1;
+    while (page <= totalPages && page <= 30) {
+      const qs = new URLSearchParams({
+        search: term, per_page: '100', page: String(page), orderby: 'date', order: 'asc',
+        after: afterIso, _fields: 'id,date_gmt,link,title,content',
+      });
+      if (beforeIso) qs.set('before', beforeIso);
+      const res = await fetch(`${AMI_POSTS}?${qs}`, { headers: { 'User-Agent': UA } });
+      if (!res.ok) throw new Error(`archive search HTTP ${res.status} (${term}, page ${page})`);
+      totalPages = Number(res.headers.get('x-wp-totalpages') || '1');
+      for (const p of await res.json()) {
+        const title = stripTags(p.title?.rendered ?? '');
+        if (!isRainReportTitle(title)) continue;
+        hits.push({
+          link: p.link, title, pubDate: gmtToIso(p.date_gmt), wpId: String(p.id), html: p.content?.rendered ?? '',
+        });
+      }
+      page++;
     }
-    if (moughataaLeft <= 0) {
-      const cell = tds.eq(idx);
-      currentMoughataa = cleanMoughataa(cell.text());
-      moughataaLeft = parseInt(cell.attr('rowspan') || '1', 10) || 1;
-      idx++;
+    return hits;
+  }));
+
+  const found = new Map<string, Candidate>();
+  perTerm.flat().forEach((c) => found.set(c.link, c));
+  return [...found.values()].sort((a, b) => a.pubDate.localeCompare(b.pubDate));
+}
+
+interface Article { title: string; pubDate: string; html: string }
+
+// جسم المقال من WordPress REST (العنوان والتاريخ الحقيقيان معه)؛ وإن تعذّر فصفحة المقال
+async function fetchArticle(c: Candidate): Promise<Article> {
+  if (c.html) return { title: c.title, pubDate: c.pubDate, html: c.html };
+  if (c.wpId) {
+    const res = await fetch(`${AMI_POSTS}/${c.wpId}?_fields=id,date_gmt,title,content`, { headers: { 'User-Agent': UA } });
+    if (res.ok) {
+      const post = await res.json();
+      return {
+        title: stripTags(post.title?.rendered ?? '') || c.title,
+        pubDate: post.date_gmt ? gmtToIso(post.date_gmt) : c.pubDate,
+        html: post.content?.rendered ?? '',
+      };
     }
-    const village = cleanName(tds.eq(idx).text()); idx++;
-    const mmText  = normalizeDigits(tds.eq(idx).text());
-    wilayaLeft--; moughataaLeft--;
-
-    const mmMatch = mmText.match(/([\d.]+)/);
-    if (!village || !mmMatch || !currentWilaya) continue;
-    if (HEADER_LABELS.has(village) || HEADER_LABELS.has(currentWilaya)) continue;
-
-    const mm = parseFloat(mmMatch[1]);
-    if (!Number.isFinite(mm)) continue;
-
-    results.push({ wilaya: currentWilaya, moughataa: currentMoughataa, village, mm });
   }
-  return results;
+  const res = await fetch(c.link, { headers: { 'User-Agent': UA } });
+  if (!res.ok) throw new Error(`article HTTP ${res.status}`);
+  // .single-post-content مقصورة على المقال نفسه (.entry-content يسبقها عنصر
+  // آخر بالاسم نفسه: قائمة التنقّل الجانبية)
+  const $ = cheerio.load(await res.text());
+  return { title: c.title, pubDate: c.pubDate, html: $('.single-post-content').first().html() ?? '' };
 }
 
-function parseRainParagraphs($: cheerio.CheerioAPI, container: any): RainRow[] {
-  const paragraphs = $(container).find('p').toArray();
-  const results: RainRow[] = [];
-  let currentWilaya = '', currentMoughataa = '';
+// ── سجل التقارير (اختياري: يعمل إن طُبِّق ترحيل 019، ويُتجاوز بصمت إن لم يُطبَّق) ──
+let logAvailable: boolean | null = null;
 
-  for (const p of paragraphs) {
-    const raw = $(p).text().replace(/\s+/g, ' ').trim();
-    if (!raw) continue;
-    const text = stripBullet(raw);
-    if (!text) continue;
+type Claim = 'claimed' | 'already-imported' | 'no-log';
 
-    // سطر تصنيف (ولاية أو مقاطعة): لا يحتوي رقماً — بنقطتين أو بدونها.
-    // يُتجاهَل تماماً (لا وِلاية ولا مقاطعة) إن كان فقرة تمهيدية طويلة
-    // تذكر اسم ولاية عرضاً ضمن جملة كاملة (classifyLabel.kind === 'ignore')
-    if (!/\d/.test(normalizeDigits(text))) {
-      const cls = classifyLabel(text);
-      if (cls.kind === 'wilaya') { currentWilaya = cls.value; currentMoughataa = ''; }
-      else if (cls.kind === 'moughataa') { currentMoughataa = cls.value; }
-      continue;
-    }
+async function claimReport(c: Candidate): Promise<Claim> {
+  if (logAvailable === false) return 'no-log';
+  const { error } = await supabase.from('rain_report_log').insert({
+    report_url: c.link, wp_id: c.wpId, title: c.title, published_at: c.pubDate, status: 'processing',
+  });
+  if (!error) { logAvailable = true; return 'claimed'; }
+  // 42P01: الجدول غير موجود (الترحيل لم يُطبَّق) — PGRST205: غير معروف لـ PostgREST
+  if (error.code === '42P01' || error.code === 'PGRST205') { logAvailable = false; return 'no-log'; }
+  if (error.code !== '23505') throw new Error(`rain_report_log: ${error.message}`);
 
-    // سطر قرية + كمية: "القرية XX ملم"، أو "القرية: XX ملم"، أو بفاصل نقاط/إحالة
-    // بصرية بين الاسم والرقم مثل "القرية.......XX ملم"
-    const normalized = normalizeDigits(text).replace(/[،,](?=\d)/g, '.');
-    const m = normalized.match(/^(.*?)[\s:.…]+([\d.]+)\s*(?:ملم|مم)\.?$/);
-    if (!m || !currentWilaya) continue;
-
-    const village = cleanName(m[1]);
-    const mm = parseFloat(m[2]);
-    if (!village || !Number.isFinite(mm)) continue;
-
-    results.push({ wilaya: currentWilaya, moughataa: currentMoughataa, village, mm });
-  }
-  return results;
+  logAvailable = true;
+  // محجوز سابقاً: يُعاد فقط ما لم يكتمل (فشل، أو حجز عالق منذ أكثر من 15 دقيقة)
+  const staleBefore = new Date(Date.now() - 15 * 60_000).toISOString();
+  const { data } = await supabase
+    .from('rain_report_log')
+    .update({ status: 'processing', updated_at: new Date().toISOString() })
+    .eq('report_url', c.link)
+    // الطابع الزمني بين علامتي تنصيص: نقطتاه وفواصله محجوزة في صيغة or() لدى PostgREST
+    .or(`status.in.(failed,no-data),and(status.eq.processing,updated_at.lt."${staleBefore}")`)
+    .select('report_url');
+  return data && data.length > 0 ? 'claimed' : 'already-imported';
 }
 
-// يجلب عنوان المقال وتاريخ نشره الحقيقيَّين من WordPress REST API
-// (عند المعالجة اليدوية ?url= لا يوجد RSS item، فنُعوّض بالـ API)
-async function fetchWpMeta(articleUrl: string): Promise<{ title: string; pubDate: string }> {
-  const fallback = { title: '(معالجة يدوية)', pubDate: new Date().toISOString() };
-  try {
-    const postId = articleUrl.match(/\/archives\/(\d+)/)?.[1];
-    if (!postId) return fallback;
-    const res = await fetch(
-      `${new URL(articleUrl).origin}/wp-json/wp/v2/posts/${postId}`,
-      { headers: { 'User-Agent': UA } }
-    );
-    if (!res.ok) return fallback;
-    const post = await res.json();
-    const raw = post.date_gmt ?? post.date;
-    const pubDate = raw
-      ? new Date(raw.endsWith('Z') ? raw : raw + 'Z').toISOString()
-      : fallback.pubDate;
-    const title = post.title?.rendered
-      ? post.title.rendered.replace(/<[^>]+>/g, '').trim() || fallback.title
-      : fallback.title;
-    return { title, pubDate };
-  } catch {
-    return fallback;
-  }
+async function logOutcome(link: string, fields: Record<string, unknown>) {
+  if (!logAvailable) return;
+  await supabase.from('rain_report_log')
+    .update({ ...fields, updated_at: new Date().toISOString() })
+    .eq('report_url', link);
 }
 
-// ينشر تقرير المقاييس على صفحة فيسبوك — يُستدعى بعد كل إدراج ناجح
-async function postToFacebook(rows: RainRow[], title: string, reportUrl: string): Promise<void> {
+// ينشر تقرير المقاييس على صفحة فيسبوك — للتقارير الجديدة فقط
+async function postToFacebook(rows: RainRow[], title: string): Promise<void> {
   if (!FB_PAGE_ID || !FB_PAGE_TOKEN) return;
 
   // أعلى 5 قراءات تنازلياً
@@ -287,6 +227,25 @@ async function postToFacebook(rows: RainRow[], title: string, reportUrl: string)
   if (!res.ok) {
     const err = await res.text();
     await tg(`⚠️ فشل النشر على فيسبوك: ${err.slice(0, 200)}`).catch(() => {});
+  }
+}
+
+// يجلب عنوان المقال وتاريخ نشره الحقيقيَّين من WordPress REST API
+async function fetchWpMeta(articleUrl: string): Promise<{ title: string; pubDate: string }> {
+  const fallback = { title: '(معالجة يدوية)', pubDate: new Date().toISOString() };
+  try {
+    const postId = wpIdOf(articleUrl);
+    if (!postId) return fallback;
+    const res = await fetch(`${AMI_POSTS}/${postId}?_fields=date_gmt,date,title`, { headers: { 'User-Agent': UA } });
+    if (!res.ok) return fallback;
+    const post = await res.json();
+    const raw = post.date_gmt ?? post.date;
+    return {
+      title: stripTags(post.title?.rendered ?? '') || fallback.title,
+      pubDate: raw ? gmtToIso(raw) : fallback.pubDate,
+    };
+  } catch {
+    return fallback;
   }
 }
 
@@ -331,6 +290,19 @@ async function fixDates(): Promise<Response> {
   return new Response(JSON.stringify({ updated, skipped, failed, total: seen.size }), { headers: { 'content-type': 'application/json' } });
 }
 
+interface Outcome {
+  link: string;
+  title: string;
+  pubDate: string;
+  status: 'imported' | 'would-import' | 'exists' | 'no-data' | 'failed';
+  rows: number;
+  issues?: string[];
+  error?: string;
+}
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+
 Deno.serve(async (req) => {
   try {
     const params = new URL(req.url).searchParams;
@@ -338,76 +310,146 @@ Deno.serve(async (req) => {
     // وضع إصلاح التواريخ — يُشغَّل بـ ?fix-dates=1
     if (params.has('fix-dates')) return fixDates();
 
-    // معالجة يدوية لمقال محدد (نسخ احتياطي/اختبار) — فقط عند تمرير
-    // ?url=... صراحةً؛ التشغيل الدوري العادي (بلا معامل) لا يتأثر إطلاقاً
-    const manualUrl  = params.get('url');
+    const dry        = params.get('dry') === '1';
     const noFacebook = params.get('no-fb') === '1';
-    const items: FeedItem[] = manualUrl
-      ? [{ ...(await fetchWpMeta(manualUrl)), link: manualUrl }]
-      : parseFeed(await (await fetch(AMI_FEED_URL, { headers: { 'User-Agent': UA } })).text());
-    const candidates = manualUrl ? items : items.filter((it) => isRainReportTitle(it.title));
+    const manualUrl  = params.get('url');
+    const backfill   = params.get('backfill') === '1';
+    const mode = manualUrl ? 'manual' : backfill ? 'backfill' : 'cron';
 
+    let candidates: Candidate[];
+    const sourceErrors: string[] = [];
 
-    let reportsProcessed = 0, inserted = 0, skippedExisting = 0, skippedNoTable = 0;
-
-    for (const item of candidates) {
-      const reportUrl = item.link;
-
-      const { data: existing } = await supabase
-        .from('rain_measurements')
-        .select('id')
-        .eq('report_url', reportUrl)
-        .limit(1);
-      if (existing && existing.length > 0) { skippedExisting++; continue; }
-
-      const articleRes = await fetch(reportUrl, { headers: { 'User-Agent': UA } });
-      const html = await articleRes.text();
-      const $ = cheerio.load(html);
-      // ملاحظة: .entry-content وحدها غير موثوقة — الصفحة تحتوي عنصراً آخر
-      // بنفس الاسم (قائمة تنقّل الشاشة الجانبية) يسبق جسم المقال الحقيقي في
-      // شجرة DOM. .single-post-content مقصورة على المقال نفسه فقط.
-      const article = $('.single-post-content').first();
-
-      // العنوان وحده شبكة واسعة (قد يطابق مقالاً غير متعلق بالمقاييس فعلاً) —
-      // التصفية الحقيقية: أول جدول يحمل رأساً فعلياً "الولاية.../القرية..."،
-      // وإلا صيغة الفقرات البديلة (بعض التقارير تُكتب بلا جدول HTML إطلاقاً)
-      const table = $(article).find('table').toArray().find((t) => {
-        const headerText = $(t).find('tr').first().text();
-        return headerText.includes('الولاية') && headerText.includes('القرية');
-      });
-
-      const rows = table ? parseRainTable($, table) : parseRainParagraphs($, article);
-      if (rows.length === 0) { skippedNoTable++; continue; }
-
-      const publishedAt = new Date(item.pubDate).toISOString();
-      const insertRows = rows.map((r) => ({
-        report_url: reportUrl,
-        report_title: item.title,
-        report_published_at: publishedAt,
-        wilaya: r.wilaya,
-        moughataa: r.moughataa || null,
-        village: r.village,
-        mm: r.mm,
-      }));
-
-      const { error } = await supabase.from('rain_measurements').insert(insertRows);
-      if (!error) {
-        inserted += insertRows.length;
-        reportsProcessed++;
-        await Promise.all([
-          tg(`🌧️ *تقرير مقاييس أمطار جديد (AMI):*\n${item.title}\n${insertRows.length} قراءة\n🔗 ${reportUrl}`),
-          noFacebook ? Promise.resolve() : postToFacebook(rows, item.title, reportUrl),
-        ]);
+    if (manualUrl) {
+      if (!isAmiUrl(manualUrl)) return json({ error: 'url must be an ami.mr article' }, 400);
+      candidates = [{ link: manualUrl, wpId: wpIdOf(manualUrl), ...(await fetchWpMeta(manualUrl)) }];
+    } else if (backfill) {
+      const from = params.get('from'), to = params.get('to');
+      if (!from || !to) return json({ error: 'backfill needs from=YYYY-MM-DD&to=YYYY-MM-DD' }, 400);
+      candidates = await searchArchive(`${from}T00:00:00`, `${to}T23:59:59`);
+    } else {
+      // الخلاصة تعرض آخر المقالات فقط، فتقرير يخرج منها قبل جلبه يضيع نهائياً؛
+      // لذلك المصدر الأساسي هو الأرشيف، والخلاصة احتياط إن تعطّل البحث.
+      try {
+        const since = new Date(Date.now() - LOOKBACK_DAYS * 86_400_000).toISOString().slice(0, 19);
+        candidates = await searchArchive(since, null);
+      } catch (e) {
+        sourceErrors.push(`archive: ${e instanceof Error ? e.message : String(e)}`);
+        const feed = parseFeed(await (await fetch(AMI_FEED_URL, { headers: { 'User-Agent': UA } })).text());
+        candidates = feed.filter((it) => isRainReportTitle(it.title));
       }
     }
 
-    return new Response(JSON.stringify({
-      candidatesFound: candidates.length, reportsProcessed, inserted, skippedExisting, skippedNoTable,
-    }), { headers: { 'content-type': 'application/json' } });
+    // الاستيراد التاريخي على دفعات صغيرة حتى لا تتجاوز الدالة مهلتها
+    const max = Math.min(Number(params.get('max')) || (backfill ? 20 : 50), 100);
+    const outcomes: Outcome[] = [];
+    let attempted = 0;
+    const notifyEach = mode === 'cron' || (mode === 'manual' && params.get('notify') === '1');
 
+    for (const c of candidates) {
+      const { data: existing, error: existsErr } = await supabase
+        .from('rain_measurements')
+        .select('id')
+        .eq('report_url', c.link)
+        .limit(1);
+      // تعذّر التحقق من وجود التقرير ≠ «غير موجود»: لا إدراج بلا تحقق، وإلا تكرّر
+      // التقرير في كل تشغيل يفشل فيه هذا الاستعلام
+      if (existsErr || !existing) {
+        outcomes.push({ link: c.link, title: c.title, pubDate: c.pubDate, status: 'failed', rows: 0, error: `exists-check: ${existsErr?.message ?? 'no data'}` });
+        continue;
+      }
+      if (existing.length > 0) {
+        outcomes.push({ link: c.link, title: c.title, pubDate: c.pubDate, status: 'exists', rows: 0 });
+        continue;
+      }
+      if (attempted >= max) break;
+
+      try {
+        const article = await fetchArticle(c);
+        const $ = cheerio.load(`<div id="ami-root">${article.html}</div>`);
+        const parsed = parseRainReport($, $('#ami-root'), article.title);
+
+        // أقل من MIN_ROWS قراءات: خبر يذكر كمية عرضاً، أو تقرير بصيغة غير مفهومة
+        if (parsed.rows.length < MIN_ROWS) {
+          outcomes.push({ link: c.link, title: article.title, pubDate: article.pubDate, status: 'no-data', rows: parsed.rows.length, issues: parsed.issues });
+          continue;
+        }
+        // الحد max يُحتسب للتقارير الفعلية فقط: مقال بلا بيانات يُعاد فحصه في كل
+        // تشغيل، ولو استهلك من الحد لتوقف الاستيراد التاريخي عند أول دفعة منها
+        attempted++;
+        if (dry) {
+          outcomes.push({ link: c.link, title: article.title, pubDate: article.pubDate, status: 'would-import', rows: parsed.rows.length, issues: parsed.issues });
+          continue;
+        }
+
+        const claim = await claimReport({ ...c, title: article.title, pubDate: article.pubDate });
+        if (claim === 'already-imported') {
+          outcomes.push({ link: c.link, title: article.title, pubDate: article.pubDate, status: 'exists', rows: 0 });
+          continue;
+        }
+
+        const insertRows = parsed.rows.map((r) => ({
+          report_url: c.link,
+          report_title: article.title,
+          report_published_at: article.pubDate,
+          wilaya: r.wilaya,
+          moughataa: r.moughataa || null,
+          village: r.village,
+          mm: r.mm,
+        }));
+        const { error } = await supabase.from('rain_measurements').insert(insertRows);
+        if (error) throw new Error(`insert: ${error.message}`);
+
+        await logOutcome(c.link, { status: 'imported', rows_count: insertRows.length, issues: parsed.issues, error: null });
+        outcomes.push({ link: c.link, title: article.title, pubDate: article.pubDate, status: 'imported', rows: insertRows.length, issues: parsed.issues });
+
+        const fresh = Date.now() - new Date(article.pubDate).getTime() < FRESH_HOURS * 3_600_000;
+        if (notifyEach && fresh) {
+          await Promise.all([
+            tg(`🌧️ *تقرير مقاييس أمطار جديد (AMI):*\n${article.title}\n${insertRows.length} قراءة\n🔗 ${c.link}`),
+            noFacebook ? Promise.resolve() : postToFacebook(parsed.rows, article.title),
+          ]);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        await logOutcome(c.link, { status: 'failed', error: message }).catch(() => {});
+        outcomes.push({ link: c.link, title: c.title, pubDate: c.pubDate, status: 'failed', rows: 0, error: message });
+      }
+    }
+
+    const count = (s: Outcome['status']) => outcomes.filter((o) => o.status === s).length;
+    const imported = outcomes.filter((o) => o.status === 'imported');
+    const summary = {
+      mode, dry,
+      candidatesFound: candidates.length,
+      reportsProcessed: imported.length,
+      inserted: imported.reduce((n, o) => n + o.rows, 0),
+      wouldImport: count('would-import'),
+      skippedExisting: count('exists'),
+      skippedNoTable: count('no-data'),
+      failed: count('failed'),
+      remaining: Math.max(0, candidates.length - outcomes.length),
+      sourceErrors,
+      // التفاصيل لما تغيّر أو تعذّر فقط — «موجود سابقاً» لا يحتاج سرداً
+      details: outcomes.filter((o) => o.status !== 'exists'),
+    };
+
+    // ملخص واحد للتشغيل الدوري: تقارير قديمة التقطها الأرشيف، أو أي فشل
+    if (!dry && mode === 'cron') {
+      const late = imported.filter((o) => Date.now() - new Date(o.pubDate).getTime() >= FRESH_HOURS * 3_600_000);
+      const lines: string[] = [];
+      if (late.length) lines.push(`🗂️ استُدركت ${late.length} تقارير فائتة من الأرشيف (${late.reduce((n, o) => n + o.rows, 0)} قراءة).`);
+      // استخراج جزئي أو اسم غير معروف: حُفظ المؤكَّد فقط، والتقرير يحتاج نظرة بشرية
+      const partial = imported.filter((o) => (o.issues ?? []).some((i) => /^(no-wilaya|unknown-wilaya|skipped-value-lines|wilaya-moughataa-conflict)/.test(i)));
+      if (partial.length) lines.push(`🔎 تقارير حُفظت وتحتاج مراجعة:\n${partial.map((o) => `${o.link} — ${(o.issues ?? []).join('، ')}`).join('\n').slice(0, 700)}`);
+      if (summary.failed) lines.push(`⚠️ تعذّر جلب ${summary.failed} تقارير:\n${outcomes.filter((o) => o.status === 'failed').map((o) => `${o.link} — ${o.error}`).join('\n').slice(0, 600)}`);
+      if (sourceErrors.length) lines.push(`⚠️ مصدر متعطّل: ${sourceErrors.join(' | ')}`);
+      if (lines.length) await tg(`ami-rain-scraper\n${lines.join('\n')}`).catch(() => {});
+    }
+
+    return json(summary);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     await tg(`❌ خطأ في ami-rain-scraper: ${msg}`).catch(() => {});
-    return new Response(JSON.stringify({ error: msg }), { status: 500 });
+    return json({ error: msg }, 500);
   }
 });
