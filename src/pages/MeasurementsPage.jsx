@@ -263,7 +263,7 @@ function Era5ComparisonCard({ year }) {
           المصدر: إعادة التحليل ERA5 للمركز الأوروبي للتنبؤات (ECMWF) عبر Open-Meteo. الهطول المقدَّر في عاصمة كل ولاية
           خلال {data.partial ? 'الفترة' : 'السنة'} مقارنةً بمعدل {data.partial ? 'الفترة نفسها' : 'السنة'} في {data.reference.from}–{data.reference.to} للنقطة نفسها.
           هذه تقديرات نموذج بدقة نحو 25 كم وليست قياسات محطات الرصد، وتقل عادةً عن قراءات المقاييس؛ لذلك لا تُقارن بمجاميع
-          الأرشيف أدناه، والفروق الصغيرة بين السنوات أقل وثوقاً من الكبيرة.
+          مقاييس المطر المسجلة أدناه، والفروق الصغيرة بين السنوات أقل وثوقاً من الكبيرة.
           {data.sharedCells.map((names) => ` ${names.join(' و')} تقعان في خلية واحدة من شبكة النموذج، فأرقامهما متطابقة.`).join('')}
         </p>
       </div>
@@ -413,7 +413,7 @@ function StatsTab({ stats, statsYear, setStatsYear, onWilayaClick }) {
                       onClick={() => onWilayaClick(w.wilaya)}
                       className="mt-2 text-[11px] font-bold text-blue-600 hover:underline w-full text-right"
                     >
-                      عرض تقارير {w.wilaya} في الأرشيف ←
+                      عرض تقارير {w.wilaya} في مقاييس المطر المسجلة ←
                     </button>
                   </div>
                 )}
@@ -474,7 +474,7 @@ function TopRecordsTab({ records }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
-        <p className="text-xs font-black text-gray-500">🥇 أعلى 20 قراءة مطر مسجَّلة في تاريخ الأرشيف</p>
+        <p className="text-xs font-black text-gray-500">🥇 أعلى 20 قراءة في مقاييس المطر المسجلة</p>
       </div>
       <div className="divide-y divide-gray-50">
         {records.map((r, i) => {
@@ -510,7 +510,7 @@ function TopRecordsTab({ records }) {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// تبويب الأرشيف
+// تبويب مقاييس المطر المسجلة (قائمة التقارير)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function ArchiveTab({ wilaya, setWilaya, year, setYear, reports, count, loading, page, setPage }) {
   const totalPages = Math.ceil(count / PER_PAGE);
@@ -654,7 +654,7 @@ export default function MeasurementsPage() {
   const isSearching = searchQuery.trim().length > 0;
 
   const TABS = [
-    { id: 'archive', label: '🗂️ الأرشيف' },
+    { id: 'archive', label: '🗂️ مقاييس المطر المسجلة' },
     { id: 'stats',   label: '📊 المجاميع المطرية' },
     { id: 'records', label: '🥇 أعلى القياسات' },
   ];
@@ -676,7 +676,7 @@ export default function MeasurementsPage() {
             <div>
               <h1 className="text-2xl font-black">مقاييس الأمطار · موريتانيا</h1>
               <p className="text-sm text-blue-200/70 mt-1">
-                أرشيف رسمي لمقاييس الأمطار المسجلة — المصدر: وزارة الداخلية عبر الوكالة الموريتانية للأنباء
+                مقاييس المطر المسجلة رسمياً — المصدر: وزارة الداخلية عبر الوكالة الموريتانية للأنباء
               </p>
             </div>
           </div>
