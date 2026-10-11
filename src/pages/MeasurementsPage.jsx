@@ -220,9 +220,9 @@ function SearchResults({ results, loading, query }) {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// العجز/الفائض المطري حسب ERA5 (المركز الأوروبي) — لكل عاصمة ولاية
+// المقارنة المطرية المناخية حسب ERA5 (المركز الأوروبي) — عواصم الولايات
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function Era5DeficitCard({ year }) {
+function Era5ComparisonCard({ year }) {
   // undefined = جارٍ التحميل، null = لا بيانات لهذه السنة
   const [data, setData] = useState(undefined);
 
@@ -236,49 +236,64 @@ function Era5DeficitCard({ year }) {
   if (data === undefined) {
     return <div className="bg-white h-40 rounded-2xl animate-pulse border border-gray-100" />;
   }
+  // لا بيانات أو لا معدل مرجعي لأي عاصمة: لا تُعرض البطاقة
   if (!data || data.computable === 0) return null;
 
-  const rows = [...data.rows].filter((r) => r.status !== 'not-computable').sort((a, b) => {
-    const signed = (r) => (r.status === 'deficit' ? -r.pct : r.pct);
-    return signed(a) - signed(b);
-  });
+  const signed = (r) => (r.status === 'below' ? -r.pct : r.pct);
+  const rows = data.rows.filter((r) => r.status !== 'not-computable').sort((a, b) => signed(a) - signed(b));
+  const hidden = data.rows.length - rows.length;
   const maxPct = Math.max(1, ...rows.map((r) => r.pct));
+  const period = data.partial ? `من 1 يناير إلى ${fmtShortDate(data.through)}` : 'السنة كاملة';
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
         <p className="text-xs font-black text-gray-500">
-          📉 العجز والفائض المطري — {data.year}
-          {data.partial ? ` حتى ${fmtShortDate(data.through)}` : ''}
-          {' '}— {data.below} من {data.computable} عواصم تحت المعدل
+          🌍 المقارنة المطرية المناخية — {data.year} ({period})
+        </p>
+        <p className="text-[11px] font-bold text-gray-600 mt-1">
+          {data.below} أقل من المعدل · {data.above} أعلى من المعدل · من {data.computable} عاصمة ولاية
         </p>
         <p className="text-[10px] text-gray-400 mt-1 leading-relaxed">
-          حسب بيانات إعادة التحليل ERA5 للمركز الأوروبي للتنبؤات (ECMWF): هطول {data.partial ? 'الفترة نفسها من السنة' : 'السنة'} في
-          عاصمة كل ولاية مقارنةً بمعدل {data.reference.from}–{data.reference.to} للنقطة نفسها{data.partial ? ' والفترة نفسها' : ''}.
-          تقدير نموذجي لا قياس أرضي، ولا يُقارن بمجاميع المقاييس أدناه.
+          المصدر: إعادة التحليل ERA5 للمركز الأوروبي للتنبؤات (ECMWF) عبر Open-Meteo. الهطول المقدَّر في عاصمة كل ولاية
+          خلال {data.partial ? 'الفترة' : 'السنة'} مقارنةً بمعدل {data.partial ? 'الفترة نفسها' : 'السنة'} في {data.reference.from}–{data.reference.to} للنقطة نفسها.
+          هذه تقديرات نموذج بدقة نحو 25 كم وليست قياسات محطات الرصد، وتقل عادةً عن قراءات المقاييس؛ لذلك لا تُقارن بمجاميع
+          الأرشيف أدناه، والفروق الصغيرة بين السنوات أقل وثوقاً من الكبيرة.
         </p>
       </div>
       <div className="p-4 space-y-1.5">
         {rows.map((r) => {
-          const isDeficit = r.status === 'deficit';
+          const below = r.status === 'below';
+          const tone = r.status === 'normal' ? 'text-gray-500' : below ? 'text-red-600' : 'text-emerald-600';
           return (
-            <div key={r.name} className="flex items-center gap-3 px-2 py-1.5">
+            <div key={r.wilaya} className="flex items-center gap-3 px-2 py-1.5">
               <div className="w-28 shrink-0">
                 <p className="text-xs font-black text-gray-800 truncate">{r.name}</p>
                 <p className="text-[10px] text-gray-400 truncate">{r.wilaya}</p>
               </div>
-              <div className="flex-1 min-w-0 h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full ${isDeficit ? 'bg-red-400' : 'bg-emerald-500'}`}
-                  style={{ width: `${r.status === 'normal' ? 0 : Math.max(3, Math.round((r.pct / maxPct) * 100))}%` }}
-                />
+              <div className="flex-1 min-w-0">
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${below ? 'bg-red-400' : 'bg-emerald-500'}`}
+                    style={{ width: `${r.status === 'normal' ? 0 : Math.max(3, Math.round((r.pct / maxPct) * 100))}%` }}
+                  />
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  المقدَّر: {r.recorded} مم · المعدل المرجعي: {r.reference} مم
+                </p>
               </div>
-              <span className={`text-xs font-black shrink-0 w-20 text-left ${r.status === 'normal' ? 'text-gray-500' : isDeficit ? 'text-red-600' : 'text-emerald-600'}`}>
-                {r.status === 'normal' ? 'عند المعدل' : `${isDeficit ? 'عجز' : 'فائض'} ${r.pct}%`}
-              </span>
+              <div className={`shrink-0 w-24 text-left ${tone}`}>
+                <p className="text-xs font-black">{r.status === 'normal' ? 'عند المعدل' : below ? 'أقل من المعدل' : 'أعلى من المعدل'}</p>
+                {r.status !== 'normal' && <p className="text-[11px] font-black">{below ? '−' : '+'}{r.pct}%</p>}
+              </div>
             </div>
           );
         })}
+        {hidden > 0 && (
+          <p className="text-[10px] text-gray-400 px-2 pt-1">
+            {hidden} عواصم بلا نتيجة: بيانات ناقصة، أو معدل مرجعي شبه منعدم لهذه الفترة.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -326,7 +341,7 @@ function StatsTab({ stats, statsYear, setStatsYear, onWilayaClick }) {
         ))}
       </div>
 
-      <Era5DeficitCard year={statsYear === 'الكل' ? String(CURRENT_YEAR) : statsYear} />
+      <Era5ComparisonCard year={statsYear === 'الكل' ? String(CURRENT_YEAR) : statsYear} />
 
       {/* ترتيب الولايات */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
