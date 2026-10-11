@@ -6,6 +6,7 @@ import {
   getTopRainRecords,
 } from '../supabase';
 import Navbar from '../components/Navbar';
+import { loadEra5Deficit } from '../rainEra5';
 
 // الترتيب الرسمي للولايات الموريتانية (حسب الرموز الإدارية 01–15)
 const WILAYAS = [
@@ -219,6 +220,71 @@ function SearchResults({ results, loading, query }) {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// العجز/الفائض المطري حسب ERA5 (المركز الأوروبي) — لكل عاصمة ولاية
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function Era5DeficitCard({ year }) {
+  // undefined = جارٍ التحميل، null = لا بيانات لهذه السنة
+  const [data, setData] = useState(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    setData(undefined);
+    loadEra5Deficit(year).then((d) => { if (!cancelled) setData(d); }).catch(() => { if (!cancelled) setData(null); });
+    return () => { cancelled = true; };
+  }, [year]);
+
+  if (data === undefined) {
+    return <div className="bg-white h-40 rounded-2xl animate-pulse border border-gray-100" />;
+  }
+  if (!data || data.computable === 0) return null;
+
+  const rows = [...data.rows].filter((r) => r.status !== 'not-computable').sort((a, b) => {
+    const signed = (r) => (r.status === 'deficit' ? -r.pct : r.pct);
+    return signed(a) - signed(b);
+  });
+  const maxPct = Math.max(1, ...rows.map((r) => r.pct));
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
+        <p className="text-xs font-black text-gray-500">
+          📉 العجز والفائض المطري — {data.year}
+          {data.partial ? ` حتى ${fmtShortDate(data.through)}` : ''}
+          {' '}— {data.below} من {data.computable} عواصم تحت المعدل
+        </p>
+        <p className="text-[10px] text-gray-400 mt-1 leading-relaxed">
+          حسب بيانات إعادة التحليل ERA5 للمركز الأوروبي للتنبؤات (ECMWF): هطول {data.partial ? 'الفترة نفسها من السنة' : 'السنة'} في
+          عاصمة كل ولاية مقارنةً بمعدل {data.reference.from}–{data.reference.to} للنقطة نفسها{data.partial ? ' والفترة نفسها' : ''}.
+          تقدير نموذجي لا قياس أرضي، ولا يُقارن بمجاميع المقاييس أدناه.
+        </p>
+      </div>
+      <div className="p-4 space-y-1.5">
+        {rows.map((r) => {
+          const isDeficit = r.status === 'deficit';
+          return (
+            <div key={r.name} className="flex items-center gap-3 px-2 py-1.5">
+              <div className="w-28 shrink-0">
+                <p className="text-xs font-black text-gray-800 truncate">{r.name}</p>
+                <p className="text-[10px] text-gray-400 truncate">{r.wilaya}</p>
+              </div>
+              <div className="flex-1 min-w-0 h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${isDeficit ? 'bg-red-400' : 'bg-emerald-500'}`}
+                  style={{ width: `${r.status === 'normal' ? 0 : Math.max(3, Math.round((r.pct / maxPct) * 100))}%` }}
+                />
+              </div>
+              <span className={`text-xs font-black shrink-0 w-20 text-left ${r.status === 'normal' ? 'text-gray-500' : isDeficit ? 'text-red-600' : 'text-emerald-600'}`}>
+                {r.status === 'normal' ? 'عند المعدل' : `${isDeficit ? 'عجز' : 'فائض'} ${r.pct}%`}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // تبويب الإحصاءات
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function StatsTab({ stats, statsYear, setStatsYear, onWilayaClick }) {
@@ -259,6 +325,8 @@ function StatsTab({ stats, statsYear, setStatsYear, onWilayaClick }) {
           </button>
         ))}
       </div>
+
+      <Era5DeficitCard year={statsYear === 'الكل' ? String(CURRENT_YEAR) : statsYear} />
 
       {/* ترتيب الولايات */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
