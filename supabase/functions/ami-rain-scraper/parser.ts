@@ -178,6 +178,28 @@ function parseRainTable($: any, table: any, issues: string[]): RainRow[] {
       return [];
     }
   }
+
+  // المقاطعة أيضاً قد تُكتب مرة واحدة في صف وسط مجموعتها (بلا rowspan) وتُترك
+  // خانتها فارغة في بقية الصفوف. المجموعات في هذه الجداول مرتّبة تنازلياً بالكمية،
+  // فبداية كل مجموعة هي الصف الذي تزيد كميته على سابقه. تُعمَّم التسمية على
+  // مجموعتها فقط إذا حوت المجموعة تسمية واحدة؛ وإلا تُترك الخانات فارغة كما وردت.
+  const usesRowspan = $(table).find('td[rowspan]').length > 0;
+  const labelled = results.filter((r) => r.moughataa).length;
+  if (!usesRowspan && labelled > 0 && labelled < results.length) {
+    const segments: RainRow[][] = [];
+    results.forEach((r, i) => {
+      const prev = results[i - 1];
+      if (!prev || r.mm > prev.mm || r.wilaya !== prev.wilaya) segments.push([]);
+      segments[segments.length - 1].push(r);
+    });
+    let filled = 0;
+    segments.forEach((segment) => {
+      const names = [...new Set(segment.map((r) => r.moughataa).filter(Boolean))];
+      if (names.length !== 1) return;
+      segment.forEach((r) => { if (!r.moughataa) { r.moughataa = names[0]; filled++; } });
+    });
+    if (filled > 0) issues.push(`moughataa-from-centred-label:${filled}`);
+  }
   return results.filter((r) => r.wilaya);
 }
 

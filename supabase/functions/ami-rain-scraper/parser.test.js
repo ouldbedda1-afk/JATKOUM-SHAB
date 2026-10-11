@@ -261,6 +261,36 @@ describe('parseRainReport — الجداول', () => {
     expect(res.issues).toContain('table-single-wilaya-label');
   });
 
+  it('المقاطعة مكتوبة مرة واحدة في صف وسط مجموعتها: تُعمَّم على المجموعة (265431)', () => {
+    // المجموعات مرتّبة تنازلياً بالكمية؛ بداية المجموعة حيث تزيد الكمية على السابقة
+    const res = parse(`<table><tbody>${header}
+      <tr><td></td><td></td><td>عين اولاد ويس</td><td>120 مم</td></tr>
+      <tr><td>الحوض الشرقي</td><td>تمبدغه</td><td>أم كفه</td><td>70 مم</td></tr>
+      <tr><td></td><td></td><td>ينكي الزمال</td><td>64 مم</td></tr>
+      <tr><td></td><td></td><td>امبارات ارمه</td><td>81 مم</td></tr>
+      <tr><td></td><td>عدل بكرو</td><td>راس الفيل</td><td>60 مم</td></tr>
+      <tr><td></td><td></td><td>ولاته</td><td>13 مم</td></tr></tbody></table>`);
+    expect(flat(res)).toEqual([
+      'الحوض الشرقي|تمبدغه|عين اولاد ويس|120',
+      'الحوض الشرقي|تمبدغه|أم كفه|70',
+      'الحوض الشرقي|تمبدغه|ينكي الزمال|64',
+      'الحوض الشرقي|عدل بكرو|امبارات ارمه|81',
+      'الحوض الشرقي|عدل بكرو|راس الفيل|60',
+      'الحوض الشرقي|عدل بكرو|ولاته|13',
+    ]);
+    expect(res.issues).toContain('moughataa-from-centred-label:4');
+  });
+
+  it('مجموعة فيها تسميتان أو لا تسمية: تبقى خاناتها كما وردت', () => {
+    const res = parse(`<table><tbody>${header}
+      <tr><td>الحوض الشرقي</td><td>تمبدغه</td><td>أ</td><td>50 مم</td></tr>
+      <tr><td></td><td></td><td>ب</td><td>40 مم</td></tr>
+      <tr><td></td><td>النعمه</td><td>ج</td><td>30 مم</td></tr>
+      <tr><td></td><td></td><td>د</td><td>90 مم</td></tr>
+      <tr><td></td><td></td><td>هـ</td><td>20 مم</td></tr></tbody></table>`);
+    expect(res.rows.map((r) => r.moughataa)).toEqual(['تمبدغه', '', 'النعمه', '', '']);
+  });
+
   it('جدول بلا rowspan فيه أكثر من ولاية: حدود المجموعات مجهولة فلا يُستخرج', () => {
     const res = parse(`<table><tbody>${header}
       <tr><td></td><td></td><td>أ</td><td>10 مم</td></tr>
