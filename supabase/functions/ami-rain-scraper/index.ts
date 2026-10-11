@@ -24,6 +24,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import * as cheerio from 'npm:cheerio@1';
 import { parseRainReport, type RainRow } from './parser.ts';
+import { rainNameKey } from '../_shared/rainNames.js';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -196,6 +197,39 @@ async function logOutcome(link: string, fields: Record<string, unknown>) {
     .eq('report_url', link);
 }
 
+// الوكالة تعيد أحياناً نشر جدول سبق نشره بعنوان ورابط جديدين (8 ثم 18 سبتمبر 2023):
+// رابط مختلف فلا يكشفه فحص report_url. مقال محتواه مطابق تماماً — المواقع نفسها
+// بالكميات نفسها — لتقرير مخزَّن نُشر خلال REPUBLISH_DAYS يوماً قبله لا يُحفظ ثانيةً.
+const REPUBLISH_DAYS = 45;
+const MIN_ROWS_FOR_REPUBLICATION = 10;
+
+async function findRepublished(rows: RainRow[], pubDate: string): Promise<string | null> {
+  if (rows.length < MIN_ROWS_FOR_REPUBLICATION) return null;
+  const content = (list: { village: string; mm: number }[]) =>
+    list.map((r) => `${rainNameKey(r.village)}=${Number(r.mm)}`).sort().join(',');
+  const mine = content(rows);
+  const from = new Date(new Date(pubDate).getTime() - REPUBLISH_DAYS * 86_400_000).toISOString();
+
+  const stored = new Map<string, { village: string; mm: number }[]>();
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await supabase
+      .from('rain_measurements')
+      .select('report_url, village, mm')
+      .gte('report_published_at', from)
+      .lte('report_published_at', pubDate)
+      .order('id')
+      .range(offset, offset + 999);
+    // تعذّر الفحص ≠ «لا تكرار»: يُرفع الخطأ فلا يُدرج التقرير في هذا التشغيل
+    if (error || !data) throw new Error(`republication check: ${error?.message ?? 'no data'}`);
+    for (const r of data) stored.set(r.report_url, [...(stored.get(r.report_url) ?? []), r]);
+    if (data.length < 1000) break;
+  }
+  for (const [url, list] of stored) {
+    if (list.length === rows.length && content(list) === mine) return url;
+  }
+  return null;
+}
+
 // ينشر تقرير المقاييس على صفحة فيسبوك — للتقارير الجديدة فقط
 async function postToFacebook(rows: RainRow[], title: string): Promise<void> {
   if (!FB_PAGE_ID || !FB_PAGE_TOKEN) return;
@@ -294,7 +328,7 @@ interface Outcome {
   link: string;
   title: string;
   pubDate: string;
-  status: 'imported' | 'would-import' | 'exists' | 'no-data' | 'failed';
+  status: 'imported' | 'would-import' | 'exists' | 'no-data' | 'duplicate' | 'failed';
   rows: number;
   issues?: string[];
   error?: string;
@@ -373,6 +407,11 @@ Deno.serve(async (req) => {
           outcomes.push({ link: c.link, title: article.title, pubDate: article.pubDate, status: 'no-data', rows: parsed.rows.length, issues: parsed.issues });
           continue;
         }
+        const twin = await findRepublished(parsed.rows, article.pubDate);
+        if (twin) {
+          outcomes.push({ link: c.link, title: article.title, pubDate: article.pubDate, status: 'duplicate', rows: parsed.rows.length, error: `same content as ${twin}` });
+          continue;
+        }
         // الحد max يُحتسب للتقارير الفعلية فقط: مقال بلا بيانات يُعاد فحصه في كل
         // تشغيل، ولو استهلك من الحد لتوقف الاستيراد التاريخي عند أول دفعة منها
         attempted++;
@@ -426,6 +465,7 @@ Deno.serve(async (req) => {
       wouldImport: count('would-import'),
       skippedExisting: count('exists'),
       skippedNoTable: count('no-data'),
+      skippedDuplicate: count('duplicate'),
       failed: count('failed'),
       remaining: Math.max(0, candidates.length - outcomes.length),
       sourceErrors,

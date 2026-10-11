@@ -11,6 +11,7 @@
 // ═══════════════════════════════════════════════════
 
 import { canonicalWilaya, knownMoughataa, rainNameKey } from '../supabase/functions/_shared/rainNames.js';
+import { RAIN_VILLAGE_MOUGHATAAS } from './rainVillageMoughataas.js';
 
 export { rainNameKey };
 
@@ -43,6 +44,33 @@ function dropReinsertedReports(rows) {
   return out;
 }
 
+// الوكالة تعيد أحياناً نشر جدول سبق نشره بعنوان وتاريخ جديدين (مثلاً 8 ثم 18 سبتمبر
+// 2023). مقالان محتواهما واحد تماماً — المواقع نفسها بالكميات نفسها، عشرة فأكثر —
+// تقرير واحد: يُحسب الأقدم ويُهمل الآخر. تشابه جزئي لا يكفي.
+const MIN_ROWS_FOR_REPUBLICATION = 10;
+
+function dropRepublishedReports(rows) {
+  const byReport = new Map();
+  rows.forEach((r) => {
+    if (!r.report_url) return;
+    if (!byReport.has(r.report_url)) byReport.set(r.report_url, []);
+    byReport.get(r.report_url).push(r);
+  });
+
+  const firstWithContent = new Map();
+  const dropped = new Set();
+  [...byReport.entries()]
+    .sort((a, b) => String(a[1][0].report_published_at).localeCompare(String(b[1][0].report_published_at)))
+    .forEach(([url, list]) => {
+      if (list.length < MIN_ROWS_FOR_REPUBLICATION) return;
+      const content = list.map((r) => `${rainNameKey(r.village)}=${r.mm}`).sort().join(',');
+      if (firstWithContent.has(content)) dropped.add(url);
+      else firstWithContent.set(content, url);
+    });
+
+  return dropped.size ? rows.filter((r) => !dropped.has(r.report_url)) : rows;
+}
+
 /**
  * يحوّل الصفوف الخام إلى قراءات جاهزة للتجميع: ولاية ومقاطعة موحَّدتان ومفتاح
  * للموقع، مع إسقاط نسخ التقرير المُدرج أكثر من مرة. الاسم الأصلي يبقى في
@@ -54,7 +82,7 @@ export function cleanRainReadings(rows, normWilaya = (w) => w) {
     .map((r) => ({ ...r, mm: Number(r.mm) }))
     .filter((r) => Number.isFinite(r.mm));
 
-  const readings = dropReinsertedReports(numeric).map((r) => {
+  const readings = dropRepublishedReports(dropReinsertedReports(numeric)).map((r) => {
     const stated = canonicalWilaya(r.wilaya) || normWilaya(r.wilaya);
     const rawMoughataa = String(r.moughataa || '').trim();
     let wilaya = stated;
@@ -102,6 +130,15 @@ export function cleanRainReadings(rows, normWilaya = (w) => w) {
 const MIN_WITNESSES = 3;
 const MIN_AGREEMENT = 0.9;
 
+// الجدول المولَّد من كل سنوات الأرشيف بالشرطين نفسيهما: «ولاية|قرية» ← مقاطعة.
+// به تُنسب قرى السنوات التي لا تذكر تقاريرها المقاطعات أصلاً (2022 وما قبلها).
+const VILLAGE_TABLE = new Map();
+Object.entries(RAIN_VILLAGE_MOUGHATAAS).forEach(([wilaya, moughataas]) => {
+  Object.entries(moughataas).forEach(([moughataa, villages]) => {
+    villages.forEach((village) => VILLAGE_TABLE.set(`${wilaya}|${village}`, moughataa));
+  });
+});
+
 function fillMoughataaFromOtherReports(readings) {
   const witnesses = new Map();
   readings.forEach((r) => {
@@ -114,11 +151,17 @@ function fillMoughataaFromOtherReports(readings) {
 
   readings.forEach((r) => {
     if (r.moughataa !== '—') return;
-    const counts = witnesses.get(`${r.wilaya}|${r.villageKey}`);
-    if (!counts) return;
-    const total = [...counts.values()].reduce((a, b) => a + b, 0);
-    const [name, top] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
-    if (total < MIN_WITNESSES || top / total < MIN_AGREEMENT) return;
+    const key = `${r.wilaya}|${r.villageKey}`;
+    const counts = witnesses.get(key);
+    let name = null;
+    if (counts) {
+      const total = [...counts.values()].reduce((a, b) => a + b, 0);
+      const [best, top] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+      // شواهد الفترة المعروضة تتقدّم؛ وإن اختلفت فيما بينها فلا يُحسم الاسم من الجدول أيضاً
+      if (total >= MIN_WITNESSES) { if (top / total < MIN_AGREEMENT) return; name = best; }
+    }
+    name = name || VILLAGE_TABLE.get(key);
+    if (!name) return;
     r.moughataa = name;
     r.moughataaKey = rainNameKey(name);
     r.moughataaFix = 'village-in-other-reports';

@@ -99,7 +99,7 @@ describe('المجاميع', () => {
   });
 
   it('اسم ولاية محفوظ في خانة المقاطعة يحدّد الولاية', () => {
-    const [r] = cleanRainReadings([row('الحوض الغربي', 'كوركل', 'الخلوه', 12)]);
+    const [r] = cleanRainReadings([row('الحوض الغربي', 'كوركل', 'قرية اختبار', 12)]);
     expect(r).toMatchObject({ wilaya: 'كوركول', moughataa: '—', wilayaFix: 'wilaya-in-moughataa-field' });
   });
 
@@ -194,9 +194,19 @@ describe('مقاطعة القرية من تقارير أخرى', () => {
     expect(filled).toMatchObject({ moughataa: 'تمبدغة', moughataaFix: 'village-in-other-reports' });
   });
 
-  it('شاهدان لا يكفيان', () => {
-    const readings = cleanRainReadings([...stated('طير طوبه', 'تمبدغة', 2), row('الحوض الشرقي', null, 'طير طوبه', 35, '01')]);
+  it('شاهدان لا يكفيان لقرية ليست في جدول الأرشيف', () => {
+    const readings = cleanRainReadings([...stated('قرية اختبار', 'تمبدغة', 2), row('الحوض الشرقي', null, 'قرية اختبار', 35, '01')]);
     expect(readings.find((r) => r.mm === 35).moughataa).toBe('—');
+  });
+
+  it('قرية معروفة في جدول الأرشيف تُنسب ولو خلت الفترة المعروضة من الشواهد', () => {
+    const [r] = cleanRainReadings([row('الحوض الشرقي', null, 'طير طوبه', 35, '01')]);
+    expect(r).toMatchObject({ moughataa: 'تمبدغة', moughataaFix: 'village-in-other-reports' });
+  });
+
+  it('الجدول لا ينقل قرية إلى ولاية أخرى', () => {
+    const [r] = cleanRainReadings([row('تكانت', null, 'طير طوبه', 35, '01')]);
+    expect(r).toMatchObject({ wilaya: 'تكانت', moughataa: '—' });
   });
 
   it('اسم يتكرر في أكثر من مقاطعة لا يُحسم', () => {
@@ -210,5 +220,28 @@ describe('مقاطعة القرية من تقارير أخرى', () => {
   it('لا تُستعمل شواهد ولاية أخرى', () => {
     const readings = cleanRainReadings([...stated('بغداد', 'النعمة', 5), row('الحوض الغربي', null, 'بغداد', 35, '01')]);
     expect(readings.find((r) => r.mm === 35).moughataa).toBe('—');
+  });
+});
+
+describe('تقرير أعادت الوكالة نشره', () => {
+  const report = (url, day, extra = []) => [
+    ...Array.from({ length: 10 }, (_, i) => ({ ...row('الترارزة', null, `قرية ${i}`, 10 + i, day, url) })),
+    ...extra,
+  ];
+
+  it('مقالان بمحتوى واحد تماماً يُحسبان تقريراً واحداً (الأقدم)', () => {
+    const readings = cleanRainReadings([...report('a', '08'), ...report('b', '18')]);
+    expect(readings).toHaveLength(10);
+    expect(new Set(readings.map((r) => r.report_url))).toEqual(new Set(['a']));
+  });
+
+  it('اختلاف قراءة واحدة يكفي لاعتبارهما تقريرين', () => {
+    const readings = cleanRainReadings([...report('a', '08'), ...report('b', '18', [row('الترارزة', null, 'قرية أخرى', 5, '18', 'b')])]);
+    expect(readings).toHaveLength(21);
+  });
+
+  it('تقارير صغيرة متطابقة لا تُدمج (التطابق في بضع قراءات قد يكون صدفة)', () => {
+    const small = (url, day) => [row('آدرار', null, 'أطار', 2, day, url), row('آدرار', null, 'شنقيط', 1, day, url)];
+    expect(cleanRainReadings([...small('a', '08'), ...small('b', '09')])).toHaveLength(4);
   });
 });
