@@ -239,10 +239,10 @@ function Era5ComparisonCard({ year }) {
   // لا بيانات أو لا معدل مرجعي لأي عاصمة: لا تُعرض البطاقة
   if (!data || data.computable === 0) return null;
 
-  const signed = (r) => (r.status === 'below' ? -r.pct : r.pct);
-  const rows = data.rows.filter((r) => r.status !== 'not-computable').sort((a, b) => signed(a) - signed(b));
+  const rows = data.rows.filter((r) => r.status !== 'not-computable').sort((a, b) => a.pct - b.pct);
   const hidden = data.rows.length - rows.length;
-  const maxPct = Math.max(1, ...rows.map((r) => r.pct));
+  const maxPct = Math.max(1, ...rows.map((r) => Math.abs(r.pct)));
+  const LABEL = { below: 'أقل من المعدل', above: 'أعلى من المعدل', near: 'قريب من المعدل' };
   const period = data.partial ? `من 1 يناير إلى ${fmtShortDate(data.through)}` : 'السنة كاملة';
 
   return (
@@ -252,19 +252,26 @@ function Era5ComparisonCard({ year }) {
           🌍 المقارنة المطرية المناخية — {data.year} ({period})
         </p>
         <p className="text-[11px] font-bold text-gray-600 mt-1">
-          {data.below} أقل من المعدل · {data.above} أعلى من المعدل · من {data.computable} عاصمة ولاية
+          {data.below} أقل من المعدل · {data.near} قريب من المعدل (±5%) · {data.above} أعلى من المعدل · من {data.computable} عاصمة ولاية
+        </p>
+        <p className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5 mt-2 leading-relaxed">
+          {data.partial
+            ? `آخر بيانات مستخدمة: ${fmtDate(data.through)}. النتائج تخص الفترة المنقضية من السنة فقط، وقد تتغير بما يهطل في بقية الموسم.`
+            : `بيانات السنة كاملة، حتى 31 ديسمبر ${data.year}.`}
         </p>
         <p className="text-[10px] text-gray-400 mt-1 leading-relaxed">
           المصدر: إعادة التحليل ERA5 للمركز الأوروبي للتنبؤات (ECMWF) عبر Open-Meteo. الهطول المقدَّر في عاصمة كل ولاية
           خلال {data.partial ? 'الفترة' : 'السنة'} مقارنةً بمعدل {data.partial ? 'الفترة نفسها' : 'السنة'} في {data.reference.from}–{data.reference.to} للنقطة نفسها.
           هذه تقديرات نموذج بدقة نحو 25 كم وليست قياسات محطات الرصد، وتقل عادةً عن قراءات المقاييس؛ لذلك لا تُقارن بمجاميع
           الأرشيف أدناه، والفروق الصغيرة بين السنوات أقل وثوقاً من الكبيرة.
+          {data.sharedCells.map((names) => ` ${names.join(' و')} تقعان في خلية واحدة من شبكة النموذج، فأرقامهما متطابقة.`).join('')}
         </p>
       </div>
       <div className="p-4 space-y-1.5">
         {rows.map((r) => {
-          const below = r.status === 'below';
-          const tone = r.status === 'normal' ? 'text-gray-500' : below ? 'text-red-600' : 'text-emerald-600';
+          const below = r.pct < 0;
+          const tone = r.status === 'near' ? 'text-gray-500' : below ? 'text-red-600' : 'text-emerald-600';
+          const bar = r.status === 'near' ? 'bg-gray-300' : below ? 'bg-red-400' : 'bg-emerald-500';
           return (
             <div key={r.wilaya} className="flex items-center gap-3 px-2 py-1.5">
               <div className="w-28 shrink-0">
@@ -274,8 +281,8 @@ function Era5ComparisonCard({ year }) {
               <div className="flex-1 min-w-0">
                 <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full ${below ? 'bg-red-400' : 'bg-emerald-500'}`}
-                    style={{ width: `${r.status === 'normal' ? 0 : Math.max(3, Math.round((r.pct / maxPct) * 100))}%` }}
+                    className={`h-full rounded-full ${bar}`}
+                    style={{ width: `${r.pct === 0 ? 0 : Math.max(3, Math.round((Math.abs(r.pct) / maxPct) * 100))}%` }}
                   />
                 </div>
                 <p className="text-[10px] text-gray-400 mt-1">
@@ -283,8 +290,8 @@ function Era5ComparisonCard({ year }) {
                 </p>
               </div>
               <div className={`shrink-0 w-24 text-left ${tone}`}>
-                <p className="text-xs font-black">{r.status === 'normal' ? 'عند المعدل' : below ? 'أقل من المعدل' : 'أعلى من المعدل'}</p>
-                {r.status !== 'normal' && <p className="text-[11px] font-black">{below ? '−' : '+'}{r.pct}%</p>}
+                <p className="text-xs font-black">{LABEL[r.status]}</p>
+                <p className="text-[11px] font-black">{r.pct === 0 ? '0%' : `${below ? '−' : '+'}${Math.abs(r.pct)}%`}</p>
               </div>
             </div>
           );

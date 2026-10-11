@@ -15,6 +15,9 @@ const CACHE_TTL = 12 * 60 * 60 * 1000;
 // (ملليمتر واحد زائد في فبراير = «+300%»)، فلا تُعرض له نتيجة
 export const MIN_REFERENCE_MM = 5;
 
+// فرق لا يتجاوز هذه النسبة عن المعدل (زيادةً أو نقصاً) يُصنَّف «قريب من المعدل»
+export const NEAR_NORMAL_PCT = 5;
+
 // فهرس اليوم في سنة من 366 يوماً (0 = 1 يناير)، كما في جدول المعدلات التراكمية
 const DAYS_BEFORE_MONTH = [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335];
 export function dayIndex(monthDay) {
@@ -29,8 +32,9 @@ export function dayIndex(monthDay) {
  * حتى اليوم نفسه — لا تُقارن أشهر من السنة بمعدل السنة كاملة.
  * current: { through: 'YYYY-MM-DD', totals: { [اسم العاصمة]: مم أو null إن نقصت بياناتها } }
  *
- * status: 'below' أقل من المعدل، 'above' أعلى من المعدل، 'normal' عند المعدل،
- * 'not-computable' بيانات ناقصة أو معدل مرجعي منعدم (لا تُعرض له نتيجة).
+ * status: 'below' أقل من المعدل، 'above' أعلى من المعدل، 'near' قريب من المعدل
+ * (ضمن ±NEAR_NORMAL_PCT%)، 'not-computable' بيانات ناقصة أو معدل مرجعي منعدم
+ * (لا تُعرض له نتيجة). pct موقَّعة: سالبة تحت المعدل وموجبة فوقه.
  */
 export function era5Anomalies(cities, year, current = null) {
   const rows = cities.map((city) => {
@@ -38,23 +42,37 @@ export function era5Anomalies(cities, year, current = null) {
     const reference = current ? city.cumulative[dayIndex(current.through.slice(5))] : city.normal;
     const usable = Number.isFinite(recorded) && Number.isFinite(reference) && reference >= MIN_REFERENCE_MM;
     const deficit = usable ? rainDeficit(recorded, reference) : { status: 'not-computable', pct: null };
+    // الهامش يُطبَّق على النسبة قبل التقريب: 5.4% خارج الهامش وإن عُرضت «5%»
+    const exactPct = usable ? (Math.abs(reference - recorded) / reference) * 100 : null;
+    const near = usable && exactPct <= NEAR_NORMAL_PCT;
+    const direction = usable && recorded < reference ? -1 : 1;
     return {
       name: city.name,
       wilaya: city.wilaya,
       // خانة عشرية واحدة: حتى توافق النسبةُ المعروضة الرقمين المعروضين
       recorded: usable ? Math.round(recorded * 10) / 10 : null,
       reference: usable ? Math.round(reference * 10) / 10 : null,
-      status: { deficit: 'below', surplus: 'above', normal: 'normal', 'not-computable': 'not-computable' }[deficit.status],
-      pct: deficit.pct,
+      status: !usable ? 'not-computable' : near ? 'near' : direction < 0 ? 'below' : 'above',
+      pct: usable ? direction * deficit.pct || 0 : null,
+      // مركز خلية ERA5: عاصمتان في خلية واحدة أرقامهما متطابقة
+      cell: city.grid ? city.grid.join(',') : null,
     };
   });
+
+  // عواصم تتشارك خلية ERA5 واحدة (دقة النموذج نحو 25 كم) — تُذكر للقارئ ولا تُفرَّق أرقامها
+  const byCell = new Map();
+  rows.forEach((r) => { if (r.cell) byCell.set(r.cell, [...(byCell.get(r.cell) || []), r.name]); });
+  const sharedCells = [...byCell.values()].filter((names) => names.length > 1);
+
   return {
     year: Number(year),
     partial: Boolean(current),
     through: current ? current.through : null,
     rows,
+    sharedCells,
     below: rows.filter((r) => r.status === 'below').length,
     above: rows.filter((r) => r.status === 'above').length,
+    near: rows.filter((r) => r.status === 'near').length,
     computable: rows.filter((r) => r.status !== 'not-computable').length,
   };
 }

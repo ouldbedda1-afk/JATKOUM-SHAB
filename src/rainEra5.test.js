@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MIN_REFERENCE_MM, dayIndex, era5Anomalies, summariseCurrentYear } from './rainEra5';
+import { MIN_REFERENCE_MM, NEAR_NORMAL_PCT, dayIndex, era5Anomalies, summariseCurrentYear } from './rainEra5';
 import { ERA5_CITIES, ERA5_REFERENCE, ERA5_SOURCE } from './rainEra5Normals';
 
 // مدينة وهمية: معدلها 200 مم، منها 50 مم حتى 31 يوليو و150 حتى 31 أغسطس
@@ -20,23 +20,36 @@ describe('dayIndex', () => {
 
 describe('era5Anomalies — أمثلة معروفة النتيجة', () => {
   it('سنة مكتملة: المجموع مقابل المعدل السنوي', () => {
-    // 150 من 200 = أقل بـ25%؛ 260 من 200 = أعلى بـ30%؛ 200 من 200 = عند المعدل
+    // 150 من 200 = أقل بـ25%؛ 260 من 200 = أعلى بـ30%؛ 200 من 200 = قريب من المعدل
     const res = era5Anomalies([city('أ', { 2024: 150 }), city('ب', { 2024: 260 }), city('ج', { 2024: 200 })], 2024);
     expect(res.partial).toBe(false);
     expect(res.rows.map((r) => [r.name, r.recorded, r.reference, r.status, r.pct])).toEqual([
-      ['أ', 150, 200, 'below', 25], ['ب', 260, 200, 'above', 30], ['ج', 200, 200, 'normal', 0],
+      ['أ', 150, 200, 'below', -25], ['ب', 260, 200, 'above', 30], ['ج', 200, 200, 'near', 0],
     ]);
-    expect(res).toMatchObject({ below: 1, above: 1, computable: 3 });
+    expect(res).toMatchObject({ below: 1, above: 1, near: 1, computable: 3 });
+  });
+
+  it('هامش ±5%: ما داخله «قريب من المعدل»، وما تجاوزه ولو قليلاً خارجه', () => {
+    expect(NEAR_NORMAL_PCT).toBe(5);
+    const res = era5Anomalies([
+      city('أ', { 2024: 190 }),   // −5.0% بالضبط: داخل الهامش
+      city('ب', { 2024: 210 }),   // +5.0%: داخل الهامش
+      city('ج', { 2024: 189 }),   // −5.5%: خارج الهامش
+      city('د', { 2024: 211 }),   // +5.5%: خارج الهامش
+      city('هـ', { 2024: 196 }),  // −2%: داخل الهامش، والنسبة تبقى موقَّعة
+    ], 2024);
+    expect(res.rows.map((r) => [r.status, r.pct])).toEqual([['near', -5], ['near', 5], ['below', -6], ['above', 6], ['near', -2]]);
+    expect(res).toMatchObject({ near: 3, below: 1, above: 1 });
   });
 
   it('السنة الجارية تُقارن بالمعدل حتى اليوم نفسه لا بمعدل السنة كاملة', () => {
     // 50 مم حتى 31 يوليو = عند المعدل، وإن كانت ربع المعدل السنوي فقط
     const jul = era5Anomalies([city('أ')], 2026, { through: '2026-07-31', totals: { 'أ': 50 } });
     expect(jul).toMatchObject({ partial: true, through: '2026-07-31' });
-    expect(jul.rows[0]).toMatchObject({ recorded: 50, reference: 50, status: 'normal' });
+    expect(jul.rows[0]).toMatchObject({ recorded: 50, reference: 50, status: 'near' });
     // المجموع نفسه حتى 31 أغسطس، حيث المعدل 150: أقل بثلثين
     const aug = era5Anomalies([city('أ')], 2026, { through: '2026-08-31', totals: { 'أ': 50 } });
-    expect(aug.rows[0]).toMatchObject({ reference: 150, status: 'below', pct: 67 });
+    expect(aug.rows[0]).toMatchObject({ reference: 150, status: 'below', pct: -67 });
   });
 
   it('معدل مرجعي منعدم أو شبه منعدم: لا نتيجة', () => {
@@ -92,13 +105,20 @@ describe('الملف المولَّد (ERA5 الفعلي)', () => {
     });
   });
 
-  it('سنة مكتملة حقيقية: النسبة تطابق الحساب اليدوي', () => {
+  it('سنة مكتملة حقيقية: النسبة والحالة تطابقان الحساب اليدوي', () => {
     const res = era5Anomalies(ERA5_CITIES, 2022);
     res.rows.forEach((r, i) => {
       const c = ERA5_CITIES[i];
-      const expected = Math.round((Math.abs(c.normal - c.years[2022]) / c.normal) * 100);
-      expect(r.pct).toBe(expected);
-      if (expected > 0) expect(r.status).toBe(c.years[2022] < c.normal ? 'below' : 'above');
+      const exact = ((c.years[2022] - c.normal) / c.normal) * 100;
+      expect(Math.abs(r.pct)).toBe(Math.round(Math.abs(exact)));
+      expect(r.status).toBe(Math.abs(exact) <= 5 ? 'near' : exact < 0 ? 'below' : 'above');
     });
+  });
+
+  it('عاصمتان في خلية ERA5 واحدة تُذكران معاً وأرقامهما متطابقة', () => {
+    const res = era5Anomalies(ERA5_CITIES, 2022);
+    expect(res.sharedCells).toEqual([['تفرغ زينة', 'عرفات']]);
+    const [a, b] = ['تفرغ زينة', 'عرفات'].map((n) => res.rows.find((r) => r.name === n));
+    expect([a.recorded, a.reference, a.pct]).toEqual([b.recorded, b.reference, b.pct]);
   });
 });
