@@ -54,7 +54,7 @@ export function cleanRainReadings(rows, normWilaya = (w) => w) {
     .map((r) => ({ ...r, mm: Number(r.mm) }))
     .filter((r) => Number.isFinite(r.mm));
 
-  return dropReinsertedReports(numeric).map((r) => {
+  const readings = dropReinsertedReports(numeric).map((r) => {
     const stated = canonicalWilaya(r.wilaya) || normWilaya(r.wilaya);
     const rawMoughataa = String(r.moughataa || '').trim();
     let wilaya = stated;
@@ -85,10 +85,45 @@ export function cleanRainReadings(rows, normWilaya = (w) => w) {
       wilayaRaw: r.wilaya,
       wilayaFix,
       moughataa,
+      moughataaFix: null,
+      // مقاطعة مكتوبة صراحةً في تقريرها — وحدها تصلح شاهداً لقرية في تقرير آخر
+      moughataaStated: Boolean(known),
       moughataaKey: rainNameKey(moughataa),
       villageKey: rainNameKey(r.village),
     };
   });
+
+  return fillMoughataaFromOtherReports(readings);
+}
+
+// قرية بلا مقاطعة في تقريرها تُنسب للمقاطعة التي كُتبت لها صراحةً في تقارير أخرى،
+// بشرطين: ثلاثة شواهد على الأقل في الولاية نفسها، واتفاق 90% منها. اسم يتكرر في
+// أكثر من مقاطعة («بغداد»، «المبروك») لا يُحسم ويبقى تحت «—».
+const MIN_WITNESSES = 3;
+const MIN_AGREEMENT = 0.9;
+
+function fillMoughataaFromOtherReports(readings) {
+  const witnesses = new Map();
+  readings.forEach((r) => {
+    if (!r.moughataaStated) return;
+    const key = `${r.wilaya}|${r.villageKey}`;
+    if (!witnesses.has(key)) witnesses.set(key, new Map());
+    const counts = witnesses.get(key);
+    counts.set(r.moughataa, (counts.get(r.moughataa) || 0) + 1);
+  });
+
+  readings.forEach((r) => {
+    if (r.moughataa !== '—') return;
+    const counts = witnesses.get(`${r.wilaya}|${r.villageKey}`);
+    if (!counts) return;
+    const total = [...counts.values()].reduce((a, b) => a + b, 0);
+    const [name, top] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (total < MIN_WITNESSES || top / total < MIN_AGREEMENT) return;
+    r.moughataa = name;
+    r.moughataaKey = rainNameKey(name);
+    r.moughataaFix = 'village-in-other-reports';
+  });
+  return readings;
 }
 
 function newBucket() {

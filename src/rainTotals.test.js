@@ -184,3 +184,31 @@ describe('buildYearlyDeficit', () => {
     expect(res.years.every((y) => y.status === 'not-computable')).toBe(true);
   });
 });
+
+describe('مقاطعة القرية من تقارير أخرى', () => {
+  const stated = (village, moughataa, n) => Array.from({ length: n }, (_, i) => row('الحوض الشرقي', moughataa, village, 10 + i, String(10 + i)));
+
+  it('تُنسب القرية للمقاطعة التي كُتبت لها صراحةً ثلاث مرات على الأقل', () => {
+    const readings = cleanRainReadings([...stated('طير طوبه', 'تمبدغة', 3), row('الحوض الشرقي', null, 'طير طوبه', 35, '01')]);
+    const filled = readings.find((r) => r.mm === 35);
+    expect(filled).toMatchObject({ moughataa: 'تمبدغة', moughataaFix: 'village-in-other-reports' });
+  });
+
+  it('شاهدان لا يكفيان', () => {
+    const readings = cleanRainReadings([...stated('طير طوبه', 'تمبدغة', 2), row('الحوض الشرقي', null, 'طير طوبه', 35, '01')]);
+    expect(readings.find((r) => r.mm === 35).moughataa).toBe('—');
+  });
+
+  it('اسم يتكرر في أكثر من مقاطعة لا يُحسم', () => {
+    const readings = cleanRainReadings([
+      ...stated('المبروك', 'جكني', 6), ...stated('المبروك', 'تمبدغة', 3).map((r) => ({ ...r, report_url: `x-${r.report_url}` })),
+      row('الحوض الشرقي', null, 'المبروك', 35, '01'),
+    ]);
+    expect(readings.find((r) => r.mm === 35).moughataa).toBe('—');
+  });
+
+  it('لا تُستعمل شواهد ولاية أخرى', () => {
+    const readings = cleanRainReadings([...stated('بغداد', 'النعمة', 5), row('الحوض الغربي', null, 'بغداد', 35, '01')]);
+    expect(readings.find((r) => r.mm === 35).moughataa).toBe('—');
+  });
+});
