@@ -27,6 +27,7 @@
 // precipitation)، فالتوقيع مبني على ما هو متاح فعلياً من بيانات.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { CITIES } from '../_shared/mauritaniaCities.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -48,34 +49,6 @@ async function postToFacebookPage(title: string, content: string, slug: string) 
     console.error('FB post error:', e);
   }
 }
-
-// أهم مدن موريتانيا مع إحداثياتها وولاياتها (أسماء الولايات بالصيغة الرسمية
-// المعتمدة في الموقع — DOCS.md §13 — حتى لا تنقسم ولاية واحدة إلى مجموعتين)
-const CITIES = [
-  { city: 'نواكشوط',     lat: 18.079,  lon: -15.965, wilaya: 'نواكشوط الغربية' },
-  { city: 'نواذيبو',     lat: 20.933,  lon: -17.034, wilaya: 'داخلت نواذيبو' },
-  { city: 'روصو',        lat: 16.513,  lon: -15.805, wilaya: 'الترارزة' },
-  { city: 'المذرذرة',    lat: 16.920,  lon: -15.660, wilaya: 'الترارزة' },
-  { city: 'بوتلميت',     lat: 17.546,  lon: -14.698, wilaya: 'الترارزة' },
-  { city: 'ألاك',        lat: 17.053,  lon: -13.917, wilaya: 'لبراكنه' },
-  { city: 'بوكي',        lat: 16.590,  lon: -14.270, wilaya: 'لبراكنه' },
-  { city: 'مقطع لحجار',  lat: 17.500,  lon: -13.083, wilaya: 'لبراكنه' },
-  { city: 'كيهيدي',      lat: 16.150,  lon: -13.505, wilaya: 'كوركول' },
-  { city: 'سيلبابي',     lat: 15.159,  lon: -12.184, wilaya: 'كيدي ماغا' },
-  { city: 'كيفة',        lat: 16.620,  lon: -11.404, wilaya: 'لعصابه' },
-  { city: 'كرو',         lat: 16.811,  lon: -11.826, wilaya: 'لعصابه' },
-  { city: 'كنكوصة',      lat: 15.938,  lon: -11.513, wilaya: 'لعصابه' },
-  { city: 'العيون',      lat: 16.662,  lon: -9.614,  wilaya: 'الحوض الغربي' },
-  { city: 'تنتان',       lat: 16.391,  lon: -10.172, wilaya: 'الحوض الغربي' },
-  { city: 'النعمة',      lat: 16.617,  lon: -7.257,  wilaya: 'الحوض الشرقي' },
-  { city: 'تمبدغة',      lat: 16.236,  lon: -8.168,  wilaya: 'الحوض الشرقي' },
-  { city: 'باسكنو',      lat: 15.866,  lon: -5.950,  wilaya: 'الحوض الشرقي' },
-  { city: 'ولاتة',       lat: 17.300,  lon: -7.024,  wilaya: 'الحوض الشرقي' },
-  { city: 'تجكجة',       lat: 18.556,  lon: -11.427, wilaya: 'تكانت' },
-  { city: 'أطار',        lat: 20.518,  lon: -13.050, wilaya: 'آدرار' },
-  { city: 'أكجوجت',      lat: 19.747,  lon: -14.385, wilaya: 'إينشيري' },
-  { city: 'ازويرات',     lat: 22.735,  lon: -12.471, wilaya: 'تيرس زمور' },
-];
 
 // WMO weather codes → تصنيف
 function classifyCode(code: number): { isRain: boolean; isStorm: boolean; isWind: boolean } {

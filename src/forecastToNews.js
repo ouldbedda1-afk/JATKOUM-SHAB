@@ -415,13 +415,11 @@ export async function autoPublishForecastNews(weatherData) {
   return { published, updated, skipped, results };
 }
 
-// ─── 7. تحذيرات الرياح / الغبار / الحرارة / البرودة ─────────────────────────
+// ─── 7. تحذيرات الرياح / الحرارة / البرودة ─────────────────────────────────
 // تُستدعى مرة واحدة في اليوم بعد autoPublishForecastNews
 // تنشر تحذيراً لكل نوع × كل يوم متأثر في الـ 3 أيام القادمة
-
-const DUST_CODES = new Set([7, 8, 9, 30, 31, 32, 33, 34, 35]);
-
-function isDust(code) { return DUST_CODES.has(code); }
+// الغبار لا يُكشف هنا: رموز الطقس لا تحمله، فتنشره دالة hazard-publisher على
+// الخادم من تركيز الغبار في توقعات CAMS
 
 async function alertSlugExists(slug) {
   const { data } = await supabase.from('news_articles').select('id').eq('slug', slug).limit(1);
@@ -457,7 +455,7 @@ export async function autoPublishWeatherAlerts(weatherData) {
   let published = 0;
 
   // جمع البيانات اليومية لكل مدينة
-  // Map<dateStr, { wind: [{city,wilaya,speed}], heat: [{city,wilaya,temp}], cold: [{city,wilaya,temp}], dust: [{city,wilaya}] }>
+  // Map<dateStr, { wind: [{city,wilaya,speed}], heat: [{city,wilaya,temp}], cold: [{city,wilaya,temp}] }>
   const byDay = {};
 
   (weatherData || []).forEach((city) => {
@@ -466,7 +464,6 @@ export async function autoPublishWeatherAlerts(weatherData) {
     const maxTemps = city.daily?.temperature_2m_max  || [];
     const minTemps = city.daily?.temperature_2m_min  || [];
     const maxWinds = city.daily?.wind_speed_10m_max  || [];
-    const codes    = city.daily?.weather_code        || [];
     const wilaya   = normalizeMauritaniaWilayaName(city.wilaya) || '';
     const cityAr   = toArabicCommune(city.city) || city.city;
 
@@ -474,18 +471,16 @@ export async function autoPublishWeatherAlerts(weatherData) {
       const dateStr = dates[i];
       if (!dateStr || dateStr <= todayStr) continue;
 
-      if (!byDay[dateStr]) byDay[dateStr] = { wind: [], heat: [], cold: [], dust: [] };
+      if (!byDay[dateStr]) byDay[dateStr] = { wind: [], heat: [], cold: [] };
       const d = byDay[dateStr];
 
       const speed = maxWinds[i] ?? 0;
       const tmax  = maxTemps[i] ?? 0;
       const tmin  = minTemps[i] ?? 99;
-      const code  = codes[i]    ?? 0;
 
       if (speed >= 50) d.wind.push({ city: cityAr, wilaya, speed: Math.round(speed) });
       if (tmax  >= 45) d.heat.push({ city: cityAr, wilaya, temp: Math.round(tmax) });
       if (tmin  <= 10) d.cold.push({ city: cityAr, wilaya, temp: Math.round(tmin) });
-      if (isDust(code) || speed >= 60) d.dust.push({ city: cityAr, wilaya });
     }
   });
 
@@ -547,14 +542,6 @@ export async function autoPublishWeatherAlerts(weatherData) {
       headline: 'تحذير من رياح قوية', icon: '💨',
       valueOf: (e) => `حتى ${e.speed} كم/س`,
       recommendations: ['تثبيت أو إزالة الأغراض القابلة للتطاير.', 'متابعة التحديثات الجوية في حال حدوث أي تغيرات.'],
-    });
-
-    // ── عواصف رملية / غبار ──
-    await publishPerCommuneAlerts(dateStr, dateAr, alerts.dust, {
-      typeKey: 'dust', category: 'طقس', tagLabel: 'غبار', imageKey: 'رياح',
-      headline: 'تحذير من عواصف رملية وغبار', icon: '🌪️',
-      valueOf: () => '',
-      recommendations: ['البقاء داخل المنازل وإغلاق النوافذ.', 'ارتداء أغطية الأنف والفم عند الخروج.'],
     });
 
     // ── موجة حر ──
