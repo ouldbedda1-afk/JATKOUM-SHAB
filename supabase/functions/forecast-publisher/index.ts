@@ -49,32 +49,32 @@ async function postToFacebookPage(title: string, content: string, slug: string) 
   }
 }
 
-// أهم مدن موريتانيا مع إحداثياتها وولاياتها
+// أهم مدن موريتانيا مع إحداثياتها وولاياتها (أسماء الولايات بالصيغة الرسمية
+// المعتمدة في الموقع — DOCS.md §13 — حتى لا تنقسم ولاية واحدة إلى مجموعتين)
 const CITIES = [
-  { city: 'نواكشوط',    lat: 18.079,  lon: -15.965, wilaya: 'نواكشوط الغربية' },
-  { city: 'نواذيبو',    lat: 20.933,  lon: -17.034, wilaya: 'داخلت نواذيبو' },
-  { city: 'كيدي ماغا',  lat: 16.456,  lon: -13.507, wilaya: 'كيدي ماغا' },
-  { city: 'روصو',       lat: 16.513,  lon: -15.653, wilaya: 'الترارزة' },
-  { city: 'كيفة',       lat: 16.617,  lon: -11.404, wilaya: 'الحوض الغربي' },
-  { city: 'نيمي',       lat: 16.614,  lon: -9.977,  wilaya: 'الحوض الغربي' },
-  { city: 'تمبدغت',     lat: 17.251,  lon: -10.619, wilaya: 'الحوض الغربي' },
-  { city: 'النعمة',     lat: 17.627,  lon: -7.273,  wilaya: 'الحوض الشرقي' },
-  { city: 'باسكنو',     lat: 15.943,  lon: -9.397,  wilaya: 'الحوض الشرقي' },
-  { city: 'فصاله',      lat: 15.817,  lon: -12.746, wilaya: 'لعصابه' },
-  { city: 'سيلبابي',    lat: 15.174,  lon: -12.745, wilaya: 'كوركول' },
-  { city: 'تيجيكجة',    lat: 18.450,  lon: -11.423, wilaya: 'تكانت' },
-  { city: 'أطار',       lat: 20.518,  lon: -13.050, wilaya: 'آدرار' },
-  { city: 'أكجوجت',     lat: 19.747,  lon: -14.374, wilaya: 'إينشيري' },
-  { city: 'ألاك',       lat: 17.294,  lon: -13.660, wilaya: 'البراكنه' },
-  { city: 'مال',        lat: 17.057,  lon: -15.310, wilaya: 'البراكنه' },
-  { city: 'ايون',       lat: 16.040,  lon: -9.618,  wilaya: 'الحوض الشرقي' },
-  { city: 'ولاته',      lat: 17.293,  lon: -7.024,  wilaya: 'الحوض الشرقي' },
-  { city: 'بوكي',       lat: 17.858,  lon: -12.382, wilaya: 'لبراكنه' },
-  { city: 'المذرذرة',   lat: 16.505,  lon: -12.501, wilaya: 'لعصابه' },
-  { city: 'قيدي',       lat: 15.848,  lon: -12.233, wilaya: 'كوركول' },
-  { city: 'سيلبابي',    lat: 15.174,  lon: -12.745, wilaya: 'كوركول' },
-  { city: 'زويرات',     lat: 22.734,  lon: -12.480, wilaya: 'تيرس زمور' },
-  { city: 'تيندوف',     lat: 17.880,  lon: -14.890, wilaya: 'الترارزة' },
+  { city: 'نواكشوط',     lat: 18.079,  lon: -15.965, wilaya: 'نواكشوط الغربية' },
+  { city: 'نواذيبو',     lat: 20.933,  lon: -17.034, wilaya: 'داخلت نواذيبو' },
+  { city: 'روصو',        lat: 16.513,  lon: -15.805, wilaya: 'الترارزة' },
+  { city: 'المذرذرة',    lat: 16.920,  lon: -15.660, wilaya: 'الترارزة' },
+  { city: 'بوتلميت',     lat: 17.546,  lon: -14.698, wilaya: 'الترارزة' },
+  { city: 'ألاك',        lat: 17.053,  lon: -13.917, wilaya: 'لبراكنه' },
+  { city: 'بوكي',        lat: 16.590,  lon: -14.270, wilaya: 'لبراكنه' },
+  { city: 'مقطع لحجار',  lat: 17.500,  lon: -13.083, wilaya: 'لبراكنه' },
+  { city: 'كيهيدي',      lat: 16.150,  lon: -13.505, wilaya: 'كوركول' },
+  { city: 'سيلبابي',     lat: 15.159,  lon: -12.184, wilaya: 'كيدي ماغا' },
+  { city: 'كيفة',        lat: 16.620,  lon: -11.404, wilaya: 'لعصابه' },
+  { city: 'كرو',         lat: 16.811,  lon: -11.826, wilaya: 'لعصابه' },
+  { city: 'كنكوصة',      lat: 15.938,  lon: -11.513, wilaya: 'لعصابه' },
+  { city: 'العيون',      lat: 16.662,  lon: -9.614,  wilaya: 'الحوض الغربي' },
+  { city: 'تنتان',       lat: 16.391,  lon: -10.172, wilaya: 'الحوض الغربي' },
+  { city: 'النعمة',      lat: 16.617,  lon: -7.257,  wilaya: 'الحوض الشرقي' },
+  { city: 'تمبدغة',      lat: 16.236,  lon: -8.168,  wilaya: 'الحوض الشرقي' },
+  { city: 'باسكنو',      lat: 15.866,  lon: -5.950,  wilaya: 'الحوض الشرقي' },
+  { city: 'ولاتة',       lat: 17.300,  lon: -7.024,  wilaya: 'الحوض الشرقي' },
+  { city: 'تجكجة',       lat: 18.556,  lon: -11.427, wilaya: 'تكانت' },
+  { city: 'أطار',        lat: 20.518,  lon: -13.050, wilaya: 'آدرار' },
+  { city: 'أكجوجت',      lat: 19.747,  lon: -14.385, wilaya: 'إينشيري' },
+  { city: 'ازويرات',     lat: 22.735,  lon: -12.471, wilaya: 'تيرس زمور' },
 ];
 
 // WMO weather codes → تصنيف
@@ -83,6 +83,14 @@ function classifyCode(code: number): { isRain: boolean; isStorm: boolean; isWind
   if (code >= 61) return { isRain: true,  isStorm: false, isWind: false };
   if (code >= 51) return { isRain: true,  isStorm: false, isWind: false };
   return            { isRain: false, isStorm: false, isWind: false };
+}
+
+// هل توقع مدينة ما مهم بما يكفي للنشر؟ العاصفة أيضاً تحتاج حداً أدنى من الكمية
+// والاحتمال، وإلا نُشر "عواصف رعدية" على مدينة توقعها 0.2 مم باحتمال 10%
+function isSignificant(code: number, mm: number, prob: number): { significant: boolean; isStorm: boolean } {
+  const { isRain, isStorm } = classifyCode(code);
+  if (isStorm) return { significant: mm >= 1 && prob >= 30, isStorm: true };
+  return { significant: isRain && mm >= 3 && prob >= 40, isStorm: false };
 }
 
 // تحديد شدة الأمطار من كمية mm
@@ -282,7 +290,10 @@ async function publishOrUpdate(opts: {
       forecast_signature: opts.signatureData, forecast_signature_hash: opts.signatureHash,
       featured_image: '',
     }]);
-    if (error) return 'skipped';
+    if (error) {
+      await tg(`❌ فشل نشر ${opts.slug}: ${error.message}`);
+      return 'skipped';
+    }
     await tg(`📰 *${opts.freshLabel}:*\n${opts.title}\n\n🔗 ${opts.link}`);
     await postToFacebookPage(opts.title, opts.body, opts.slug);
     return 'published';
@@ -305,20 +316,78 @@ async function publishOrUpdate(opts: {
     forecast_signature: opts.signatureData, forecast_signature_hash: opts.signatureHash,
   }).eq('id', existing.id);
 
-  if (error) return 'skipped';
+  if (error) {
+    await tg(`❌ فشل تحديث ${opts.slug}: ${error.message}`);
+    return 'skipped';
+  }
   await tg(`🔄 *${opts.updateLabel}:*\n${opts.title}\n\n🔗 ${opts.link}`);
   return 'updated';
+}
+
+// توقيع فارغ = "لا أمطار مهمة" — يُخزَّن على المقال بعد إلغاء توقعه، فلا يُلغى مرتين
+const EMPTY_SIGNATURE: SignatureData = { by_wilaya: {}, intensity: '', max_precip_mm: 0 };
+
+// إن سبق نشر مقال بهذا الـslug بتوقع أمطار ثم اختفت الأمطار من التشغيلة الجديدة،
+// يُحدَّث المقال في مكانه بأن الأمطار لم تعد متوقعة — بدل أن يبقى التوقع القديم
+// منشوراً وكأنه ما زال قائماً.
+async function retractIfPublished(opts: {
+  slug: string;
+  periodPhrase: string;
+  link: string;
+  updateLabel: string;
+}): Promise<boolean> {
+  const cols = 'id, title, content, forecast_signature, forecast_signature_hash';
+  const { data: rows } = await supabase.from('news_articles').select(cols).eq('slug', opts.slug).limit(1);
+  const existing: ArticleRow | null = rows?.[0] || null;
+  if (!existing || !Object.keys(existing.forecast_signature?.by_wilaya || {}).length) return false;
+
+  const title = `تحديث: لم تعد الأمطار المهمة متوقعة ${opts.periodPhrase}`;
+  const content =
+    `🔄 **تحديث:** تشير آخر تشغيلة للنماذج إلى أن الأمطار المهمة لم تعد متوقعة ${opts.periodPhrase}.\n\n` +
+    renderPreviousSummary(existing.forecast_signature, opts.periodPhrase).trimEnd();
+  const signatureHash = await sha256Hex(JSON.stringify(canonicalize(EMPTY_SIGNATURE)));
+
+  const { error } = await supabase.from('news_articles').update({
+    title, excerpt: title, content,
+    published_at: new Date().toISOString(),
+    forecast_signature: EMPTY_SIGNATURE, forecast_signature_hash: signatureHash,
+  }).eq('id', existing.id);
+
+  if (error) {
+    await tg(`❌ فشل تحديث ${opts.slug}: ${error.message}`);
+    return false;
+  }
+  await tg(`🔄 *${opts.updateLabel}:*\n${title}\n\n🔗 ${opts.link}`);
+  return true;
 }
 
 // نافذة الجولة المسائية: توقع موحّد لآخر 24 ساعة بدقة الساعة (بدل التقسيم
 // حسب اليوم التقويمي) — بيانات hourly من Open-Meteo، وليس daily
 const PM_WINDOW_HOURS = 24;
 
-interface CityAgg { storm: string[]; rain: string[]; stormWilaya: string[]; rainWilaya: string[]; maxMm: number }
+// cityMm: كمية كل مدينة على حدة — الشدة تُكتب لكل مدينة من كميتها هي، لا من
+// أعلى كمية في النشرة كلها
+interface CityAgg { storm: string[]; rain: string[]; stormWilaya: string[]; rainWilaya: string[]; maxMm: number; cityMm: Record<string, number> }
+
+function emptyAgg(): CityAgg {
+  return { storm: [], rain: [], stormWilaya: [], rainWilaya: [], maxMm: 0, cityMm: {} };
+}
+
+function addCity(entry: CityAgg, cityInfo: { city: string; wilaya: string }, mm: number, isStorm: boolean) {
+  entry.maxMm = Math.max(entry.maxMm, mm);
+  entry.cityMm[cityInfo.city] = Math.max(entry.cityMm[cityInfo.city] ?? 0, mm);
+  if (isStorm) {
+    if (!entry.storm.includes(cityInfo.city)) entry.storm.push(cityInfo.city);
+    if (!entry.stormWilaya.includes(cityInfo.wilaya)) entry.stormWilaya.push(cityInfo.wilaya);
+  } else {
+    if (!entry.rain.includes(cityInfo.city)) entry.rain.push(cityInfo.city);
+    if (!entry.rainWilaya.includes(cityInfo.wilaya)) entry.rainWilaya.push(cityInfo.wilaya);
+  }
+}
 
 function buildPmWindowEntry(results: any[], now: Date): CityAgg {
   const windowEnd = new Date(now.getTime() + PM_WINDOW_HOURS * 3600 * 1000);
-  const entry: CityAgg = { storm: [], rain: [], stormWilaya: [], rainWilaya: [], maxMm: 0 };
+  const entry = emptyAgg();
 
   results.forEach((r: any, idx: number) => {
     const cityInfo = CITIES[idx];
@@ -333,41 +402,49 @@ function buildPmWindowEntry(results: any[], now: Date): CityAgg {
       maxProb = Math.max(maxProb, r.hourly.precipitation_probability?.[hi] ?? 0);
     });
 
-    const { isRain, isStorm } = classifyCode(maxCode);
-    const significant = (isRain && sumMm >= 3 && maxProb >= 40) || isStorm;
+    const { significant, isStorm } = isSignificant(maxCode, sumMm, maxProb);
     if (!significant) return;
-
-    entry.maxMm = Math.max(entry.maxMm, sumMm);
-    if (isStorm) {
-      if (!entry.storm.includes(cityInfo.city)) entry.storm.push(cityInfo.city);
-      if (!entry.stormWilaya.includes(cityInfo.wilaya)) entry.stormWilaya.push(cityInfo.wilaya);
-    } else {
-      if (!entry.rain.includes(cityInfo.city)) entry.rain.push(cityInfo.city);
-      if (!entry.rainWilaya.includes(cityInfo.wilaya)) entry.rainWilaya.push(cityInfo.wilaya);
-    }
+    addCity(entry, cityInfo, sumMm, isStorm);
   });
 
   return entry;
 }
 
-function buildTitle(cityNames: string, intensity: string, hasStorm: boolean, periodPhrase: string): string {
-  return hasStorm
+// المدن مرتبة من الأغزر إلى الأخف — العنوان يذكر أغزرها أولاً
+function citiesByMm(entry: CityAgg): string[] {
+  return [...entry.storm, ...entry.rain].sort((a, b) => (entry.cityMm[b] ?? 0) - (entry.cityMm[a] ?? 0));
+}
+
+// العنوان يذكر حتى 4 مدن: إن اختلفت شدتها يُكتب "متفاوتة الشدة" بدل نسبة شدة
+// أغزرها إلى الجميع
+function buildTitle(entry: CityAgg, periodPhrase: string): string {
+  const cities = citiesByMm(entry).slice(0, 4);
+  const intensities = new Set(cities.map((c) => intensityFromMm(entry.cityMm[c] ?? 0)));
+  const intensity = intensities.size === 1 ? [...intensities][0] : 'متفاوتة الشدة';
+  const cityNames = cities.join(' و');
+  return entry.storm.length > 0
     ? `يتوقع بإذن الله هطول أمطار ${intensity} على ${cityNames} ${periodPhrase} مصحوبة بعواصف رعدية`
     : `يتوقع بإذن الله هطول أمطار ${intensity} على ${cityNames} ${periodPhrase}`;
 }
 
-function buildBody(entry: { storm: string[]; rain: string[] }, intensity: string, periodPhrase: string): string {
+function buildBody(entry: CityAgg, periodPhrase: string): string {
   let body = '';
   entry.storm.forEach((city) => {
     const w = CITIES.find((c) => c.city === city)?.wilaya || '';
-    body += `يتوقع بإذن الله ⛈️ هطول أمطار ${intensity} على ${city}${w ? ` (${w})` : ''} ${periodPhrase} مصحوبة بعواصف رعدية.\n\n`;
+    body += `يتوقع بإذن الله ⛈️ هطول أمطار ${intensityFromMm(entry.cityMm[city] ?? 0)} على ${city}${w ? ` (${w})` : ''} ${periodPhrase} مصحوبة بعواصف رعدية.\n\n`;
   });
   entry.rain.forEach((city) => {
     const w = CITIES.find((c) => c.city === city)?.wilaya || '';
-    body += `يتوقع بإذن الله 🌧️ هطول أمطار ${intensity} على ${city}${w ? ` (${w})` : ''} ${periodPhrase}.\n\n`;
+    body += `يتوقع بإذن الله 🌧️ هطول أمطار ${intensityFromMm(entry.cityMm[city] ?? 0)} على ${city}${w ? ` (${w})` : ''} ${periodPhrase}.\n\n`;
   });
   body += `جعلها الله خيراً وبركة.`;
   return body;
+}
+
+// ولاية المقال = ولاية أغزر مدينة فيه
+function mainWilaya(entry: CityAgg): string {
+  const top = citiesByMm(entry)[0];
+  return top ? cityWilaya(top) : '';
 }
 
 Deno.serve(async () => {
@@ -402,25 +479,25 @@ Deno.serve(async () => {
     // ═══ الجولة المسائية (PM): مقال موحّد واحد لآخر 24 ساعة ═══════════════
     if (run === 'PM') {
       const entry = buildPmWindowEntry(results, now);
+      const periodPhrase = `خلال الـ${PM_WINDOW_HOURS} ساعة القادمة`;
+      const slug = `forecast-window-${today}-PM`;
 
       if (entry.storm.length === 0 && entry.rain.length === 0) {
-        await tg(`☀️ لا توقعات أمطار مهمة خلال الـ${PM_WINDOW_HOURS} ساعة القادمة.`);
-        return new Response(JSON.stringify({ published: 0, message: 'no significant forecast' }));
+        const retracted = await retractIfPublished({
+          slug, periodPhrase, link: link(slug),
+          updateLabel: `تحديث الجولة المسائية (${modelCycle})`,
+        });
+        if (!retracted) await tg(`☀️ لا توقعات أمطار مهمة خلال الـ${PM_WINDOW_HOURS} ساعة القادمة.`);
+        return new Response(JSON.stringify({ published: 0, retracted: retracted ? 1 : 0, message: 'no significant forecast' }));
       }
 
-      const allCities  = [...entry.storm, ...entry.rain];
-      const hasStorm   = entry.storm.length > 0;
-      const intensity  = intensityFromMm(entry.maxMm);
-      const cityNames  = allCities.slice(0, 4).join(' و');
-      const category   = hasStorm ? 'عواصف' : 'أمطار';
-      const wilaya     = [...entry.stormWilaya, ...entry.rainWilaya][0] || '';
-      const periodPhrase = `خلال الـ${PM_WINDOW_HOURS} ساعة القادمة`;
+      const category   = entry.storm.length > 0 ? 'عواصف' : 'أمطار';
+      const wilaya     = mainWilaya(entry);
 
-      const title = buildTitle(cityNames, intensity, hasStorm, periodPhrase);
-      const body  = buildBody(entry, intensity, periodPhrase);
-      const signatureData = buildSignature(entry, intensity);
+      const title = buildTitle(entry, periodPhrase);
+      const body  = buildBody(entry, periodPhrase);
+      const signatureData = buildSignature(entry, intensityFromMm(entry.maxMm));
       const signatureHash = await sha256Hex(JSON.stringify(canonicalize(signatureData)));
-      const slug = `forecast-window-${today}-PM`;
 
       const result = await publishOrUpdate({
         slug, title, body, category, wilaya,
@@ -465,6 +542,12 @@ Deno.serve(async () => {
     }
 
     const byDay: Record<string, DayEntry> = {};
+    const periodFor = (date: Date) => `يوم ${arabicDay(date)} ${arabicDate(date)}`;
+
+    // الأيام المغطّاة بهذه الجولة (يوم+1 ويوم+2) — مطلوبة حتى لو خلت من الأمطار،
+    // لإلغاء مقال سبق نشره لأحدها إن اختفت أمطاره من التشغيلة الجديدة
+    const forecastDays: string[] = (results.find((r: any) => r?.daily?.time)?.daily.time || [])
+      .filter((d: string) => d !== today);
 
     results.forEach((r: any, idx: number) => {
       const cityInfo = CITIES[idx];
@@ -477,52 +560,39 @@ Deno.serve(async () => {
         const mm    = r.daily.precipitation_sum?.[di] ?? 0;
         const prob  = r.daily.precipitation_probability_max?.[di] ?? 0;
 
-        const { isRain, isStorm } = classifyCode(code);
-        const significant = (isRain && mm >= 3 && prob >= 40) || isStorm;
+        const { significant, isStorm } = isSignificant(code, mm, prob);
         if (!significant) return;
 
-        if (!byDay[dateStr]) {
-          byDay[dateStr] = {
-            date: new Date(dateStr + 'T12:00:00Z'),
-            dateStr,
-            storm: [], rain: [],
-            stormWilaya: [], rainWilaya: [],
-            maxMm: 0,
-          };
-        }
-        const entry = byDay[dateStr];
-        entry.maxMm = Math.max(entry.maxMm, mm);
-        if (isStorm) {
-          if (!entry.storm.includes(cityInfo.city)) entry.storm.push(cityInfo.city);
-          if (!entry.stormWilaya.includes(cityInfo.wilaya)) entry.stormWilaya.push(cityInfo.wilaya);
-        } else {
-          if (!entry.rain.includes(cityInfo.city)) entry.rain.push(cityInfo.city);
-          if (!entry.rainWilaya.includes(cityInfo.wilaya)) entry.rainWilaya.push(cityInfo.wilaya);
-        }
+        byDay[dateStr] ||= { date: new Date(dateStr + 'T12:00:00Z'), dateStr, ...emptyAgg() };
+        addCity(byDay[dateStr], cityInfo, mm, isStorm);
       });
     });
 
+    let retracted = 0;
+    for (const dateStr of forecastDays) {
+      if (byDay[dateStr]) continue;
+      const slug = `forecast-daily-${dateStr}-AM`;
+      if (await retractIfPublished({
+        slug, periodPhrase: periodFor(new Date(dateStr + 'T12:00:00Z')), link: link(slug),
+        updateLabel: 'تحديث ضمن الجولة الصباحية',
+      })) retracted++;
+    }
+
     if (Object.keys(byDay).length === 0) {
-      await tg('☀️ لا توقعات أمطار مهمة في الـ 48 ساعة القادمة.');
-      return new Response(JSON.stringify({ published: 0, message: 'no significant forecast' }));
+      if (!retracted) await tg('☀️ لا توقعات أمطار مهمة في الـ 48 ساعة القادمة.');
+      return new Response(JSON.stringify({ published: 0, retracted, message: 'no significant forecast' }));
     }
 
     for (const [dateStr, entry] of Object.entries(byDay)) {
       const slug = `forecast-daily-${dateStr}-AM`;
 
-      const allCities  = [...entry.storm, ...entry.rain];
-      const hasStorm   = entry.storm.length > 0;
-      const intensity  = intensityFromMm(entry.maxMm);
-      const dayAr      = arabicDay(entry.date);
-      const dateAr     = arabicDate(entry.date);
-      const cityNames  = allCities.slice(0, 4).join(' و');
-      const category   = hasStorm ? 'عواصف' : 'أمطار';
-      const wilaya     = [...entry.stormWilaya, ...entry.rainWilaya][0] || '';
-      const periodPhrase = `يوم ${dayAr} ${dateAr}`;
+      const category   = entry.storm.length > 0 ? 'عواصف' : 'أمطار';
+      const wilaya     = mainWilaya(entry);
+      const periodPhrase = periodFor(entry.date);
 
-      const title = buildTitle(cityNames, intensity, hasStorm, periodPhrase);
-      const body  = buildBody(entry, intensity, periodPhrase);
-      const signatureData = buildSignature(entry, intensity);
+      const title = buildTitle(entry, periodPhrase);
+      const body  = buildBody(entry, periodPhrase);
+      const signatureData = buildSignature(entry, intensityFromMm(entry.maxMm));
       const signatureHash = await sha256Hex(JSON.stringify(canonicalize(signatureData)));
 
       const result = await publishOrUpdate({
@@ -557,7 +627,7 @@ Deno.serve(async () => {
       }).catch(() => {});
     }
 
-    return new Response(JSON.stringify({ published, updated, days: Object.keys(byDay).length }), {
+    return new Response(JSON.stringify({ published, updated, retracted, days: Object.keys(byDay).length }), {
       headers: { 'content-type': 'application/json' },
     });
 
