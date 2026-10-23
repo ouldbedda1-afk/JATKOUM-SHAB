@@ -69,19 +69,23 @@ async function postToFacebookPage(title: string, content: string, slug: string) 
   }
 }
 
-// تاريخ عربي بالتقويم الميلادي (ar-SA وحده يُنتج التقويم الهجري)
-function arDate(dateStr: string, withWeekday = true): string {
-  const d = new Date(dateStr + 'T12:00:00Z');
-  const opts = { calendar: 'gregory', timeZone: 'Africa/Abidjan' } as const;
-  const date = d.toLocaleDateString('ar-SA', { ...opts, day: 'numeric', month: 'long' });
-  return withWeekday ? `${d.toLocaleDateString('ar-SA', { ...opts, weekday: 'long' })} ${date}` : date;
+// "السبت 24 أكتوبر" بأرقام غربية — toLocaleDateString('ar-SA') يُخرج أرقاماً
+// هندية (٢٤)، فالاسمان من جدولين ثابتين والرقم من getUTCDate
+const WEEKDAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+const MONTHS   = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+
+function dayName(dateStr: string): string {
+  return WEEKDAYS[new Date(dateStr + 'T12:00:00Z').getUTCDay()];
 }
 
-function dayLabel(dateStr: string, today: string): string {
-  const tomorrow = new Date(Date.parse(today + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
-  if (dateStr === today)    return `اليوم ${arDate(dateStr)}`;
-  if (dateStr === tomorrow) return `غداً ${arDate(dateStr)}`;
-  return `يوم ${arDate(dateStr)}`;
+function dayLabel(dateStr: string, withYear = false): string {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  return `${dayName(dateStr)} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}${withYear ? ` ${d.getUTCFullYear()}` : ''}`;
+}
+
+// "نواكشوط، وازويرات، وبوتلميت"
+function joinAr(items: string[]): string {
+  return items.map((s, i) => (i === 0 ? s : `و${s}`)).join('، ');
 }
 
 async function sha256Hex(text: string): Promise<string> {
@@ -102,7 +106,7 @@ function canonicalize(value: unknown): unknown {
   return value;
 }
 
-const fmt1 = (v: number) => v.toFixed(1).replace('.', ',');
+const fmt1 = (v: number) => v.toFixed(1);
 
 function median(values: number[]): number {
   if (!values.length) return 0;
@@ -220,76 +224,123 @@ async function wavesByDay(today: string): Promise<ByDay<WaveItem>> {
 }
 
 // ── صياغة النشرة ─────────────────────────────────────────────────────────
-// "الترارزة (بوتلميت، روصو)، تيرس زمور (ازويرات)"
-function byWilaya(items: { city: string; wilaya: string }[]): string {
-  const groups = new Map<string, string[]>();
-  for (const it of items) {
-    const list = groups.get(it.wilaya) || [];
-    if (!list.includes(it.city)) list.push(it.city);
-    groups.set(it.wilaya, list);
-  }
-  return [...groups].map(([w, cities]) => `${w} (${cities.join('، ')})`).join('، ');
+// قالب النشرة: مقدمة "تشير التوقعات الجوية إلى…"، ثم قسم لكل ظاهرة موجودة،
+// ثم التوقيع. الموقع لا يعرض قوائم Markdown (فقط **تشديد** وأسطر)، فالبنود
+// تبدأ بـ"• ". كل قسم يُرجع جملته في المقدمة مع نصه.
+interface Section { intro: string; body: string }
+
+const uniq = (a: string[]) => [...new Set(a)];
+
+// "خلال اليومين المقبلين" / "يوم السبت"
+function spanPhrase(days: string[]): string {
+  if (days.length === 1) return `يوم ${dayName(days[0])}`;
+  if (days.length === 2) return 'خلال اليومين المقبلين';
+  return 'خلال الأيام المقبلة';
 }
 
-function dustSection(days: string[], dust: ByDay<DustItem>, today: string): string {
+// "بمدينة ازويرات" / "بمدن ازويرات وأطار"
+function inCities(cities: string[]): string {
+  if (cities.length === 1) return `بمدينة ${cities[0]}`;
+  if (cities.length <= 3) return `بمدن ${cities.join(' و')}`;
+  return 'في عدة مدن';
+}
+
+function dustSection(days: string[], dust: ByDay<DustItem>): Section | null {
   const lines: string[] = [];
+  const dustDays: string[] = [];
+  let prev = new Set<string>();
+  let anyHeavy = false;
   for (const d of days) {
     const items = (dust[d] || []).sort((a, b) => b.mean - a.mean);
-    if (!items.length) continue;
-    const heavy = items.filter((i) => i.heavy);
-    const light = items.filter((i) => !i.heavy);
+    if (!items.length) { prev = new Set(); continue; }
+    const heavy = items.filter((i) => i.heavy).map((i) => i.city);
+    const light = items.filter((i) => !i.heavy).map((i) => i.city);
+    // "استمرار" إن كانت إحدى مدنه مغبرة في اليوم السابق، "متوقع" لظهور جديد بعد اليوم الأول
+    const lead = items.some((i) => prev.has(i.city)) ? 'استمرار الغبار' : (lines.length ? 'غبار متوقع' : 'غبار');
     const parts: string[] = [];
-    if (heavy.length) parts.push(`غبار كثيف مع تراجع في مدى الرؤية على ${byWilaya(heavy)}`);
-    if (light.length) parts.push(`غبار على ${byWilaya(light)}`);
-    lines.push(`• ${dayLabel(d, today)}: ${parts.join('، و')}.`);
+    if (heavy.length) { anyHeavy = true; parts.push(`غبار كثيف مع تراجع في مدى الرؤية في ${joinAr(heavy)}`); }
+    if (light.length) parts.push(`${lead} في ${joinAr(light)}`);
+    lines.push(`• **${dayLabel(d)}:** ${parts.join('، و')}.`);
+    dustDays.push(d);
+    prev = new Set(items.map((i) => i.city));
   }
-  if (!lines.length) return '';
-  return `🌫️ **الغبار**\n${lines.join('\n')}\n` +
-    'يُنصح مرضى الربو والحساسية بتجنب الخروج غير الضروري وتغطية الأنف والفم، والحذر أثناء القيادة على الطرق بين المدن.';
+  if (!lines.length) return null;
+  const kind = anyHeavy ? 'غبار كثيف' : 'الغبار';
+  return {
+    intro: `${dustDays.length > 1 ? 'استمرار أجواء' : 'أجواء'} ${kind} في بعض المناطق`,
+    body: `**الغبار**\n\n${lines.join('\n')}\n\n` +
+      'يُنصح بالحد من التعرض للغبار، مع توخي الحذر أثناء القيادة، خاصة على الطرق بين المدن.',
+  };
 }
 
-function coldSection(days: string[], cold: ByDay<ColdItem>, today: string): string {
-  const lines: string[] = [];
-  for (const d of days) {
-    const items = (cold[d] || []).sort((a, b) => b.drop - a.drop);
-    if (!items.length) continue;
-    const cities = items.map((i) => `${i.city} (${i.wilaya}) الصغرى ${i.tmin}° والكبرى ${i.tmax}°`).join('، ');
-    lines.push(`• ${dayLabel(d, today)}: ${cities}.`);
-  }
-  if (!lines.length) return '';
-  return `🌡️ **انخفاض في درجات الحرارة**\n${lines.join('\n')}`;
+function coldSection(days: string[], cold: ByDay<ColdItem>): Section | null {
+  const coldDays = days.filter((d) => cold[d]?.length);
+  if (!coldDays.length) return null;
+  const cities = uniq(coldDays.flatMap((d) => cold[d].sort((a, b) => b.drop - a.drop).map((i) => i.city)));
+  const temps = (i: ColdItem) => `الصغرى ${i.tmin}°م، والعظمى ${i.tmax}°م`;
+  const lines = coldDays.map((d) => {
+    const items = cold[d];
+    // مدينة واحدة: اسمها في السطر التمهيدي، والبنود بالدرجات فقط كما في القالب
+    const text = cities.length === 1 ? temps(items[0]) : items.map((i) => `${i.city}: ${temps(i)}`).join('؛ ');
+    return `• **${dayLabel(d)}:** ${text}.`;
+  });
+  return {
+    intro: `انخفاض ملحوظ في درجات الحرارة ${inCities(cities)}`,
+    body: `**انخفاض درجات الحرارة**\n\n` +
+      `تُسجَّل أجواء باردة نسبيًا في ${joinAr(cities)} ${spanPhrase(coldDays)}:\n${lines.join('\n')}`,
+  };
 }
 
-function wavesSection(days: string[], waves: ByDay<WaveItem>, today: string): string {
+function wavesSection(days: string[], waves: ByDay<WaveItem>): Section | null {
+  const waveDays = days.filter((d) => waves[d]?.length);
+  if (!waveDays.length) return null;
+
+  const isHigh = (w: WaveItem) => w.kind !== 'calming';
+  const highDays = waveDays.filter((d) => waves[d].some(isHigh));
+  const dayMax = (d: string) => Math.max(...waves[d].filter(isHigh).map((w) => w.height));
+  const peak = highDays.length ? highDays.reduce((a, b) => (dayMax(b) > dayMax(a) ? b : a)) : null;
+
   const lines: string[] = [];
-  let anyHigh = false;
-  for (const d of days) {
-    const items = (waves[d] || []).sort((a, b) => b.height - a.height);
-    if (!items.length) continue;
+  let lastPlaces = '';
+  for (const d of waveDays) {
+    const items = waves[d].sort((a, b) => b.height - a.height);
     const parts: string[] = [];
-    const veryHigh = items.filter((i) => i.kind === 'very_high');
-    const high     = items.filter((i) => i.kind === 'high');
-    const calming  = items.filter((i) => i.kind === 'calming');
-    const where = (list: WaveItem[]) => list.map((i) => `${i.place} (${fmt1(i.height)} م)`).join('، ');
-    if (veryHigh.length) parts.push(`ارتفاع كبير في الموج على سواحل ${where(veryHigh)}`);
-    if (high.length)     parts.push(`ارتفاع في الموج على سواحل ${where(high)}`);
-    if (calming.length)  parts.push(`تراجع في ارتفاع الموج على سواحل ${where(calming)}`);
-    if (veryHigh.length || high.length) anyHigh = true;
-    lines.push(`• ${dayLabel(d, today)}: ${parts.join('، و')}.`);
+    for (const [verb, list] of [['ارتفاع الموج', items.filter(isHigh)], ['تراجع ارتفاع الموج', items.filter((w) => !isHigh(w))]] as const) {
+      if (!list.length) continue;
+      const places = list.map((w) => w.place).join('|');
+      if (list.length === 1) {
+        // نفس السواحل كالبند السابق: لا يُعاد ذكرها
+        parts.push(`${verb} إلى نحو ${fmt1(list[0].height)} متر${places === lastPlaces ? '' : ` على سواحل ${list[0].place}`}`);
+      } else {
+        parts.push(`${verb} على سواحل ${joinAr(list.map((w) => `${w.place} (نحو ${fmt1(w.height)} متر)`))}`);
+      }
+      lastPlaces = places;
+    }
+    const peakNote = highDays.length > 1 && d === peak ? '، وهي الحالة الأشد خلال الفترة المتوقعة' : '';
+    lines.push(`• **${dayLabel(d)}:** ${parts.join('، و')}${peakNote}.`);
   }
-  if (!lines.length) return '';
-  // عبارة الحذر وحدها، دون نصح بعدم الإبحار
-  return `🌊 **حالة البحر**\n${lines.join('\n')}` + (anyHigh ? '\nيُنصح بالحذر للزوارق التقليدية.' : '');
+
+  // النصيحة: الحذر وحده، دون نصح بعدم الإبحار
+  const advice = peak
+    ? `\n\nيُنصح الصيادون وأصحاب الزوارق التقليدية بتوخي الحذر الشديد${highDays.length > 1 ? '، خصوصًا' : ''} يوم ${dayName(peak)}.`
+    : '';
+  const coast = (list: WaveItem[]) => uniq(list.map((w) => w.place)).join(' و');
+  return {
+    intro: peak
+      ? `ارتفاع أمواج البحر على سواحل ${coast(waves[peak].filter(isHigh))} خلال يوم ${dayName(peak)}`
+      : `تراجع ارتفاع الموج على سواحل ${coast(waveDays.flatMap((d) => waves[d]))}`,
+    body: `**${peak ? 'حالة البحر وارتفاع الأمواج' : 'حالة البحر'}**\n\n${lines.join('\n')}${advice}`,
+  };
 }
 
-function buildTitle(today: string, has: { dust: boolean; cold: boolean; wavesHigh: boolean; wavesCalm: boolean }): string {
-  const topics: string[] = [];
-  if (has.dust) topics.push('غبار');
-  if (has.cold) topics.push('انخفاض في درجات الحرارة');
-  if (has.wavesHigh) topics.push('ارتفاع الموج');
-  else if (has.wavesCalm) topics.push('تراجع الموج');
-  return `النشرة الجوية ليوم ${arDate(today)}: ${topics.join(' و')}`;
+// "تشير التوقعات الجوية إلى A، مع B، وC."
+function buildIntro(sections: Section[]): string {
+  const [first, ...rest] = sections.map((s) => s.intro);
+  const tail = rest.map((t, i) => (i === 0 ? `، مع ${t}` : `، و${t}`)).join('');
+  return `تشير التوقعات الجوية إلى ${first}${tail}.`;
 }
+
+const FOOTER = '**جاتكم اسحاب | الطقس والأمطار في موريتانيا**\n\nاللهم احفظ البلاد والعباد.';
 
 Deno.serve(async () => {
   try {
@@ -312,21 +363,19 @@ Deno.serve(async () => {
     ]);
     if (errors.length) await tg(`❌ hazard-publisher:\n${errors.join('\n')}`);
 
-    const sections = [dustSection(days, dust, today), coldSection(days, cold, today), wavesSection(days, waves, today)].filter(Boolean);
+    const sections = [dustSection(days, dust), coldSection(days, cold), wavesSection(days, waves)]
+      .filter((x): x is Section => x !== null);
     if (!sections.length) {
       await tg('☀️ لا ظواهر جوية لافتة (غبار، انخفاض حرارة، موج) في الأيام الثلاثة القادمة.');
       return new Response(JSON.stringify({ published: 0, message: 'nothing notable', errors }));
     }
 
     const allWaves = days.flatMap((d) => waves[d] || []);
-    const has = {
-      dust: days.some((d) => dust[d]?.length),
-      cold: days.some((d) => cold[d]?.length),
-      wavesHigh: allWaves.some((w) => w.kind !== 'calming'),
-      wavesCalm: allWaves.some((w) => w.kind === 'calming'),
-    };
-    const title = buildTitle(today, has);
-    const body  = sections.join('\n\n');
+    const hasDust = days.some((d) => dust[d]?.length);
+    const hasCold = days.some((d) => cold[d]?.length);
+    const title = `النشرة الجوية لموريتانيا | ${dayLabel(today, true)}`;
+    const main  = [buildIntro(sections), ...sections.map((x) => x.body)].join('\n\n');
+    const body  = `${main}\n\n${FOOTER}`;
 
     // البصمة: الظواهر بمستوياتها (لا القيم الدقيقة) — 2.1 م ← 2.3 م لا يستحق تحديثاً
     const signature = {
@@ -339,7 +388,7 @@ Deno.serve(async () => {
     const slug = `weather-bulletin-${today}`;
     const link = `${SITE}/news/${slug}`;
     const tags = ['أوتوماتيك', 'النشرة الجوية',
-      ...(has.dust ? ['غبار'] : []), ...(has.cold ? ['برودة'] : []), ...(allWaves.length ? ['موج', 'بحر'] : [])];
+      ...(hasDust ? ['غبار'] : []), ...(hasCold ? ['برودة'] : []), ...(allWaves.length ? ['موج', 'بحر'] : [])];
     const wilaya = days.flatMap((d) => [...(dust[d] || []), ...(cold[d] || [])])[0]?.wilaya || '';
 
     const { data: rows } = await supabase.from('news_articles')
@@ -358,11 +407,12 @@ Deno.serve(async () => {
       else {
         result = 'published';
         await tg(`📰 *نُشرت النشرة الجوية تلقائياً:*\n${title}\n\n🔗 ${link}`);
-        await postToFacebookPage(title, body, slug);
+        // fb-post-article ينشر النص وحده، فيُضاف العنوان في رأسه
+        await postToFacebookPage(title, `**${title}**\n\n${body}`, slug);
       }
     } else if (existing.forecast_signature_hash !== hash) {
       const { error } = await supabase.from('news_articles').update({
-        title, excerpt: title, content: `${body}\n\n🔄 حُدّثت هذه النشرة بآخر التوقعات.`, wilaya, tags,
+        title, excerpt: title, content: `${main}\n\nحُدّثت هذه النشرة بآخر التوقعات.\n\n${FOOTER}`, wilaya, tags,
         published_at: new Date().toISOString(),
         forecast_signature: signature, forecast_signature_hash: hash,
       }).eq('id', existing.id);
