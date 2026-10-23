@@ -1,20 +1,23 @@
 // Supabase Edge Function: hazard-publisher
 // يُستدعى مرة يومياً عبر pg_cron (8:00 UTC = 8:00 بتوقيت موريتانيا) وينشر
-// تلقائياً نشرات الأخطار خارج موسم الأمطار، لليوم ويومين بعده:
+// "النشرة الجوية" خارج موسم الأمطار: مقال واحد في اليوم يغطي اليوم ويومين
+// بعده، ولا يُنشر إلا إن وُجدت ظاهرة لافتة واحدة على الأقل:
 //
-// • الموج: Open-Meteo Marine (أقصى ارتفاع يومي للموج) في أربع نقاط ساحلية.
-//   العتبات من توزيع الموج الفعلي على الساحل (شتاء 2025–2026: نادراً ما تجاوز
-//   2.5 م، ووسيطه 1.3–1.7 م).
 // • الغبار: Open-Meteo Air Quality (تركيز الغبار السطحي من نموذج CAMS،
-//   ميكروغرام/م³) — متوسط اليوم لكل مدينة. عتبة مطلقة لا تكفي وحدها: الشمال
-//   والساحل يتجاوزان 300 في نصف أيام الشتاء، بينما لا يبلغ الشرق والجنوب 400
-//   أبداً؛ لذا يُعتبر اليوم مغبراً إن بلغ عتبة عالية، أو قفز إلى ثلاثة أضعاف
-//   وسيط المدينة نفسها في الثلاثين يوماً الماضية.
+//   ميكروغرام/م³) — متوسط اليوم لكل مدينة، مجمَّعة حسب الولاية. عتبة مطلقة
+//   لا تكفي وحدها: الشمال والساحل يتجاوزان 300 في نصف أيام الشتاء، بينما لا
+//   يبلغ الشرق والجنوب 400 أبداً؛ لذا يُعتبر اليوم مغبراً إن بلغ عتبة عالية،
+//   أو قفز إلى ثلاثة أضعاف وسيط المدينة نفسها في الثلاثين يوماً الماضية.
+// • انخفاض درجات الحرارة: الصغرى أو الكبرى أدنى بـ4 درجات فأكثر من متوسط
+//   الأيام الثلاثة السابقة في نفس المدينة (شتاء 2025–2026: بين يومين و15
+//   يوماً في الموسم حسب المدينة).
+// • الموج: Open-Meteo Marine (أقصى ارتفاع يومي) في أربع نقاط ساحلية —
+//   ارتفاعه من 2 م (ساحلنا هادئ: نادراً ما تجاوز 2.5 م الشتاء الماضي)، وتراجعه
+//   حين ينزل تحتها بعد يوم مرتفع.
 //
-// كل خطر × يوم = مقال بـslug ثابت (hazard-waves-YYYY-MM-DD / hazard-dust-…).
-// الاستدعاء اللاحق لنفس الـslug يقارن بصمة (المكان ← المستوى) بالمخزَّنة: إن
-// تطابقتا لا شيء، وإن اختلفتا يُحدَّث المقال في مكانه، وإن زال الخطر يُحدَّث
-// بأنه لم يعد متوقعاً. فيسبوك عند أول نشر فقط، كما في forecast-publisher.
+// slug ثابت لليوم (weather-bulletin-YYYY-MM-DD): إعادة الاستدعاء في نفس اليوم
+// تقارن بصمة الظواهر بالمخزَّنة — تطابق = لا شيء، اختلاف = تحديث في المكان.
+// فيسبوك عند أول نشر فقط، كما في forecast-publisher.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { CITIES, COAST_POINTS } from '../_shared/mauritaniaCities.ts';
@@ -30,16 +33,20 @@ const SITE     = Deno.env.get('SITE_URL') ?? 'https://www.jatkoumshab.com';
 
 const FORECAST_DAYS = 3;   // اليوم + يومان
 
+// الغبار (ميكروغرام/م³): متوسط اليوم
+const DUST_HIGH          = 700;
+const DUST_VERY_HIGH     = 1000;
+const DUST_JUMP_MIN      = 250;  // أدنى متوسط تُقبل معه قاعدة القفزة النسبية
+const DUST_JUMP_RATIO    = 3;    // × وسيط المدينة في الأيام الماضية
+const DUST_BASELINE_DAYS = 30;
+
+// انخفاض الحرارة (°م) مقارنة بمتوسط الأيام السابقة
+const COLD_DROP          = 4;
+const COLD_BASELINE_DAYS = 3;
+
 // الموج (م): أقصى ارتفاع يومي
 const WAVE_HIGH      = 2.0;
 const WAVE_VERY_HIGH = 2.5;
-
-// الغبار (ميكروغرام/م³): متوسط اليوم
-const DUST_HIGH       = 700;
-const DUST_VERY_HIGH  = 1000;
-const DUST_JUMP_MIN   = 250;  // أدنى متوسط تُقبل معه قاعدة القفزة النسبية
-const DUST_JUMP_RATIO = 3;    // × وسيط المدينة في الأيام الماضية
-const DUST_BASELINE_DAYS = 30;
 
 async function tg(text: string) {
   if (!TOKEN || !ADMIN_ID) return;
@@ -63,12 +70,18 @@ async function postToFacebookPage(title: string, content: string, slug: string) 
 }
 
 // تاريخ عربي بالتقويم الميلادي (ar-SA وحده يُنتج التقويم الهجري)
-function periodPhrase(dateStr: string, today: string): string {
+function arDate(dateStr: string, withWeekday = true): string {
   const d = new Date(dateStr + 'T12:00:00Z');
   const opts = { calendar: 'gregory', timeZone: 'Africa/Abidjan' } as const;
-  const day  = d.toLocaleDateString('ar-SA', { ...opts, weekday: 'long' });
   const date = d.toLocaleDateString('ar-SA', { ...opts, day: 'numeric', month: 'long' });
-  return dateStr === today ? `اليوم ${day} ${date}` : `يوم ${day} ${date}`;
+  return withWeekday ? `${d.toLocaleDateString('ar-SA', { ...opts, weekday: 'long' })} ${date}` : date;
+}
+
+function dayLabel(dateStr: string, today: string): string {
+  const tomorrow = new Date(Date.parse(today + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
+  if (dateStr === today)    return `اليوم ${arDate(dateStr)}`;
+  if (dateStr === tomorrow) return `غداً ${arDate(dateStr)}`;
+  return `يوم ${arDate(dateStr)}`;
 }
 
 async function sha256Hex(text: string): Promise<string> {
@@ -76,153 +89,27 @@ async function sha256Hex(text: string): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-// ── بنود الخطر: مكان واحد بمستواه وقيمته ──────────────────────────────────
-type Level = 'high' | 'very_high';
-interface HazardItem { place: string; wilaya: string; level: Level; value: number }
-
-// البصمة تُبنى من (المكان ← المستوى) فقط: تغيّر القيمة داخل نفس المستوى
-// (2.1 م ← 2.3 م) لا يستحق تحديث المقال وإشعار الجميع
-type Signature = Record<string, Level>;
-
-function signatureOf(items: HazardItem[]): Signature {
-  const sig: Signature = {};
-  for (const it of [...items].sort((a, b) => a.place.localeCompare(b.place))) sig[it.place] = it.level;
-  return sig;
-}
-
-interface HazardKind {
-  key: 'waves' | 'dust';
-  category: string;
-  tags: string[];
-  icon: string;
-  levelLabel: Record<Level, string>;
-  title(items: HazardItem[], period: string): string;
-  line(it: HazardItem, period: string): string;
-  advice: string[];
-  noneLabel: string;   // عبارة "لم يعد متوقعاً"
-}
-
-const fmtM = (v: number) => v.toFixed(1).replace('.', ',');
-
-const WAVES: HazardKind = {
-  key: 'waves',
-  category: 'بحر',
-  tags: ['موج', 'بحر', 'الساحل'],
-  icon: '🌊',
-  levelLabel: { high: 'ارتفاع في الموج', very_high: 'ارتفاع كبير في الموج' },
-  title: (items, period) => {
-    const top = items.some((i) => i.level === 'very_high') ? 'ارتفاع كبير في الموج' : 'ارتفاع في الموج';
-    return `يتوقع ${top} على سواحل ${items.map((i) => i.place).join(' و')} ${period}`;
-  },
-  line: (it, period) =>
-    `🌊 يتوقع ${WAVES.levelLabel[it.level]} على سواحل ${it.place} ${period}، قد يصل إلى ${fmtM(it.value)} م.`,
-  // عبارة الحذر وحدها، دون نصح بعدم الإبحار
-  advice: ['يُنصح بالحذر للزوارق التقليدية.'],
-  noneLabel: 'ارتفاع الموج',
-};
-
-const DUST: HazardKind = {
-  key: 'dust',
-  category: 'طقس',
-  tags: ['غبار', 'طقس'],
-  icon: '🌫️',
-  levelLabel: { high: 'غبار', very_high: 'غبار كثيف' },
-  title: (items, period) => {
-    const top = items.some((i) => i.level === 'very_high') ? 'غبار كثيف' : 'غبار';
-    const names = items.slice(0, 4).map((i) => i.place).join(' و');
-    return `يتوقع ${top} على ${names}${items.length > 4 ? ' ومناطق أخرى' : ''} ${period}`;
-  },
-  line: (it, period) =>
-    `🌫️ يتوقع ${DUST.levelLabel[it.level]} على ${it.place} (${it.wilaya}) ${period}${it.level === 'very_high' ? '، مع تراجع في مدى الرؤية' : ''}.`,
-  advice: [
-    'يُنصح مرضى الربو والحساسية بتجنب الخروج غير الضروري وتغطية الأنف والفم.',
-    'الحذر أثناء القيادة على الطرق بين المدن.',
-  ],
-  noneLabel: 'الغبار',
-};
-
-function buildBody(kind: HazardKind, items: HazardItem[], period: string): string {
-  const lines = items.map((it) => kind.line(it, period)).join('\n\n');
-  return `${lines}\n\n${kind.advice.join('\n')}`;
-}
-
-// ── نشر / تحديث / إلغاء مقال خطر واحد ────────────────────────────────────
-interface ArticleRow {
-  id: string;
-  forecast_signature: { hazard?: Signature } | null;
-  forecast_signature_hash: string | null;
-}
-
-async function syncArticle(kind: HazardKind, dateStr: string, today: string, items: HazardItem[]):
-  Promise<'published' | 'updated' | 'retracted' | 'skipped'> {
-  const slug   = `hazard-${kind.key}-${dateStr}`;
-  const link   = `${SITE}/news/${slug}`;
-  const period = periodPhrase(dateStr, today);
-
-  const { data: rows } = await supabase.from('news_articles')
-    .select('id, forecast_signature, forecast_signature_hash').eq('slug', slug).limit(1);
-  const existing: ArticleRow | null = rows?.[0] || null;
-  const prevSig = existing?.forecast_signature?.hazard || {};
-
-  // لا خطر: لا شيء، إلا إن سبق نشر خطر لهذا اليوم — فيُحدَّث بأنه لم يعد متوقعاً
-  if (!items.length) {
-    if (!existing || !Object.keys(prevSig).length) return 'skipped';
-    const title = `تحديث: لم يعد ${kind.noneLabel} متوقعاً ${period}`;
-    const content = `🔄 **تحديث:** تشير آخر التوقعات إلى أن ${kind.noneLabel} لم يعد متوقعاً ${period}.\n\n` +
-      `📌 **التوقع السابق:** ${Object.keys(prevSig).join('، ')}`;
-    const { error } = await supabase.from('news_articles').update({
-      title, excerpt: title, content, published_at: new Date().toISOString(),
-      forecast_signature: { hazard: {} }, forecast_signature_hash: await sha256Hex('{}'),
-    }).eq('id', existing.id);
-    if (error) { await tg(`❌ فشل تحديث ${slug}: ${error.message}`); return 'skipped'; }
-    await tg(`🔄 *${title}*\n\n🔗 ${link}`);
-    return 'retracted';
+// ترتيب مفاتيح JSON أبجدياً بشكل تكراري — نفس البيانات تعطي نفس البصمة دائماً
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === 'object') {
+    const sorted: Record<string, unknown> = {};
+    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+      sorted[key] = canonicalize((value as Record<string, unknown>)[key]);
+    }
+    return sorted;
   }
-
-  const sig   = signatureOf(items);
-  const hash  = await sha256Hex(JSON.stringify(sig));
-  const title = kind.title(items, period);
-  const body  = buildBody(kind, items, period);
-  const tags  = ['أوتوماتيك', ...kind.tags];
-  const wilaya = items[0].wilaya;
-
-  if (!existing) {
-    const { error } = await supabase.from('news_articles').insert([{
-      title, slug, excerpt: title, content: body, category: kind.category, wilaya,
-      author: 'جاتكم اسحاب', is_published: true, published_at: new Date().toISOString(),
-      tags, featured_image: '',
-      forecast_signature: { hazard: sig }, forecast_signature_hash: hash,
-    }]);
-    if (error) { await tg(`❌ فشل نشر ${slug}: ${error.message}`); return 'skipped'; }
-    await tg(`📰 *نُشر تلقائياً (${kind.levelLabel.high}):*\n${title}\n\n🔗 ${link}`);
-    await postToFacebookPage(title, body, slug);
-    return 'published';
-  }
-
-  if (existing.forecast_signature_hash === hash) return 'skipped';
-
-  // ما تغيّر منذ النشر السابق — يُكتب صراحة بدل ترك القارئ يقارن بنفسه
-  const changes: string[] = [];
-  for (const it of items) {
-    if (!prevSig[it.place]) changes.push(`➕ أُضيفت: ${it.place}`);
-    else if (prevSig[it.place] !== it.level) changes.push(`🔁 ${it.place}: ${kind.levelLabel[prevSig[it.place]]} ← ${kind.levelLabel[it.level]}`);
-  }
-  for (const place of Object.keys(prevSig)) {
-    if (!sig[place]) changes.push(`➖ حُذفت: ${place}`);
-  }
-  const content = `${body}\n\n🔄 **تحديث ${period}:**\n${changes.join('\n')}`;
-
-  const { error } = await supabase.from('news_articles').update({
-    title, excerpt: title, content, category: kind.category, wilaya, tags,
-    published_at: new Date().toISOString(),
-    forecast_signature: { hazard: sig }, forecast_signature_hash: hash,
-  }).eq('id', existing.id);
-  if (error) { await tg(`❌ فشل تحديث ${slug}: ${error.message}`); return 'skipped'; }
-  await tg(`🔄 *تحديث:*\n${title}\n\n🔗 ${link}`);
-  return 'updated';
+  return value;
 }
 
-// ── جلب البيانات ─────────────────────────────────────────────────────────
+const fmt1 = (v: number) => v.toFixed(1).replace('.', ',');
+
+function median(values: number[]): number {
+  if (!values.length) return 0;
+  const s = [...values].sort((a, b) => a - b);
+  return s[Math.floor(s.length / 2)];
+}
+
 // Open-Meteo يُعيد مصفوفة عند طلب عدة مواقع، وكائناً واحداً لموقع واحد
 async function fetchMulti(url: string): Promise<any[]> {
   const res = await fetch(url);
@@ -231,43 +118,26 @@ async function fetchMulti(url: string): Promise<any[]> {
   return Array.isArray(json) ? json : [json];
 }
 
-async function waveItemsByDay(): Promise<Record<string, HazardItem[]>> {
-  const lats = COAST_POINTS.map((p) => p.lat).join(',');
-  const lons = COAST_POINTS.map((p) => p.lon).join(',');
-  const results = await fetchMulti(
-    `https://marine-api.open-meteo.com/v1/marine?latitude=${lats}&longitude=${lons}` +
-    `&daily=wave_height_max&timezone=Africa%2FAbidjan&forecast_days=${FORECAST_DAYS}`,
-  );
+const cityLatLon = () => ({
+  lats: CITIES.map((c) => c.lat).join(','),
+  lons: CITIES.map((c) => c.lon).join(','),
+});
 
-  const byDay: Record<string, HazardItem[]> = {};
-  results.forEach((r, idx) => {
-    const point = COAST_POINTS[idx];
-    (r?.daily?.time || []).forEach((dateStr: string, di: number) => {
-      byDay[dateStr] ||= [];
-      const h = r.daily.wave_height_max?.[di];
-      if (h == null || h < WAVE_HIGH) return;
-      byDay[dateStr].push({ place: point.place, wilaya: point.wilaya, value: h, level: h >= WAVE_VERY_HIGH ? 'very_high' : 'high' });
-    });
-  });
-  for (const items of Object.values(byDay)) items.sort((a, b) => b.value - a.value);
-  return byDay;
-}
+// ── الظواهر ──────────────────────────────────────────────────────────────
+interface DustItem  { city: string; wilaya: string; heavy: boolean; mean: number }
+interface ColdItem  { city: string; wilaya: string; tmin: number; tmax: number; drop: number }
+interface WaveItem  { place: string; height: number; kind: 'high' | 'very_high' | 'calming' }
 
-function median(values: number[]): number {
-  if (!values.length) return 0;
-  const s = [...values].sort((a, b) => a - b);
-  return s[Math.floor(s.length / 2)];
-}
+type ByDay<T> = Record<string, T[]>;
 
-async function dustItemsByDay(today: string): Promise<Record<string, HazardItem[]>> {
-  const lats = CITIES.map((c) => c.lat).join(',');
-  const lons = CITIES.map((c) => c.lon).join(',');
+async function dustByDay(today: string): Promise<ByDay<DustItem>> {
+  const { lats, lons } = cityLatLon();
   const results = await fetchMulti(
     `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lons}` +
     `&hourly=dust&timezone=Africa%2FAbidjan&past_days=${DUST_BASELINE_DAYS}&forecast_days=${FORECAST_DAYS}`,
   );
 
-  const byDay: Record<string, HazardItem[]> = {};
+  const byDay: ByDay<DustItem> = {};
   results.forEach((r, idx) => {
     const city = CITIES[idx];
     if (!r?.hourly?.time) return;
@@ -277,51 +147,233 @@ async function dustItemsByDay(today: string): Promise<Record<string, HazardItem[
     r.hourly.time.forEach((t: string, hi: number) => {
       const v = r.hourly.dust?.[hi];
       if (v == null) return;
-      const d = t.slice(0, 10);
-      (sums[d] ||= { sum: 0, n: 0 }).sum += v;
-      sums[d].n++;
+      const s = (sums[t.slice(0, 10)] ||= { sum: 0, n: 0 });
+      s.sum += v;
+      s.n++;
     });
-    const means = Object.fromEntries(Object.entries(sums).map(([d, s]) => [d, s.sum / s.n]));
-    const baseline = median(Object.entries(means).filter(([d]) => d < today).map(([, m]) => m));
+    const means = Object.entries(sums).map(([d, s]) => [d, s.sum / s.n] as const);
+    const baseline = median(means.filter(([d]) => d < today).map(([, m]) => m));
 
-    for (const [dateStr, mean] of Object.entries(means)) {
+    for (const [dateStr, mean] of means) {
       if (dateStr < today) continue;
-      byDay[dateStr] ||= [];
       const jump = mean >= DUST_JUMP_MIN && baseline > 0 && mean >= DUST_JUMP_RATIO * baseline;
       if (mean < DUST_HIGH && !jump) continue;
-      byDay[dateStr].push({ place: city.city, wilaya: city.wilaya, value: Math.round(mean), level: mean >= DUST_VERY_HIGH ? 'very_high' : 'high' });
+      (byDay[dateStr] ||= []).push({ city: city.city, wilaya: city.wilaya, heavy: mean >= DUST_VERY_HIGH, mean: Math.round(mean) });
     }
   });
-  for (const items of Object.values(byDay)) items.sort((a, b) => b.value - a.value);
   return byDay;
+}
+
+async function coldByDay(today: string): Promise<ByDay<ColdItem>> {
+  const { lats, lons } = cityLatLon();
+  const results = await fetchMulti(
+    `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}` +
+    `&daily=temperature_2m_min,temperature_2m_max&timezone=Africa%2FAbidjan` +
+    `&past_days=${COLD_BASELINE_DAYS}&forecast_days=${FORECAST_DAYS}`,
+  );
+
+  const byDay: ByDay<ColdItem> = {};
+  results.forEach((r, idx) => {
+    const city = CITIES[idx];
+    const time: string[] = r?.daily?.time || [];
+    const mins: number[] = r?.daily?.temperature_2m_min || [];
+    const maxs: number[] = r?.daily?.temperature_2m_max || [];
+
+    time.forEach((dateStr, i) => {
+      if (dateStr < today || i < COLD_BASELINE_DAYS) return;
+      const prevMin = mins.slice(i - COLD_BASELINE_DAYS, i);
+      const prevMax = maxs.slice(i - COLD_BASELINE_DAYS, i);
+      if (mins[i] == null || maxs[i] == null || prevMin.some((v) => v == null) || prevMax.some((v) => v == null)) return;
+      const avg = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
+      const drop = Math.max(avg(prevMin) - mins[i], avg(prevMax) - maxs[i]);
+      if (drop < COLD_DROP) return;
+      (byDay[dateStr] ||= []).push({ city: city.city, wilaya: city.wilaya, tmin: Math.round(mins[i]), tmax: Math.round(maxs[i]), drop: Math.round(drop) });
+    });
+  });
+  return byDay;
+}
+
+async function wavesByDay(today: string): Promise<ByDay<WaveItem>> {
+  const lats = COAST_POINTS.map((p) => p.lat).join(',');
+  const lons = COAST_POINTS.map((p) => p.lon).join(',');
+  const results = await fetchMulti(
+    `https://marine-api.open-meteo.com/v1/marine?latitude=${lats}&longitude=${lons}` +
+    `&daily=wave_height_max&timezone=Africa%2FAbidjan&past_days=1&forecast_days=${FORECAST_DAYS}`,
+  );
+
+  const byDay: ByDay<WaveItem> = {};
+  results.forEach((r, idx) => {
+    const point = COAST_POINTS[idx];
+    const time: string[] = r?.daily?.time || [];
+    const h: number[] = r?.daily?.wave_height_max || [];
+
+    time.forEach((dateStr, i) => {
+      if (dateStr < today || h[i] == null) return;
+      let kind: WaveItem['kind'] | null = null;
+      if (h[i] >= WAVE_VERY_HIGH) kind = 'very_high';
+      else if (h[i] >= WAVE_HIGH) kind = 'high';
+      else if (i > 0 && (h[i - 1] ?? 0) >= WAVE_HIGH) kind = 'calming';  // تراجع بعد يوم مرتفع
+      if (kind) (byDay[dateStr] ||= []).push({ place: point.place, height: h[i], kind });
+    });
+  });
+  return byDay;
+}
+
+// ── صياغة النشرة ─────────────────────────────────────────────────────────
+// "الترارزة (بوتلميت، روصو)، تيرس زمور (ازويرات)"
+function byWilaya(items: { city: string; wilaya: string }[]): string {
+  const groups = new Map<string, string[]>();
+  for (const it of items) {
+    const list = groups.get(it.wilaya) || [];
+    if (!list.includes(it.city)) list.push(it.city);
+    groups.set(it.wilaya, list);
+  }
+  return [...groups].map(([w, cities]) => `${w} (${cities.join('، ')})`).join('، ');
+}
+
+function dustSection(days: string[], dust: ByDay<DustItem>, today: string): string {
+  const lines: string[] = [];
+  for (const d of days) {
+    const items = (dust[d] || []).sort((a, b) => b.mean - a.mean);
+    if (!items.length) continue;
+    const heavy = items.filter((i) => i.heavy);
+    const light = items.filter((i) => !i.heavy);
+    const parts: string[] = [];
+    if (heavy.length) parts.push(`غبار كثيف مع تراجع في مدى الرؤية على ${byWilaya(heavy)}`);
+    if (light.length) parts.push(`غبار على ${byWilaya(light)}`);
+    lines.push(`• ${dayLabel(d, today)}: ${parts.join('، و')}.`);
+  }
+  if (!lines.length) return '';
+  return `🌫️ **الغبار**\n${lines.join('\n')}\n` +
+    'يُنصح مرضى الربو والحساسية بتجنب الخروج غير الضروري وتغطية الأنف والفم، والحذر أثناء القيادة على الطرق بين المدن.';
+}
+
+function coldSection(days: string[], cold: ByDay<ColdItem>, today: string): string {
+  const lines: string[] = [];
+  for (const d of days) {
+    const items = (cold[d] || []).sort((a, b) => b.drop - a.drop);
+    if (!items.length) continue;
+    const cities = items.map((i) => `${i.city} (${i.wilaya}) الصغرى ${i.tmin}° والكبرى ${i.tmax}°`).join('، ');
+    lines.push(`• ${dayLabel(d, today)}: ${cities}.`);
+  }
+  if (!lines.length) return '';
+  return `🌡️ **انخفاض في درجات الحرارة**\n${lines.join('\n')}`;
+}
+
+function wavesSection(days: string[], waves: ByDay<WaveItem>, today: string): string {
+  const lines: string[] = [];
+  let anyHigh = false;
+  for (const d of days) {
+    const items = (waves[d] || []).sort((a, b) => b.height - a.height);
+    if (!items.length) continue;
+    const parts: string[] = [];
+    const veryHigh = items.filter((i) => i.kind === 'very_high');
+    const high     = items.filter((i) => i.kind === 'high');
+    const calming  = items.filter((i) => i.kind === 'calming');
+    const where = (list: WaveItem[]) => list.map((i) => `${i.place} (${fmt1(i.height)} م)`).join('، ');
+    if (veryHigh.length) parts.push(`ارتفاع كبير في الموج على سواحل ${where(veryHigh)}`);
+    if (high.length)     parts.push(`ارتفاع في الموج على سواحل ${where(high)}`);
+    if (calming.length)  parts.push(`تراجع في ارتفاع الموج على سواحل ${where(calming)}`);
+    if (veryHigh.length || high.length) anyHigh = true;
+    lines.push(`• ${dayLabel(d, today)}: ${parts.join('، و')}.`);
+  }
+  if (!lines.length) return '';
+  // عبارة الحذر وحدها، دون نصح بعدم الإبحار
+  return `🌊 **حالة البحر**\n${lines.join('\n')}` + (anyHigh ? '\nيُنصح بالحذر للزوارق التقليدية.' : '');
+}
+
+function buildTitle(today: string, has: { dust: boolean; cold: boolean; wavesHigh: boolean; wavesCalm: boolean }): string {
+  const topics: string[] = [];
+  if (has.dust) topics.push('غبار');
+  if (has.cold) topics.push('انخفاض في درجات الحرارة');
+  if (has.wavesHigh) topics.push('ارتفاع الموج');
+  else if (has.wavesCalm) topics.push('تراجع الموج');
+  return `النشرة الجوية ليوم ${arDate(today)}: ${topics.join(' و')}`;
 }
 
 Deno.serve(async () => {
   try {
     const today = new Date().toISOString().slice(0, 10);
-    const counts = { published: 0, updated: 0, retracted: 0 };
+    const days = Array.from({ length: FORECAST_DAYS }, (_, i) =>
+      new Date(Date.parse(today + 'T12:00:00Z') + i * 864e5).toISOString().slice(0, 10));
     const errors: string[] = [];
-    const notified = new Set<string>();   // الأخطار التي نُشر لها أو حُدّث مقال
 
-    // كل خطر مستقل: تعطّل خدمة أحدهما لا يوقف نشرة الآخر
-    for (const [kind, load] of [[WAVES, () => waveItemsByDay()], [DUST, () => dustItemsByDay(today)]] as const) {
-      let byDay: Record<string, HazardItem[]>;
-      try {
-        byDay = await load();
-      } catch (e) {
-        errors.push(`${kind.key}: ${e instanceof Error ? e.message : String(e)}`);
-        continue;
+    // كل مصدر مستقل: تعطّل خدمة أحدها لا يوقف بقية النشرة
+    const safe = async <T>(name: string, load: () => Promise<ByDay<T>>): Promise<ByDay<T>> => {
+      try { return await load(); } catch (e) {
+        errors.push(`${name}: ${e instanceof Error ? e.message : String(e)}`);
+        return {};
       }
-      for (const [dateStr, items] of Object.entries(byDay).sort()) {
-        const r = await syncArticle(kind, dateStr, today, items);
-        if (r !== 'skipped') counts[r]++;
-        if (r === 'published' || r === 'updated') notified.add(kind.key === 'waves' ? 'حالة البحر على السواحل' : 'توقعات الغبار');
+    };
+    const [dust, cold, waves] = await Promise.all([
+      safe('dust', () => dustByDay(today)),
+      safe('cold', () => coldByDay(today)),
+      safe('waves', () => wavesByDay(today)),
+    ]);
+    if (errors.length) await tg(`❌ hazard-publisher:\n${errors.join('\n')}`);
+
+    const sections = [dustSection(days, dust, today), coldSection(days, cold, today), wavesSection(days, waves, today)].filter(Boolean);
+    if (!sections.length) {
+      await tg('☀️ لا ظواهر جوية لافتة (غبار، انخفاض حرارة، موج) في الأيام الثلاثة القادمة.');
+      return new Response(JSON.stringify({ published: 0, message: 'nothing notable', errors }));
+    }
+
+    const allWaves = days.flatMap((d) => waves[d] || []);
+    const has = {
+      dust: days.some((d) => dust[d]?.length),
+      cold: days.some((d) => cold[d]?.length),
+      wavesHigh: allWaves.some((w) => w.kind !== 'calming'),
+      wavesCalm: allWaves.some((w) => w.kind === 'calming'),
+    };
+    const title = buildTitle(today, has);
+    const body  = sections.join('\n\n');
+
+    // البصمة: الظواهر بمستوياتها (لا القيم الدقيقة) — 2.1 م ← 2.3 م لا يستحق تحديثاً
+    const signature = {
+      dust:  Object.fromEntries(days.map((d) => [d, (dust[d] || []).map((i) => `${i.city}:${i.heavy ? 'heavy' : 'dust'}`).sort()])),
+      cold:  Object.fromEntries(days.map((d) => [d, (cold[d] || []).map((i) => i.city).sort()])),
+      waves: Object.fromEntries(days.map((d) => [d, (waves[d] || []).map((i) => `${i.place}:${i.kind}`).sort()])),
+    };
+    const hash = await sha256Hex(JSON.stringify(canonicalize(signature)));
+
+    const slug = `weather-bulletin-${today}`;
+    const link = `${SITE}/news/${slug}`;
+    const tags = ['أوتوماتيك', 'النشرة الجوية',
+      ...(has.dust ? ['غبار'] : []), ...(has.cold ? ['برودة'] : []), ...(allWaves.length ? ['موج', 'بحر'] : [])];
+    const wilaya = days.flatMap((d) => [...(dust[d] || []), ...(cold[d] || [])])[0]?.wilaya || '';
+
+    const { data: rows } = await supabase.from('news_articles')
+      .select('id, forecast_signature_hash').eq('slug', slug).limit(1);
+    const existing = rows?.[0] || null;
+
+    let result: 'published' | 'updated' | 'skipped' = 'skipped';
+    if (!existing) {
+      const { error } = await supabase.from('news_articles').insert([{
+        title, slug, excerpt: title, content: body, category: 'طقس', wilaya,
+        author: 'جاتكم اسحاب', is_published: true, published_at: new Date().toISOString(),
+        tags, featured_image: '',
+        forecast_signature: signature, forecast_signature_hash: hash,
+      }]);
+      if (error) await tg(`❌ فشل نشر ${slug}: ${error.message}`);
+      else {
+        result = 'published';
+        await tg(`📰 *نُشرت النشرة الجوية تلقائياً:*\n${title}\n\n🔗 ${link}`);
+        await postToFacebookPage(title, body, slug);
+      }
+    } else if (existing.forecast_signature_hash !== hash) {
+      const { error } = await supabase.from('news_articles').update({
+        title, excerpt: title, content: `${body}\n\n🔄 حُدّثت هذه النشرة بآخر التوقعات.`, wilaya, tags,
+        published_at: new Date().toISOString(),
+        forecast_signature: signature, forecast_signature_hash: hash,
+      }).eq('id', existing.id);
+      if (error) await tg(`❌ فشل تحديث ${slug}: ${error.message}`);
+      else {
+        result = 'updated';
+        await tg(`🔄 *تحديث النشرة الجوية:*\n${title}\n\n🔗 ${link}`);
       }
     }
 
-    if (errors.length) await tg(`❌ hazard-publisher:\n${errors.join('\n')}`);
-
-    if (notified.size > 0) {
+    if (result !== 'skipped') {
       await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push`, {
         method: 'POST',
         headers: {
@@ -329,18 +381,18 @@ Deno.serve(async () => {
           Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
         },
         body: JSON.stringify({
-          title: '⚠️ نشرة جديدة — جاتكم اسحاب',
-          body:  `نُشرت ${[...notified].join(' و')} في موريتانيا. اضغط للاطلاع على التفاصيل.`,
-          url:   '/news',
-          tag:   'hazard-update',
-          dedupeKey: `hazard-${today}`,
-          signature: `hazard-${today}`,
+          title: '🌤️ النشرة الجوية — جاتكم اسحاب',
+          body:  title,
+          url:   `/news/${slug}`,
+          tag:   'weather-bulletin',
+          dedupeKey: slug,
+          signature: slug,
           windowMinutes: 600,
         }),
       }).catch(() => {});
     }
 
-    return new Response(JSON.stringify({ ...counts, errors }), {
+    return new Response(JSON.stringify({ result, errors }), {
       headers: { 'content-type': 'application/json' },
     });
   } catch (err: unknown) {
