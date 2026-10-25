@@ -30,13 +30,15 @@ Deno.serve(async (req) => {
     const body = (content || title || '').replace(/\*\*([^*]+)\*\*/g, '$1').trim();
     if (!body) return new Response(JSON.stringify({ skipped: true, reason: 'empty content' }), { headers: { ...cors, 'content-type': 'application/json' } });
 
-    const link = slug ? `\n\n${SITE}/news/${slug}` : '';
-    const message = `${body}${link}`;
+    const articleUrl = slug ? `${SITE}/news/${slug}` : '';
+    const message = articleUrl ? `${body}\n\n${articleUrl}` : body;
 
+    // الرابط في نص المنشور وحده لا يُضغط دائماً في تطبيق فيسبوك — حقل link
+    // يُرفق بطاقة الخبر القابلة للضغط (عنوانها ونصها من api/news-og.js)
     const res = await fetch(`https://graph.facebook.com/v19.0/${FB_PAGE_ID}/feed`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message, access_token: FB_PAGE_ACCESS_TOKEN }),
+      body: JSON.stringify({ message, ...(articleUrl ? { link: articleUrl } : {}), access_token: FB_PAGE_ACCESS_TOKEN }),
     });
 
     if (!res.ok) {
