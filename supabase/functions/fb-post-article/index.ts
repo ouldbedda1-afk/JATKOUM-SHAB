@@ -1,7 +1,8 @@
 // Supabase Edge Function: fb-post-article
 // ينشر أي خبر يُنشر على الموقع (news_articles) مباشرة كمنشور على صفحة فيسبوك — بلا مراجعة.
-// يُستدعى من adminCreateNews في src/supabase.js فور نشر أي خبر (fire-and-forget من المتصفح)،
-// بحيث يبقى FB_PAGE_ACCESS_TOKEN على السيرفر فقط ولا يُكشف في كود المتصفح.
+// يُستدعى من دوال الخادم وحدها (admin-news، wilaya-publisher، forecast-publisher،
+// hazard-publisher) بمفتاح الخدمة — فلا يستطيع أحد النشر على الصفحة من المتصفح،
+// ويبقى FB_PAGE_ACCESS_TOKEN على الخادم.
 //
 // النشر:   supabase functions deploy fb-post-article --no-verify-jwt
 // الأسرار: FB_PAGE_ID, FB_PAGE_ACCESS_TOKEN (بصلاحية pages_manage_posts), SITE_URL (اختياري)
@@ -9,6 +10,7 @@
 const FB_PAGE_ID           = Deno.env.get('FB_PAGE_ID') ?? '';
 const FB_PAGE_ACCESS_TOKEN = Deno.env.get('FB_PAGE_ACCESS_TOKEN') ?? '';
 const SITE                 = Deno.env.get('SITE_URL') ?? 'https://www.jatkoumshab.com';
+const SERVICE_KEY          = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -19,6 +21,12 @@ const cors = {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405, headers: cors });
+
+  // دوال الخادم وحدها تنشر على الصفحة (admin-news، wilaya-publisher، forecast-publisher،
+  // hazard-publisher) — بمفتاح الخدمة، الذي لا يصل إلى المتصفح
+  if (!SERVICE_KEY || req.headers.get('authorization') !== `Bearer ${SERVICE_KEY}`) {
+    return new Response(JSON.stringify({ ok: false, error: 'غير مصرّح' }), { status: 401, headers: { ...cors, 'content-type': 'application/json' } });
+  }
 
   if (!FB_PAGE_ID || !FB_PAGE_ACCESS_TOKEN) {
     return new Response(JSON.stringify({ skipped: true, reason: 'fb not configured' }), { headers: { ...cors, 'content-type': 'application/json' } });

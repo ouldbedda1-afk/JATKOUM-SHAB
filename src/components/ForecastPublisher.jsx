@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { adminCreateNews } from '../supabase';
+import { adminCreateNews, runWilayaPublisher } from '../supabase';
 import { useWeatherContext } from '../WeatherContext';
-import { autoPublishForecastNews, extractForecastDays } from '../forecastToNews';
+import { extractForecastDays } from '../forecastToNews';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 
@@ -76,10 +76,10 @@ export default function ForecastPublisher() {
   const autoDetected = extractForecastDays(weatherData || []);
 
   async function runAutoPublish() {
-    if (!weatherData?.length) { setError('بيانات الطقس لم تُحمَّل بعد، انتظر لحظة.'); return; }
     setAutoRunning(true); setAutoResult(''); setError('');
     try {
-      const result = await autoPublishForecastNews(weatherData);
+      // النشر على الخادم (wilaya-publisher) ببيانات كل البلديات، لا ببيانات هذه الصفحة
+      const { forecasts: result } = await runWilayaPublisher();
       if (result.published === 0 && result.updated === 0) {
         setAutoResult(result.skipped > 0
           ? `☀️ ${result.skipped} ولاية مُتجاهَلة (لا تغيير حقيقي أو لا أمطار مهمة).`
@@ -88,7 +88,7 @@ export default function ForecastPublisher() {
         const parts = [];
         if (result.published) parts.push(`نُشر ${result.published} خبراً جديداً`);
         if (result.updated)   parts.push(`حُدِّث ${result.updated} خبراً (تغيّرت توقعاته)`);
-        setAutoResult(`✅ ${parts.join(' و')} من بيانات الصفحة الرئيسية.`);
+        setAutoResult(`✅ ${parts.join(' و')}.`);
         setAutoPreview(result.results || []);
       }
     } catch (e) {
@@ -234,7 +234,7 @@ export default function ForecastPublisher() {
 
       {/* معاينة ما سيُكشف أوتوماتيكياً */}
       <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 space-y-1.5">
-        <p><strong>⚡ أوتوماتيك:</strong> يقرأ نفس بيانات الصفحة الرئيسية ({weatherData?.length || 0} مدينة) وينشر خبراً لكل ولاية بنفس تنسيق بطاقات التوقعات.</p>
+        <p><strong>⚡ أوتوماتيك:</strong> يشغّل النشر على الخادم الآن (يعمل تلقائياً 07:00 و13:00 و20:00) لكل البلديات، وينشر خبراً لكل ولاية بنفس تنسيق بطاقات التوقعات.</p>
         {weatherLoading && <p className="text-gray-400">⏳ جارٍ تحميل البيانات...</p>}
         {!weatherLoading && autoDetected.length === 0 && (
           <p>☀️ لا توقعات أمطار أو عواصف مهمة في الـ 48 ساعة القادمة.</p>

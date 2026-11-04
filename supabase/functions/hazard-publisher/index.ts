@@ -61,7 +61,10 @@ async function postToFacebookPage(title: string, content: string, slug: string) 
   try {
     await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/fb-post-article`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
       body: JSON.stringify({ title, content, slug }),
     });
   } catch (e) {

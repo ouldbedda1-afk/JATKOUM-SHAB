@@ -968,6 +968,51 @@ export async function adminDelete(adminToken, kind, id) {
   return callModerate(adminToken, { action: 'delete', kind, id });
 }
 
+// توكن الإدارة المحفوظ عند الدخول إلى /admin (AdminPage.jsx)
+const ADMIN_TOKEN_KEY = 'jatkoum_admin_token';
+
+function getAdminToken() {
+  try { return sessionStorage.getItem(ADMIN_TOKEN_KEY) || ''; } catch { return ''; }
+}
+
+/** هل هذا المتصفح داخل إلى لوحة الإدارة؟ (لإظهار أزرار "نشر كخبر") */
+export function isAdminSession() {
+  return Boolean(getAdminToken());
+}
+
+/**
+ * كتابة الأخبار عبر دالة admin-news — جدول الأخبار لا يقبل الكتابة بالمفتاح
+ * العام، فكل إنشاء/تعديل/حذف يحتاج توكن الإدارة.
+ */
+async function callAdminNews(payload) {
+  const adminToken = getAdminToken();
+  if (!adminToken) throw new Error('سجّل الدخول إلى لوحة الإدارة أولاً');
+  const res = await fetch(`${supabaseUrl}/functions/v1/admin-news`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-token': adminToken,
+      Authorization: `Bearer ${supabaseAnonKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `خطأ ${res.status}`);
+  return data;
+}
+
+/** الإدارة: تشغيل نشر توقعات الولايات والتحذيرات على الخادم الآن (بدل انتظار الجدولة) */
+export async function runWilayaPublisher() {
+  const res = await fetch(`${supabaseUrl}/functions/v1/wilaya-publisher`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${supabaseAnonKey}` },
+    body: '{}',
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `خطأ ${res.status}`);
+  return data;
+}
+
 /** جلب خلايا العواصف من DB لاستعادة firstSeen بعد إعادة التحميل */
 export async function getStormCells() {
   if (!isSupabaseConfigured) return [];
@@ -1103,8 +1148,8 @@ export async function getNewsBySlug(slug) {
       .eq('is_published', true)
       .single();
     if (error) return null;
-    // زيادة عداد المشاهدات
-    supabase.from('news_articles').update({ views: (data.views || 0) + 1 }).eq('id', data.id).then(() => {});
+    // زيادة عداد المشاهدات — دالة في القاعدة لا تمسّ إلا هذا العمود
+    supabase.rpc('increment_news_views', { p_id: data.id }).then(() => {});
     return data;
   } catch { return null; }
 }
@@ -1130,47 +1175,22 @@ export async function getSimilarNews(currentId, category, wilaya, limit = 3) {
 export async function adminGetAllNews({ limit = 50, offset = 0, search = null } = {}) {
   if (!isSupabaseConfigured) return { data: [], count: 0 };
   try {
-    let q = supabase
-      .from('news_articles')
-      .select('id,title,slug,category,wilaya,is_published,published_at,created_at,views', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
-    if (search) q = q.ilike('title', `%${search}%`);
-    const { data, count, error } = await q;
-    if (error) throw error;
+    const { data, count } = await callAdminNews({ action: 'list', limit, offset, search });
     return { data: data || [], count: count || 0 };
   } catch (e) { return { data: [], count: 0 }; }
 }
 
-/** الإدارة: إنشاء خبر جديد */
+/**
+ * الإدارة: إنشاء خبر جديد. الخادم ينشره على صفحة فيسبوك أيضاً إن كان منشوراً
+ * ويحفظ معرّف المنشور؛ skipFbPost يمنع ذلك.
+ */
 export async function adminCreateNews(article, { skipFbPost = false } = {}) {
   if (!isSupabaseConfigured) throw new Error('Supabase غير مهيأ');
-  const slug = article.slug || slugify(article.title);
-  const row = {
-    ...article,
-    slug,
-    published_at: article.is_published ? (article.published_at || new Date().toISOString()) : null,
-  };
-  const { data, error } = await supabase.from('news_articles').insert([row]).select().single();
-  if (error) throw new Error(error.message);
-  // كل خبر يُنشر على الموقع يُنشر أيضاً تلقائياً على صفحة فيسبوك (fire-and-forget، لا يعطّل النشر على الموقع)
-  // نحفظ معرّف منشور فيسبوك الناتج في نفس السجل لعرض عدد مشاهداته لاحقاً
-  // skipFbPost: للحالات التي تُنشر فيها أخبار عديدة دفعة واحدة (تحذير لكل بلدية)
-  // ويُراد بدلاً منها نشر منشور واحد مجمّع على فيسبوك (انظر forecastToNews.js)
-  if (data?.is_published && !skipFbPost) {
-    fetch(`${supabaseUrl}/functions/v1/fb-post-article`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title: data.title, content: data.content, slug: data.slug }),
-    })
-      .then((r) => r.json())
-      .then((r) => {
-        if (r?.ok && r.id) {
-          return supabase.from('news_articles').update({ fb_post_id: r.id }).eq('id', data.id);
-        }
-      })
-      .catch(() => {});
-  }
+  const { data } = await callAdminNews({
+    action: 'create',
+    article: { ...article, slug: article.slug || slugify(article.title) },
+    skipFbPost,
+  });
   return data;
 }
 
@@ -1218,16 +1238,14 @@ export async function adminUpdateNews(id, updates) {
   if (!isSupabaseConfigured) throw new Error('Supabase غير مهيأ');
   if (updates.is_published && !updates.published_at) updates.published_at = new Date().toISOString();
   if (!updates.is_published) updates.published_at = null;
-  const { data, error } = await supabase.from('news_articles').update(updates).eq('id', id).select().single();
-  if (error) throw new Error(error.message);
+  const { data } = await callAdminNews({ action: 'update', id, updates });
   return data;
 }
 
 /** الإدارة: حذف خبر */
 export async function adminDeleteNews(id) {
   if (!isSupabaseConfigured) throw new Error('Supabase غير مهيأ');
-  const { error } = await supabase.from('news_articles').delete().eq('id', id);
-  if (error) throw new Error(error.message);
+  await callAdminNews({ action: 'delete', id });
 }
 
 /**
@@ -1266,8 +1284,7 @@ export async function cleanupDuplicateNews() {
     const sorted   = items.sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
     const toDelete = sorted.slice(1).map((a) => a.id);
     for (const id of toDelete) {
-      const { error: delErr } = await supabase.from('news_articles').delete().eq('id', id);
-      if (!delErr) deleted++;
+      try { await adminDeleteNews(id); deleted++; } catch { /* يُترك للمرة القادمة */ }
     }
   }
 
@@ -1297,11 +1314,7 @@ export async function addImagesToExistingNews() {
   for (const article of data) {
     const img = getImageForAlert(article.category || '', article.title || '');
     if (!img) continue;
-    const { error: updErr } = await supabase
-      .from('news_articles')
-      .update({ featured_image: img })
-      .eq('id', article.id);
-    if (!updErr) updated++;
+    try { await callAdminNews({ action: 'update', id: article.id, updates: { featured_image: img } }); updated++; } catch { /* يُترك للمرة القادمة */ }
   }
 
   return { updated };

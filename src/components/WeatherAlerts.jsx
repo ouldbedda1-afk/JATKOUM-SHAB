@@ -10,8 +10,7 @@ import {
   normalizeMauritaniaWilayaName,
   OFFICIAL_MAURITANIA_WILAYA_ORDER,
 } from '../mauritaniaPlaceNames';
-import { adminCreateNews, supabase } from '../supabase';
-import { autoPublishForecastNews, autoPublishWeatherAlerts } from '../forecastToNews';
+import { adminCreateNews, isAdminSession } from '../supabase';
 import { buildForecastDays } from '../wilayaForecastBuilder';
 import { getImageForAlert } from '../weatherImages';
 import { useNavigate, Link } from 'react-router-dom';
@@ -1232,67 +1231,9 @@ const WeatherAlerts = () => {
   const [publishingAlert, setPublishingAlert] = useState(null);
   // عرض أول تنبيهين فقط افتراضياً — التفاصيل الكاملة متوفرة كأخبار في نشرة الأخبار الجوية أسفل الصفحة
   const [showAllAlerts, setShowAllAlerts] = useState(false);
-  const publishingInFlight = useRef(new Set());
-  // نشر أوتوماتيكي للتوقعات — مرة واحدة في اليوم عند تحميل البيانات
-  const forecastPublishDone = useRef(false);
-  useEffect(() => {
-    if (loading || !citiesWeather?.length || forecastPublishDone.current) return;
-    const today = new Date().toISOString().slice(0, 10);
-    const key = `forecast_news_published_${today}`;
-    if (localStorage.getItem(key)) return;
-    forecastPublishDone.current = true;
-    Promise.all([
-      autoPublishForecastNews(citiesWeather),
-      autoPublishWeatherAlerts(citiesWeather),
-    ]).then(() => {
-        localStorage.setItem(key, '1');
-      })
-      .catch(() => { forecastPublishDone.current = false; });
-  }, [loading, citiesWeather]);
-
-  // إشعارات + auto-publish لكل تحذير جديد له newsTitle
-  useEffect(() => {
-    if (!loading && weatherAlerts.length > 0) {
-      const today = new Date().toISOString().slice(0, 10);
-      weatherAlerts.forEach(async (alert) => {
-        if (alert.id === 'same-day-archive-event') return;
-        // الإشعارات موقوفة
-        // auto-publish للتحذيرات التي لها newsTitle (حر / رياح)
-        if (!alert.newsTitle) return;
-        const publishKey = `alert_published_${alert.id}_${today}`;
-        // تحقق مزدوج: localStorage + ref (يمنع race condition)
-        if (localStorage.getItem(publishKey)) return;
-        if (publishingInFlight.current.has(publishKey)) return;
-        publishingInFlight.current.add(publishKey); // احجز الموضع فوراً
-        // slug حتمي (وليس مبني على وقت النشر) — يمنع تكرار نفس الخبر من زوار مختلفين
-        const slug = `alert-${alert.id}-${today}`;
-        try {
-          const { data: existing } = await supabase.from('news_articles').select('id').eq('slug', slug).limit(1);
-          if (existing?.length > 0) { localStorage.setItem(publishKey, '1'); return; }
-          await adminCreateNews({
-            title: alert.newsTitle,
-            slug,
-            excerpt: alert.newsTitle,
-            content: alert.newsContent || alert.message,
-            category: alert.newsCategory || 'طقس',
-            author: 'جاتكم اسحاب',
-            is_published: true,
-            tags: ['تحذير', alert.newsCategory || 'طقس', today],
-            featured_image: getImageForAlert(alert.newsCategory || '', alert.newsTitle || ''),
-          });
-          localStorage.setItem(publishKey, '1');
-        } catch (e) {
-          // تجاهل خطأ التكرار (slug موجود مسبقاً بفعل زائر آخر) — لا داعي لإعادة المحاولة
-          if (String(e).includes('duplicate') || String(e).includes('unique')) {
-            localStorage.setItem(publishKey, '1');
-          } else {
-            publishingInFlight.current.delete(publishKey); // أعد المحاولة لاحقاً
-            console.warn('تعذّر نشر التحذير كخبر:', e);
-          }
-        }
-      });
-    }
-  }, [loading, weatherAlerts]);
+  // النشر التلقائي للتوقعات والتحذيرات تتولاه دالة الخادم wilaya-publisher؛
+  // زر "نشر كخبر" يظهر للإدارة وحدها (توكن /admin في هذه الجلسة)
+  const canPublish = isAdminSession();
 
   const publishAlertAsNews = async (alert) => {
     setPublishingAlert(alert.id);
@@ -1342,7 +1283,7 @@ const WeatherAlerts = () => {
                     {tag}
                   </span>
                 ))}
-                {alert.newsTitle && (
+                {alert.newsTitle && canPublish && (
                   <button
                     onClick={() => publishAlertAsNews(alert)}
                     disabled={publishingAlert === alert.id}

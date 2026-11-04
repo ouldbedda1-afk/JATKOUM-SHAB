@@ -42,7 +42,10 @@ async function postToFacebookPage(title: string, content: string, slug: string) 
   try {
     await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/fb-post-article`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
       body: JSON.stringify({ title, content, slug }),
     });
   } catch (e) {
@@ -211,14 +214,16 @@ function renderDiff(diff: SignatureDiff, currSig: SignatureData, prevSig: Signat
   return s + '\n';
 }
 
-// تحويل تاريخ إلى أسماء عربية
-// ملاحظة: locale 'ar-SA' يستخدم التقويم الهجري افتراضياً في محرك ICU
-// (فيُنتج "٢٨ صفر" بدل "١١ أغسطس") — calendar: 'gregory' يفرض التقويم الميلادي
+// "الثلاثاء 3 نوفمبر" بأرقام غربية كما في قالب النشرة — toLocaleDateString('ar-SA')
+// يُخرج أرقاماً هندية (٣)، فالاسمان من جدولين ثابتين والرقم من getUTCDate
+const WEEKDAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+const MONTHS   = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+
 function arabicDay(d: Date): string {
-  return d.toLocaleDateString('ar-SA', { weekday: 'long', calendar: 'gregory', timeZone: 'Africa/Abidjan' });
+  return WEEKDAYS[d.getUTCDay()];
 }
 function arabicDate(d: Date): string {
-  return d.toLocaleDateString('ar-SA', { day: 'numeric', month: 'long', calendar: 'gregory', timeZone: 'Africa/Abidjan' });
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
 }
 function isoDate(d: Date): string {
   return d.toISOString().split('T')[0];

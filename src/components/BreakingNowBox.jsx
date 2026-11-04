@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 import { useWeatherContext } from '../WeatherContext';
-import { broadcastPush, adminCreateNews } from '../supabase';
+import { broadcastPush, adminCreateNews, isAdminSession } from '../supabase';
 import { toArabicCommune } from '../mauritaniaCommuneNamesAr';
 
 const { FiShare2, FiBookOpen } = FiIcons;
@@ -180,15 +180,15 @@ export default function BreakingNowBox() {
           </p>
         )}
         <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-current border-opacity-10">
-          {/* زر نشر كخبر رئيسي */}
-          <button
+          {/* زر نشر كخبر رئيسي — للإدارة وحدها */}
+          {isAdminSession() && (<button
             onClick={publishAsNews}
             disabled={publishing}
             className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-black transition-all shadow-sm ${breaking.hasRadar ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-amber-500 hover:bg-amber-600 text-white'} disabled:opacity-60`}
           >
             <SafeIcon icon={FiBookOpen} />
             {publishing ? 'جارٍ النشر...' : '📰 نشر كخبر'}
-          </button>
+          </button>)}
           <span className="text-[11px] text-gray-500 font-bold self-center">أو شارك:</span>
           <button onClick={() => shareBreaking('whatsapp')} className="inline-flex items-center gap-1 bg-green-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-green-600 transition-colors">💬 واتساب</button>
           <button onClick={() => shareBreaking('facebook')} className="inline-flex items-center gap-1 bg-[#1877F2] text-white px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-[#166fe5] transition-colors">📘 فيسبوك</button>
