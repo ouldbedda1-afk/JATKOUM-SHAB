@@ -22,7 +22,8 @@ const COLLECTION = 'urn:wmo:md:mr-onm:core.surface-based-observations.synop';
 const PAGE = 2000;
 
 // الاسم والولاية كما يكتبهما الموقع، بآخر جزء من معرّف WIGOS (الموانئ بلا معرّف تقليدي)
-const STATIONS: Record<string, { name: string; wilaya: string | null }> = {
+// lat/lon هنا تصحّح إحداثيات خاطئة في بيانات المحطة على wis2box
+const STATIONS: Record<string, { name: string; wilaya: string | null; lat?: number; lon?: number }> = {
   '61499': { name: 'لعيون', wilaya: 'الحوض الغربي' },
   '61450': { name: 'تجكجة', wilaya: 'تكانت' },
   '61510': { name: 'سيلبابي', wilaya: 'كيدماغا' },
@@ -31,7 +32,8 @@ const STATIONS: Record<string, { name: string; wilaya: string | null }> = {
   '61489': { name: 'روصو', wilaya: 'الترارزة' },
   '61470': { name: 'ألاك', wilaya: 'البراكنة' },
   '61497': { name: 'النعمة', wilaya: 'الحوض الشرقي' },
-  '61521': { name: 'ميناء نواكشوط', wilaya: null },
+  // wis2box تضعه عند 18.65 شمالاً قرب تانيت
+  '61521': { name: 'ميناء نواكشوط', wilaya: 'نواكشوط الجنوبية', lat: 17.99323, lon: -16.022342 },
   '61522': { name: 'ميناء انجاكو', wilaya: 'الترارزة' },
   '61526': { name: 'ميناء تانيت', wilaya: null },
 };
@@ -65,14 +67,17 @@ Deno.serve(async (req) => {
     const hours = !count ? 24 * 90 : isService ? Math.min(Number(body.hours) || 6, 24 * 90) : 6;
     const since = new Date(Date.now() - hours * 3600_000).toISOString().slice(0, 19) + 'Z';
 
-    // المحطات: الإحداثيات من wis2box، والاسم والولاية من STATIONS
+    // المحطات: الإحداثيات من wis2box ما لم تُصحَّح، والاسم والولاية من STATIONS
     const stationsGeo = await getJson(`${OAPI}/collections/stations/items?f=json&limit=100`);
     const stations = new Map<string, { name: string; wilaya: string | null; lat: number; lon: number }>();
     for (const f of stationsGeo.features ?? []) {
       const p = f.properties ?? {};
       const localId = String(p.wigos_station_identifier).split('-').pop()!;
       const known = STATIONS[localId] ?? { name: p.name, wilaya: null };
-      stations.set(p.wigos_station_identifier, { ...known, lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0] });
+      stations.set(p.wigos_station_identifier, {
+        name: known.name, wilaya: known.wilaya,
+        lat: known.lat ?? f.geometry.coordinates[1], lon: known.lon ?? f.geometry.coordinates[0],
+      });
     }
 
     // القراءات: كل متغير سجلّ مستقل، فتُجمع في صف لكل محطة وساعة
