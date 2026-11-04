@@ -47,7 +47,7 @@ export const manualMauritanianCities = {
   'المذرذرة': { lat: 16.91, lon: -15.65, name: 'Mederdra', type: 'مقاطعة', wilaya: 'الترارزة' },
   'واد الناقة': { lat: 17.91, lon: -15.31, name: 'Ouad Naga', type: 'مقاطعة', wilaya: 'الترارزة' },
   'اركيز': { lat: 16.91, lon: -15.28, name: 'Rkiz', type: 'مقاطعة', wilaya: 'الترارزة' },
-  'انتيكان': { lat: 16.608, lon: -15.354, name: 'Antikan', type: 'قرية', wilaya: 'الترارزة' },
+  'انتيكان': { lat: 16.608, lon: -15.354, name: 'Antikan', type: 'مقاطعة', wilaya: 'الترارزة' },
 
   // --- البراكنة ---
   'ألاك': { lat: 17.05, lon: -13.91, name: 'Aleg', type: 'مقاطعة', wilaya: 'البراكنة' },

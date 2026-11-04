@@ -206,7 +206,7 @@ export const PLACES: { city: string; wilaya: string; lat: number; lon: number }[
   {"city":"المذرذرة","wilaya":"الترارزة","lat":16.91,"lon":-15.65},
   {"city":"واد الناقة","wilaya":"الترارزة","lat":17.91,"lon":-15.31},
   {"city":"اركيز","wilaya":"الترارزة","lat":16.91,"lon":-15.28},
-  {"city":"انتيكان (قرية)","wilaya":"الترارزة","lat":16.608,"lon":-15.354},
+  {"city":"انتيكان","wilaya":"الترارزة","lat":16.608,"lon":-15.354},
   {"city":"ألاك","wilaya":"البراكنة","lat":17.05,"lon":-13.91},
   {"city":"بابابى","wilaya":"البراكنة","lat":16.48,"lon":-13.98},
   {"city":"بوكي","wilaya":"البراكنة","lat":16.58,"lon":-14.26},
