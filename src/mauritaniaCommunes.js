@@ -1703,6 +1703,17 @@ export const mauritaniaCommunesList = [
     "source": "open-admin-data"
   },
   {
+    "city": "Yaghref",
+    "name": "Yaghref",
+    "lat": 17.438361049747225,
+    "lon": -14.643276749261544,
+    "type": "قرية",
+    "wilaya": "الترارزة",
+    "moughataa": "Boutilimit",
+    "id": "MR01339",
+    "source": "manual"
+  },
+  {
     "city": "Keurmacen",
     "name": "Keurmacen",
     "lat": 16.568,

@@ -428,6 +428,11 @@ const ALERT_KINDS: Record<'wind' | 'heat' | 'cold', AlertKind> = {
   },
 };
 
+// القرى تأتي من PLACES بلاحقة " (قرية)": "قرية يغرف" لا "بلدية يغرف (قرية)"
+const VILLAGE_SUFFIX = ' (قرية)';
+const placeLabel = (city: string) =>
+  city.endsWith(VILLAGE_SUFFIX) ? `قرية ${city.slice(0, -VILLAGE_SUFFIX.length)}` : `بلدية ${city}`;
+
 // خبر لكل بلدية على الموقع، أو خبر واحد للولاية إن شمل التحذير WILAYA_MIN_COMMUNES
 // بلديات فأكثر منها؛ وفيسبوك: منشور واحد لكل ولاية
 async function publishAlerts(dateStr: string, entries: AlertEntry[], kind: AlertKind): Promise<number> {
@@ -462,14 +467,14 @@ async function publishAlerts(dateStr: string, entries: AlertEntry[], kind: Alert
       }
     } else {
       for (const e of list) {
-        const slug = `alert-${kind.typeKey}-${dateStr}-${e.city.replace(/\s+/g, '-')}`;
+        const slug = `alert-${kind.typeKey}-${dateStr}-${e.city.replace(VILLAGE_SUFFIX, '').replace(/\s+/g, '-')}`;
         if (await slugExists(slug)) continue;
-        const title = `⚠️ ${kind.headline} على بلدية ${e.city} وضواحيها${e.wilaya ? ` (${e.wilaya})` : ''} — ${dateAr}`;
+        const title = `⚠️ ${kind.headline} على ${placeLabel(e.city)} وضواحيها${e.wilaya ? ` (${e.wilaya})` : ''} — ${dateAr}`;
         if (await insertAlert({
           title, slug, category: kind.category, imageKey: kind.imageKey, tags: [kind.tagLabel, 'تحذير', dateStr],
           content: `📅 ${arabicFullDateWithYear(dateStr)}\n\n` +
             `${kind.icon} تشير أحدث التوقعات الجوية إلى توقع ${phenomenon} (${kind.valueOf(e)}) ` +
-            `في بلدية ${e.city} وضواحيها${e.wilaya ? ` بولاية ${e.wilaya}` : ''}.\n\n` +
+            `في ${placeLabel(e.city)} وضواحيها${e.wilaya ? ` بولاية ${e.wilaya}` : ''}.\n\n` +
             `⚠️ التوصيات:\n\n${recLines}\n\n${closing}`,
         })) published++;
       }
@@ -479,7 +484,7 @@ async function publishAlerts(dateStr: string, entries: AlertEntry[], kind: Alert
     if (await slugExists(fbSlug)) continue;
     const lines = asWilaya
       ? `🔸 عدد من بلديات الولاية: ${kind.valueOf(worst)}`
-      : list.map((e) => `🔸 بلدية ${e.city} وضواحيها: ${kind.valueOf(e)}`).join('\n');
+      : list.map((e) => `🔸 ${placeLabel(e.city)} وضواحيها: ${kind.valueOf(e)}`).join('\n');
     const fbTitle = `⚠️ ${kind.headline} — ولاية ${wilaya} — ${dateAr}`;
     await postToFacebook(fbTitle,
       `${kind.icon} ${fbTitle}\n\n${lines}\n\n⚠️ التوصيات:\n${recLines}\n\n${closing}\n\n` +

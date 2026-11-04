@@ -147,6 +147,7 @@ export const COMMUNE_NAMES_AR = {
   "Bourat": "بورات",
   "Djelwar": "جلوار",
   "Boutilimit": "بوتلميت",
+  "Yaghref": "يغرف - حاسي فياه",
   "Elb Adress": "علب آدرس",
   "Ajoueir": "آجوير",
   "N'Teichet": "انتيشط",

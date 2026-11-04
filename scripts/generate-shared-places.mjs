@@ -28,13 +28,12 @@ const { mauritanianCities, toArabicCommune, wilayaToSlug } = await import(pathTo
 fs.rmSync(tmp, { recursive: true, force: true });
 
 // Same naming as the site: the Arabic commune name, else the key itself.
-// Villages stay on the site's weather pages but are left out of the published bulletins.
+// Villages are labelled so the bulletins never present them as communes.
 const seen = new Set();
 const places = [];
 for (const [key, c] of Object.entries(mauritanianCities)) {
-  const city = toArabicCommune(key) || key;
+  const city = (toArabicCommune(key) || key) + (c.type === 'قرية' ? ' (قرية)' : '');
   const wilaya = c.wilaya || '';
-  if (c.type === 'قرية') continue;
   if (!Number.isFinite(c.lat) || !Number.isFinite(c.lon) || seen.has(`${city}|${wilaya}`)) continue;
   seen.add(`${city}|${wilaya}`);
   places.push({ city, wilaya, lat: c.lat, lon: c.lon });
@@ -46,7 +45,7 @@ const slugs = Object.fromEntries([...new Set(places.map((p) => p.wilaya).filter(
 const out = path.join(root, 'supabase/functions/_shared/mauritaniaPlaces.ts');
 fs.writeFileSync(out,
   '// مولَّد آلياً من src/mauritaniaCityTable.js بالأمر npm run generate:places — لا تعدّله يدوياً.\n' +
-  '// المدن والبلديات التي يتابعها الموقع (دون القرى)، بأسمائها العربية وولاياتها الرسمية.\n\n' +
+  '// المدن والبلديات التي يتابعها الموقع (والقرى موسومة بـ «(قرية)»)، بأسمائها العربية وولاياتها الرسمية.\n\n' +
   `export const PLACES: { city: string; wilaya: string; lat: number; lon: number }[] = [\n` +
   places.map((p) => `  ${JSON.stringify(p)},`).join('\n') +
   '\n];\n\n' +
