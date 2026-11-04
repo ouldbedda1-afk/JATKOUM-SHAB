@@ -9,7 +9,7 @@
 // الطلب (POST) بترويسة x-admin-token:
 //   { "action": "list",   "limit": 50, "offset": 0, "search": "..." }  — كل الأخبار، المنشورة وغيرها
 //   { "action": "create", "article": {...}, "skipFbPost": false }       — يُنشر على فيسبوك أيضاً إن كان منشوراً
-//   { "action": "update", "id": "...", "updates": {...} }
+//   { "action": "update", "id": "...", "updates": {...} }                — نشر مسودة يُنشرها على فيسبوك أيضاً
 //   { "action": "delete", "id": "..." }
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -39,6 +39,16 @@ function slugify(text: string): string {
     .replace(/-+/g, '-')
     .toLowerCase()
     .slice(0, 100) + '-' + Date.now().toString(36);
+}
+
+async function postToFacebook(a: { title: string; content: string; slug: string }): Promise<string | null> {
+  const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/fb-post-article`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', Authorization: `Bearer ${SERVICE_KEY}` },
+    body: JSON.stringify({ title: a.title, content: a.content, slug: a.slug }),
+  }).catch(() => null);
+  const fb = await res?.json().catch(() => null);
+  return fb?.ok && fb.id ? fb.id : null;
 }
 
 // الأعمدة التي يملأها الخادم وحده
@@ -81,15 +91,10 @@ Deno.serve(async (req) => {
 
       // كل خبر منشور يُنشر على صفحة فيسبوك أيضاً، ويُحفظ معرّف المنشور لعرض تفاعله
       if (data.is_published && !body.skipFbPost) {
-        const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/fb-post-article`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', Authorization: `Bearer ${SERVICE_KEY}` },
-          body: JSON.stringify({ title: data.title, content: data.content, slug: data.slug }),
-        }).catch(() => null);
-        const fb = await res?.json().catch(() => null);
-        if (fb?.ok && fb.id) {
-          await supabase.from('news_articles').update({ fb_post_id: fb.id }).eq('id', data.id);
-          data.fb_post_id = fb.id;
+        const fbId = await postToFacebook(data);
+        if (fbId) {
+          await supabase.from('news_articles').update({ fb_post_id: fbId }).eq('id', data.id);
+          data.fb_post_id = fbId;
         }
       }
       return json({ data });
@@ -97,8 +102,22 @@ Deno.serve(async (req) => {
 
     if (body.action === 'update') {
       if (!body.id) return json({ error: 'id مطلوب' }, 400);
-      const { data, error } = await supabase.from('news_articles').update(clean(body.updates)).eq('id', body.id).select().single();
+      const updates = clean(body.updates);
+      // نشر مسودة (مثل النشرة الموسمية): تاريخ النشر الآن، ومنشور فيسبوك إن لم يُنشر قبلُ
+      const { data: before } = await supabase.from('news_articles')
+        .select('is_published, fb_post_id').eq('id', body.id).maybeSingle();
+      const publishing = updates.is_published === true && before && !before.is_published;
+      if (publishing && !updates.published_at) updates.published_at = new Date().toISOString();
+
+      const { data, error } = await supabase.from('news_articles').update(updates).eq('id', body.id).select().single();
       if (error) return json({ error: error.message }, 400);
+      if (publishing && !before?.fb_post_id && !body.skipFbPost) {
+        const fbId = await postToFacebook(data);
+        if (fbId) {
+          await supabase.from('news_articles').update({ fb_post_id: fbId }).eq('id', data.id);
+          data.fb_post_id = fbId;
+        }
+      }
       return json({ data });
     }
 

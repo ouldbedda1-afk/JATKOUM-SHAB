@@ -15,7 +15,8 @@ await build({
   stdin: {
     contents: `export { mauritanianCities } from './src/mauritaniaCityTable.js';
 export { toArabicCommune } from './src/mauritaniaCommuneNamesAr.js';
-export { wilayaToSlug } from './src/wilayaUrlSlugs.js';`,
+export { wilayaToSlug } from './src/wilayaUrlSlugs.js';
+export { ERA5_CITIES, ERA5_REFERENCE, ERA5_SOURCE } from './src/rainEra5Normals.js';`,
     resolveDir: root,
   },
   bundle: true,
@@ -24,7 +25,7 @@ export { wilayaToSlug } from './src/wilayaUrlSlugs.js';`,
   outfile: bundle,
   logLevel: 'error',
 });
-const { mauritanianCities, toArabicCommune, wilayaToSlug } = await import(pathToFileURL(bundle).href);
+const { mauritanianCities, toArabicCommune, wilayaToSlug, ERA5_CITIES, ERA5_REFERENCE, ERA5_SOURCE } = await import(pathToFileURL(bundle).href);
 fs.rmSync(tmp, { recursive: true, force: true });
 
 // Same naming as the site: the Arabic commune name, else the key itself.
@@ -52,3 +53,19 @@ fs.writeFileSync(out,
   '// معرّف الولاية في الروابط، كما يبنيه الموقع (wilayaToSlug)\n' +
   `export const WILAYA_SLUGS: Record<string, string> = ${JSON.stringify(slugs, null, 2)};\n`);
 console.log(`${places.length} places -> ${path.relative(root, out)}`);
+
+// ERA5 normals of the wilaya capitals (src/rainEra5Normals.js), for the seasonal bulletin
+const era5Out = path.join(root, 'supabase/functions/_shared/era5Normals.ts');
+const era5Cities = ERA5_CITIES.map(({ name, wilaya, lat, lon, normal, cumulative }) => ({ name, wilaya, lat, lon, normal, cumulative }));
+fs.writeFileSync(era5Out, [
+  '// مولَّد آلياً من src/rainEra5Normals.js بالأمر npm run generate:places — لا تعدّله يدوياً.',
+  '// معدل 1991–2020 لهطول الأمطار في عواصم الولايات حسب ERA5. cumulative[i]: المعدل التراكمي',
+  '// من 1 يناير حتى اليوم i (الفهرس 0 = 1 يناير، والسنة بـ366 يوماً).',
+  '',
+  `export const ERA5_SOURCE = ${JSON.stringify(ERA5_SOURCE)};`,
+  `export const ERA5_REFERENCE = ${JSON.stringify(ERA5_REFERENCE)};`,
+  'export const ERA5_CITIES: { name: string; wilaya: string; lat: number; lon: number; normal: number; cumulative: number[] }[] = ' +
+    `${JSON.stringify(era5Cities)};`,
+  '',
+].join('\n'));
+console.log(`${era5Cities.length} ERA5 capitals -> ${path.relative(root, era5Out)}`);

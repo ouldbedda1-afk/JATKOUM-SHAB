@@ -1,6 +1,6 @@
 // Supabase Edge Function: telegram-webhook
 // يستقبل:
-//   • ضغطات أزرار الموافقة/الرفض (callback_query)
+//   • ضغطات أزرار الموافقة/الرفض (callback_query)، ومنها نشر مسودة النشرة الموسمية أو حذفها
 //   • أوامر نشر النشرة الجوية من الأدمن (text messages)
 //
 // أوامر النشرة الجوية:
@@ -276,6 +276,49 @@ Deno.serve(async (req) => {
               parse_mode: 'HTML',
             });
           }
+        }
+        return new Response('ok');
+      }
+
+      // ── مسودة النشرة الموسمية (seasonal-bulletin): نشر على الموقع وفيسبوك، أو حذف ──
+      if (kind === 'seasonal') {
+        const { data: article } = await supabase.from('news_articles')
+          .select('id, title, content, slug, is_published').eq('id', id).maybeSingle();
+        if (!article || article.is_published) {
+          await tg('answerCallbackQuery', { callback_query_id: cq.id, text: article ? 'منشورة مسبقاً' : 'المسودة غير موجودة' });
+          return new Response('ok');
+        }
+
+        let tail: string;
+        if (action === 'approve') {
+          const { error } = await supabase.from('news_articles')
+            .update({ is_published: true, published_at: new Date().toISOString() }).eq('id', id);
+          if (error) {
+            await tg('answerCallbackQuery', { callback_query_id: cq.id, text: `⚠️ خطأ: ${error.message}`, show_alert: true });
+            return new Response('ok');
+          }
+          // النص الحالي من القاعدة: يشمل ما عُدِّل في لوحة الإدارة بعد إرسال المسودة
+          const fb = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/fb-post-article`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+            body: JSON.stringify({ title: article.title, content: article.content, slug: article.slug }),
+          }).then((r) => r.json()).catch(() => null);
+          if (fb?.ok && fb.id) await supabase.from('news_articles').update({ fb_post_id: fb.id }).eq('id', id);
+          tail = fb?.ok ? '✅ نُشرت على الموقع وفيسبوك' : '✅ نُشرت على الموقع — ⚠️ تعذّر النشر على فيسبوك';
+        } else if (action === 'reject') {
+          await supabase.from('news_articles').delete().eq('id', id);
+          tail = '🗑️ حُذفت المسودة';
+        } else {
+          await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'طلب غير صالح' });
+          return new Response('ok');
+        }
+
+        await tg('answerCallbackQuery', { callback_query_id: cq.id, text: tail });
+        if (chatId && msgId) {
+          await tg('editMessageText', {
+            chat_id: chatId, message_id: msgId,
+            text: `${cq.message.text || ''}\n\n${tail} — ${new Date().toLocaleString('en-GB')}`,
+          });
         }
         return new Response('ok');
       }
