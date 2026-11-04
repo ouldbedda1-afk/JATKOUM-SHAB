@@ -8,6 +8,7 @@ import CityGrid from '../components/CityGrid';
 import TodaySummaryStrip from '../components/TodaySummaryStrip';
 import { getFbStats } from '../supabase';
 import TopRainRecordsCard from '../components/TopRainRecordsCard';
+import StationObservationsCard from '../components/StationObservationsCard';
 
 // مكونات ثقيلة — تُحمَّل عند الحاجة فقط
 const WeatherAlerts       = lazy(() => import('../components/WeatherAlerts'));
@@ -150,6 +151,7 @@ export default function Home() {
           <div className="lg:col-span-4 space-y-6 md:space-y-8 lg:sticky lg:top-4 lg:self-start">
             <Suspense fallback={<LazyFallback />}><PrayerTimes city={selectedCity} /></Suspense>
             <WeeklyForecast city={selectedCity} />
+            <StationObservationsCard />
             <TopRainRecordsCard />
           </div>
         </div>

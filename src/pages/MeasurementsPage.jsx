@@ -6,6 +6,7 @@ import {
   getTopRainRecords,
 } from '../supabase';
 import Navbar from '../components/Navbar';
+import StationObservationsCard from '../components/StationObservationsCard';
 import { loadEra5Deficit } from '../rainEra5';
 
 // الترتيب الرسمي للولايات الموريتانية (حسب الرموز الإدارية 01–15)
@@ -727,6 +728,9 @@ export default function MeasurementsPage() {
           <SearchResults results={searchResults} loading={searchLoading} query={searchQuery} />
         ) : (
           <>
+            {/* قراءات محطات الأرصاد الرسمية: الحرارة والرياح وأمطار 24 ساعة */}
+            <StationObservationsCard />
+
             {/* أزرار التبويب */}
             <div className="flex gap-2 flex-wrap">
               {TABS.map((t) => (

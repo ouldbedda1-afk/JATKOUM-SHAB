@@ -813,6 +813,14 @@ export async function getTopRainRecords(limit = 20) {
 }
 
 /** أعلى N قراءة خلال آخر 10 سنوات */
+// آخر قراءة لكل محطة من محطات الأرصاد الجوية الموريتانية (wis2box)، مع أمطار 24 ساعة
+export async function getStationLatest() {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await supabase.from('station_latest').select('*');
+  if (error) { console.error('station_latest:', error.message); return []; }
+  return data || [];
+}
+
 export async function getTopRainRecords10Years(limit = 3) {
   if (!isSupabaseConfigured) return [];
   const tenYearsAgo = new Date();

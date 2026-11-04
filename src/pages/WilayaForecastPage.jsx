@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../supabase';
 import Navbar from '../components/Navbar';
+import StationObservationsCard from '../components/StationObservationsCard';
 import { slugToWilaya, wilayaToSlug } from '../wilayaUrlSlugs';
 import { getImageForAlert } from '../weatherImages';
 import { useWeatherContext } from '../WeatherContext';
@@ -391,6 +392,11 @@ export default function WilayaForecastPage() {
             </div>
           </div>
         </article>
+
+        {/* محطات الرصد في الولاية، إن وُجدت */}
+        <div className="mt-6">
+          <StationObservationsCard wilaya={wilaya} />
+        </div>
 
         <div className="mt-6 text-center">
           <Link to="/" className="text-sm font-bold text-blue-600 hover:underline">← العودة للصفحة الرئيسية</Link>
