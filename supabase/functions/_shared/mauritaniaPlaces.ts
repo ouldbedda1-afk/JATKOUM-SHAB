@@ -1,5 +1,5 @@
 // مولَّد آلياً من src/mauritaniaCityTable.js بالأمر npm run generate:places — لا تعدّله يدوياً.
-// المدن والبلديات التي يتابعها الموقع، بأسمائها العربية وولاياتها الرسمية.
+// المدن والبلديات التي يتابعها الموقع (دون القرى)، بأسمائها العربية وولاياتها الرسمية.
 
 export const PLACES: { city: string; wilaya: string; lat: number; lon: number }[] = [
   {"city":"أم اعشيش","wilaya":"الحوض الشرقي","lat":15.677,"lon":-7.554},
@@ -131,7 +131,6 @@ export const PLACES: { city: string; wilaya: string; lat: number; lon: number }[
   {"city":"النباغية","wilaya":"الترارزة","lat":17.406,"lon":-15.06},
   {"city":"تنغدج","wilaya":"الترارزة","lat":17.75,"lon":-15.008},
   {"city":"الميسر","wilaya":"الترارزة","lat":18.499,"lon":-13.887},
-  {"city":"يغرف - حاسي فياه","wilaya":"الترارزة","lat":17.438361049747225,"lon":-14.643276749261544},
   {"city":"كرمسين","wilaya":"الترارزة","lat":16.568,"lon":-16.203},
   {"city":"انجاݣو","wilaya":"الترارزة","lat":16.333,"lon":-16.431},
   {"city":"امبلل","wilaya":"الترارزة","lat":16.75,"lon":-16.237},
@@ -206,7 +205,6 @@ export const PLACES: { city: string; wilaya: string; lat: number; lon: number }[
   {"city":"المذرذرة","wilaya":"الترارزة","lat":16.91,"lon":-15.65},
   {"city":"واد الناقة","wilaya":"الترارزة","lat":17.91,"lon":-15.31},
   {"city":"اركيز","wilaya":"الترارزة","lat":16.91,"lon":-15.28},
-  {"city":"انتيكان","wilaya":"الترارزة","lat":16.608,"lon":-15.354},
   {"city":"ألاك","wilaya":"البراكنة","lat":17.05,"lon":-13.91},
   {"city":"بابابى","wilaya":"البراكنة","lat":16.48,"lon":-13.98},
   {"city":"بوكي","wilaya":"البراكنة","lat":16.58,"lon":-14.26},
@@ -240,7 +238,6 @@ export const PLACES: { city: string; wilaya: string; lat: number; lon: number }[
   {"city":"تيشيت","wilaya":"تكانت","lat":18.44,"lon":-9.49},
   {"city":"موجريه","wilaya":"تكانت","lat":17.88,"lon":-12.37},
   {"city":"أطار","wilaya":"آدرار","lat":20.51,"lon":-13.05},
-  {"city":"يغرف","wilaya":"آدرار","lat":20.251962,"lon":-13.505931},
   {"city":"شنقيط","wilaya":"آدرار","lat":20.45,"lon":-12.35},
   {"city":"وادان","wilaya":"آدرار","lat":20.93,"lon":-11.61},
   {"city":"اوجفت","wilaya":"آدرار","lat":20.026,"lon":-13.055},
