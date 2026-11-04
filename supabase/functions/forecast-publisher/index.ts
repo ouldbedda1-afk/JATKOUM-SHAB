@@ -410,7 +410,8 @@ function buildBody(entry: CityAgg, periodPhrase: string): string {
     const w = CITIES.find((c) => c.city === city)?.wilaya || '';
     body += `يتوقع بإذن الله 🌧️ هطول أمطار ${intensityFromMm(entry.cityMm[city] ?? 0)} على ${city}${w ? ` (${w})` : ''} ${periodPhrase}.\n\n`;
   });
-  body += `جعلها الله خيراً وبركة.`;
+  body += `⚠️ **تنبيه:** تمثل هذه التوقعات أفضل قراءة للنماذج الجوية في الوقت الحالي، وهي قابلة للتحديث مع صدور بيانات جديدة.\n\n`;
+  body += `🤲 **اللهم اسقنا الغيث، ولا تجعلنا من القانطين.**`;
   return body;
 }
 

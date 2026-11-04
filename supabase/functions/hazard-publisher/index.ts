@@ -273,21 +273,50 @@ function dustSection(days: string[], dust: ByDay<DustItem>): Section | null {
   };
 }
 
+// مدينتان فأكثر من ولاية واحدة في نفس اليوم: تُذكر الولاية بمدى درجاتها بدل
+// سرد مدنها واحدة واحدة
+const COLD_WILAYA_MIN_CITIES = 2;
+
+interface ColdGroup { label: string; isWilaya: boolean; tmin: number[]; tmax: number[]; drop: number }
+
+function coldGroups(items: ColdItem[]): ColdGroup[] {
+  const byWilaya = new Map<string, ColdItem[]>();
+  for (const i of items) byWilaya.set(i.wilaya, [...(byWilaya.get(i.wilaya) || []), i]);
+  return [...byWilaya].flatMap(([wilaya, list]) => list.length >= COLD_WILAYA_MIN_CITIES
+    ? [{ label: `ولاية ${wilaya}`, isWilaya: true, tmin: list.map((i) => i.tmin), tmax: list.map((i) => i.tmax), drop: Math.max(...list.map((i) => i.drop)) }]
+    : list.map((i) => ({ label: i.city, isWilaya: false, tmin: [i.tmin], tmax: [i.tmax], drop: i.drop })))
+    .sort((a, b) => b.drop - a.drop);
+}
+
+// "21°م" / "بين 20 و22°م"
+function tempRange(values: number[]): string {
+  const lo = Math.min(...values), hi = Math.max(...values);
+  return lo === hi ? `${lo}°م` : `بين ${lo} و${hi}°م`;
+}
+
 function coldSection(days: string[], cold: ByDay<ColdItem>): Section | null {
   const coldDays = days.filter((d) => cold[d]?.length);
   if (!coldDays.length) return null;
-  const cities = uniq(coldDays.flatMap((d) => cold[d].sort((a, b) => b.drop - a.drop).map((i) => i.city)));
-  const temps = (i: ColdItem) => `الصغرى ${i.tmin}°م، والعظمى ${i.tmax}°م`;
+  const groupsByDay = Object.fromEntries(coldDays.map((d) => [d, coldGroups(cold[d])]));
+  const all = coldDays.flatMap((d) => groupsByDay[d]);
+  const labels = uniq(all.map((g) => g.label));
+  const temps = (g: ColdGroup) => `الصغرى ${tempRange(g.tmin)}، والعظمى ${tempRange(g.tmax)}`;
   const lines = coldDays.map((d) => {
-    const items = cold[d];
-    // مدينة واحدة: اسمها في السطر التمهيدي، والبنود بالدرجات فقط كما في القالب
-    const text = cities.length === 1 ? temps(items[0]) : items.map((i) => `${i.city}: ${temps(i)}`).join('؛ ');
+    const groups = groupsByDay[d];
+    // مكان واحد: اسمه في السطر التمهيدي، والبنود بالدرجات فقط كما في القالب
+    const text = labels.length === 1 ? temps(groups[0]) : groups.map((g) => `${g.label}: ${temps(g)}`).join('؛ ');
     return `• **${dayLabel(d)}:** ${text}.`;
   });
+  // ولاية مع مدن منفردة: "ولاية الترارزة ومدينة أطار" لا "ولاية الترارزة وأطار"
+  const mixed = all.some((g) => g.isWilaya);
+  const named = mixed ? labels.map((l) => (all.find((g) => g.label === l)!.isWilaya ? l : `مدينة ${l}`)) : labels;
+  const where = mixed
+    ? (named.length <= 3 ? `في ${named.join(' و')}` : 'في عدة مناطق')
+    : inCities(labels);
   return {
-    intro: `انخفاض ملحوظ في درجات الحرارة ${inCities(cities)}`,
+    intro: `انخفاض ملحوظ في درجات الحرارة ${where}`,
     body: `**انخفاض درجات الحرارة**\n\n` +
-      `تُسجَّل أجواء باردة نسبيًا في ${joinAr(cities)} ${spanPhrase(coldDays)}:\n${lines.join('\n')}`,
+      `تُسجَّل أجواء باردة نسبيًا في ${joinAr(named)} ${spanPhrase(coldDays)}:\n${lines.join('\n')}`,
   };
 }
 
