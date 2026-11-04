@@ -4,7 +4,7 @@
 //
 // • توقعات الأمطار لكل ولاية لليومين القادمين — خبر واحد لكل ولاية في اليوم
 //   (slug forecast-<ولاية>-YYYY-MM-DD). إن تغيّرت التوقعات في استدعاء لاحق
-//   يُعاد كتابة الخبر في مكانه بالشكل نفسه مع سطر "🔄 تحديث".
+//   يُعاد كتابة الخبر في مكانه بالشكل نفسه مع سطر "🔄 تحديث الساعة HH:MM".
 // • تحذيرات الرياح القوية والحر والبرودة للأيام القادمة: خبر لكل بلدية، أو خبر
 //   واحد للولاية إن شمل التحذير عدداً من بلدياتها، ومنشور فيسبوك واحد لكل ولاية.
 // • لقطة يومية للتوقعات في weather_snapshots.
@@ -245,7 +245,8 @@ function buildWilayaContent(wilaya: string, entries: Entry[], today: string, isU
 
   const heading = isUpdate ? 'تحديث التوقعات الجوية' : 'التوقعات الجوية';
   let content = `🌦️ **${heading} – ولاية ${wilaya}**\n**${arabicFullDateWithYear(today)}**\n**جاتكم اسحاب**\n\n`;
-  if (isUpdate) content += '🔄 **تحديث**\n\n';
+  // توقيت موريتانيا هو UTC
+  if (isUpdate) content += `🔄 **تحديث الساعة ${new Date().toISOString().slice(11, 16)}**\n\n`;
   content += `${intro}\n\n`;
 
   for (const { day, forecast } of entries) {
