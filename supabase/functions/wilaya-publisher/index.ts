@@ -4,7 +4,7 @@
 //
 // • توقعات الأمطار لكل ولاية لليومين القادمين — خبر واحد لكل ولاية في اليوم
 //   (slug forecast-<ولاية>-YYYY-MM-DD). إن تغيّرت التوقعات في استدعاء لاحق
-//   يُعاد كتابة الخبر في مكانه بالشكل نفسه مع سطر "🔄 تحديث" يلخّص ما تغيّر.
+//   يُعاد كتابة الخبر في مكانه بالشكل نفسه مع سطر "🔄 تحديث".
 // • تحذيرات الرياح القوية والحر والبرودة للأيام القادمة: خبر لكل بلدية، أو خبر
 //   واحد للولاية إن شمل التحذير عدداً من بلدياتها، ومنشور فيسبوك واحد لكل ولاية.
 // • لقطة يومية للتوقعات في weather_snapshots.
@@ -236,48 +236,16 @@ function hasChanges(prev: DaySig[], curr: DaySig[]): boolean {
 
 // ── 4. نص الخبر ──────────────────────────────────────────────────────────
 const bulletList = (list: string[]) => list.map((c) => `• ${c}`).join('\n');
-const joinAr = (items: string[]) => items.map((s, i) => (i === 0 ? s : `و${s}`)).join('، ');
 
-// "ضو" / "ضو ودول سيفه" حتى ثلاث مناطق، ثم العدد: "5 مناطق"، "15 منطقة"
-function areasPhrase(cities: string[]): string {
-  const n = cities.length;
-  if (n <= 3) return cities.join(' و');
-  return n <= 10 ? `${n} مناطق` : `${n} منطقة`;
-}
-
-// على مستوى المنطقة لا اليوم: منطقة انتقلت أمطارها من يوم إلى آخر ليست
-// "مضافة" ولا "محذوفة"، والأيام التي مضت من التوقع السابق لا تُقارَن
-function buildUpdateSummary(prevSig: DaySig[], currSig: DaySig[]): string {
-  const dates = new Set(currSig.map((d) => d.dateStr));
-  const prevDays = prevSig.filter((d) => dates.has(d.dateStr));
-  const citiesOf = (days: DaySig[]) => new Set(days.flatMap((d) => [...cityBucketMap(d).keys()]));
-  const prevCities = citiesOf(prevDays), currCities = citiesOf(currSig);
-
-  const added   = [...currCities].filter((c) => !prevCities.has(c));
-  const removed = [...prevCities].filter((c) => !currCities.has(c));
-  const changed = [...currCities].filter((c) => prevCities.has(c) && currSig.some((d) => {
-    const prev = cityBucketMap(prevDays.find((p) => p.dateStr === d.dateStr));
-    const curr = cityBucketMap(d);
-    return prev.has(c) && curr.has(c) && prev.get(c) !== curr.get(c);
-  }));
-  if (!added.length && !removed.length && !changed.length) return '🔄 **تحديث:** تغيّرت أيام الأمطار المتوقعة على بعض المناطق.';
-
-  const parts: string[] = [];
-  if (added.length)   parts.push(`أُضيفت ${areasPhrase(added)}`);
-  if (removed.length) parts.push(`لم تعد الأمطار متوقعة على ${areasPhrase(removed)}`);
-  if (changed.length) parts.push(`تغيّرت شدة الأمطار على ${areasPhrase(changed)}`);
-  return `🔄 **تحديث:** ${joinAr(parts)}.`;
-}
-
-function buildWilayaContent(wilaya: string, entries: Entry[], today: string, updateSummary: string | null): string {
+function buildWilayaContent(wilaya: string, entries: Entry[], today: string, isUpdate: boolean): string {
   const anyThunder = entries.some((e) => e.forecast.thunder.length > 0);
   const intro = anyThunder
     ? `تشير آخر التوقعات الجوية، **بمشيئة الله**، إلى فرص لهطول أمطار متفاوتة الشدة على عدد من مناطق ولاية ${wilaya}، مع توقع نشاط للعواصف الرعدية في بعض المناطق.`
     : `تشير آخر التوقعات الجوية، **بمشيئة الله**، إلى فرص لهطول أمطار متفاوتة الشدة على عدد من مناطق ولاية ${wilaya}.`;
 
-  const heading = updateSummary ? 'تحديث التوقعات الجوية' : 'التوقعات الجوية';
+  const heading = isUpdate ? 'تحديث التوقعات الجوية' : 'التوقعات الجوية';
   let content = `🌦️ **${heading} – ولاية ${wilaya}**\n**${arabicFullDateWithYear(today)}**\n**جاتكم اسحاب**\n\n`;
-  if (updateSummary) content += `${updateSummary}\n\n`;
+  if (isUpdate) content += '🔄 **تحديث**\n\n';
   content += `${intro}\n\n`;
 
   for (const { day, forecast } of entries) {
@@ -342,7 +310,7 @@ async function publishForecasts(days: ForecastDay[], today: string) {
       const updTitle = `${title} — تحديث`;
       const { error } = await supabase.from('news_articles').update({
         title: updTitle, excerpt: updTitle,
-        content: buildWilayaContent(wilaya, entries, today, buildUpdateSummary(prevSig, currSig)),
+        content: buildWilayaContent(wilaya, entries, today, true),
         category, published_at: new Date().toISOString(),
         tags: ['توقعات', wilaya, category, 'تحديث'],
         forecast_signature: currSig, forecast_signature_hash: currHash,
@@ -352,7 +320,7 @@ async function publishForecasts(days: ForecastDay[], today: string) {
       continue;
     }
 
-    const content = buildWilayaContent(wilaya, entries, today, null);
+    const content = buildWilayaContent(wilaya, entries, today, false);
     const { data: inserted, error } = await supabase.from('news_articles').insert([{
       title, slug, excerpt: title, content, category, wilaya,
       author: 'جاتكم اسحاب', is_published: true, published_at: new Date().toISOString(),
