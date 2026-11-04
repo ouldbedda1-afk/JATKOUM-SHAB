@@ -347,7 +347,7 @@ const manualMauritanianCities = {
   'المينة': { lat: 18.0100, lon: -15.9700, name: 'El Mina', type: 'مقاطعة', wilaya: 'نواكشوط الجنوبية' },
 
   // --- الترارزة ---
-  'روصو': { lat: 17.5333, lon: -14.3333, name: 'Rosso', type: 'مقاطعة', wilaya: 'الترارزة' },
+  'روصو': { lat: 16.513, lon: -15.81, name: 'Rosso', type: 'مقاطعة', wilaya: 'الترارزة' },
   'بوتلميت': { lat: 17.51, lon: -14.76, name: 'Boutilimit', type: 'مقاطعة', wilaya: 'الترارزة' },
   'كرمسين': { lat: 16.48, lon: -16.21, name: 'Keur Macène', type: 'مقاطعة', wilaya: 'الترارزة' },
   'المذرذرة': { lat: 16.91, lon: -15.65, name: 'Mederdra', type: 'مقاطعة', wilaya: 'الترارزة' },
@@ -373,7 +373,7 @@ const manualMauritanianCities = {
   'سيلبابي': { lat: 15.15, lon: -12.18, name: 'Sélibaby', type: 'مقاطعة', wilaya: 'كيدماغا' },
   'ولد ينج': { lat: 15.35, lon: -11.63, name: 'Ould Yengé', type: 'مقاطعة', wilaya: 'كيدماغا' },
   'غابو': { lat: 15.33, lon: -12.57, name: 'Ghabou', type: 'مقاطعة', wilaya: 'كيدماغا' },
-  'ونبو': { lat: 15.45, lon: -12.08, name: 'Wompou', type: 'بلدية', wilaya: 'كيدماغا' },
+  'ونبو': { lat: 15.132, lon: -12.724, name: 'Wompou', type: 'بلدية', wilaya: 'كيدماغا' },
   'لعبلي': { lat: 15.318161600485181, lon: -11.79565738869597, name: 'Labli', type: 'بلدية', wilaya: 'كيدماغا' },
 
   // --- لعصابه ---
@@ -415,11 +415,11 @@ const manualMauritanianCities = {
   'يغرف': { lat: 20.251962, lon: -13.505931, name: 'Yighref', type: 'قرية', wilaya: 'آدرار' },
   'شنقيط': { lat: 20.45, lon: -12.35, name: 'Chinguetti', type: 'مقاطعة', wilaya: 'آدرار' },
   'وادان': { lat: 20.93, lon: -11.61, name: 'Ouadane', type: 'مقاطعة', wilaya: 'آدرار' },
-  'اوجفت': { lat: 20.25, lon: -13.58, name: 'Aoujeft', type: 'مقاطعة', wilaya: 'آدرار' },
+  'اوجفت': { lat: 20.026, lon: -13.055, name: 'Aoujeft', type: 'مقاطعة', wilaya: 'آدرار' },
 
   // --- انشيري ---
   'أكجوجت': { lat: 19.75, lon: -14.41, name: 'Akjoujt', type: 'مقاطعة', wilaya: 'انشيري' },
-  'بنيشاب': { lat: 21.83, lon: -14.52, name: 'Bennichab', type: 'بلدية', wilaya: 'انشيري' },
+  'بنيشاب': { lat: 19.467, lon: -15.429, name: 'Bennichab', type: 'بلدية', wilaya: 'انشيري' },
 
   // --- داخلة نواذيبو ---
   'نواذيبو': { lat: 20.9375, lon: -17.0339, name: 'Nouadhibou', type: 'مقاطعة', wilaya: 'داخلة نواذيبو' },
