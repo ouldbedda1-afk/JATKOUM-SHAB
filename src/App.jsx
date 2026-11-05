@@ -9,6 +9,7 @@ import Home from './pages/Home';
 // تحميل الصفحات الثانوية عند الطلب فقط (تسريع أول تحميل خصوصاً على الهاتف)
 const AlThalaPage = lazy(() => import('./components/AlThalaPage'));
 const PasturesPage = lazy(() => import('./pages/PasturesPage'));
+const SeasonalPage = lazy(() => import('./pages/SeasonalPage'));
 const AdminPage = lazy(() => import('./components/AdminPage'));
 const BloggersPage      = lazy(() => import('./pages/BloggersPage'));
 const BloggerPage       = lazy(() => import('./pages/BloggerPage'));
@@ -48,6 +49,7 @@ function App() {
               <Route path="/measurements" element={<MeasurementsPage />} />
               <Route path="/althala" element={<AlThalaPage />} />
               <Route path="/pastures" element={<PasturesPage />} />
+              <Route path="/seasonal" element={<SeasonalPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/bloggers" element={<BloggersPage />} />
               <Route path="/blogger/:slug" element={<BloggerPage />} />

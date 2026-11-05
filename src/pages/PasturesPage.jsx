@@ -1,20 +1,13 @@
-import React, { useEffect, useId, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { getPastureNdvi, getLocustObservations, getLocustHabitat, getLatestSeasonalBulletin } from '../supabase';
-import { WILAYA_SHAPES } from '../mauritaniaWilayaShapes';
+import MauritaniaMap, { LON0, LAT1 } from '../components/MauritaniaMap';
 
 // الترتيب الرسمي للولايات (نواكشوط بلا مراعٍ)
 const ORDER = ['الحوض الشرقي', 'الحوض الغربي', 'لعصابه', 'كوركول', 'البراكنة', 'الترارزة', 'آدرار',
   'داخلة نواذيبو', 'تكانت', 'كيدماغا', 'تيرس زمور', 'انشيري', 'نواكشوط'];
 
-// إطار الخريطة بالدرجات، كإطار صورة GIBS التي تحسب منها دالة pasture-ndvi
-const LON0 = -17.2, LAT1 = 27.4, SPAN_LON = 12.5, SPAN_LAT = 12.8;
-// شريط اسم الموقع داخل الخريطة في أسفلها، فوق مالي: من خط الطول 11.4 غرباً شرقاً لا تنزل موريتانيا
-// تحت 15.24 شمالاً، فالشريط بين 14.65 و15.15 لا يغطي شيئاً من الغطاء النباتي في موريتانيا
-const BADGE = { x: -11.3, y: 14.65, w: 6.5, h: 0.5 };
-// العلامتان الباهتتان [خط الطول، خط العرض، حجم الخط]: وسط الخريطة، وأصغر منها فوق صحراء تكانت والحوض الشرقي
-const WATERMARKS = [[LON0 + SPAN_LON / 2, LAT1 - SPAN_LAT / 2, 0.62], [-9.0, 17.6, 0.45]];
 const LOCUST_DAYS = 30;
 
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
@@ -81,66 +74,6 @@ const STATUS = [
   { title: 'حذر: رُصدت تجمعات أو تكاثر محلي', box: 'bg-orange-50 border-orange-200 text-orange-900', icon: '🟠' },
   { title: 'خطر: رُصدت أسراب أو حشود يرقات', box: 'bg-red-50 border-red-200 text-red-900', icon: '🔴' },
 ];
-
-// ── الخريطة: حدود الولايات بالدرجات (x = الطول، y = -العرض) ─────────────────
-const ringPath = (ring) => 'M' + ring.map(([x, y]) => `${x},${-y}`).join('L') + 'Z';
-
-function centroid(rings) {
-  const ring = rings.reduce((a, b) => (b.length > a.length ? b : a));
-  let a = 0, cx = 0, cy = 0;
-  for (let i = 0; i < ring.length; i++) {
-    const [x1, y1] = ring[i], [x2, y2] = ring[(i + 1) % ring.length];
-    const f = x1 * y2 - x2 * y1;
-    a += f; cx += (x1 + x2) * f; cy += (y1 + y2) * f;
-  }
-  return [cx / (3 * a), cy / (3 * a)];
-}
-// الولايات الصغيرة المتجاورة تتداخل أسماؤها عند مراكزها، فنضعها يدوياً
-const LABEL_AT = {
-  'لعصابه': [-11.75, 17.05], 'الحوض الغربي': [-9.45, 17.4], 'كوركول': [-13.05, 16.3], 'كيدماغا': [-11.95, 15.05],
-};
-const LABELS = WILAYA_SHAPES.map((s) => ({ wilaya: s.wilaya, at: LABEL_AT[s.wilaya] || centroid(s.rings) }));
-
-function MauritaniaMap({ image, under, children, labels = true, fill = 'none' }) {
-  const clipId = useId();
-  return (
-    <svg viewBox={`${LON0} ${-LAT1} ${SPAN_LON} ${SPAN_LAT}`} className="w-full h-auto block bg-sky-50" role="img"
-      aria-label="خريطة ولايات موريتانيا">
-      {image && <image href={image} x={LON0} y={-LAT1} width={SPAN_LON} height={SPAN_LAT} preserveAspectRatio="none" />}
-      {fill !== 'none' && WILAYA_SHAPES.map((s) => s.rings.map((r, i) => <path key={`${s.wilaya}${i}`} d={ringPath(r)} fill={fill} />))}
-      {/* ما تحت الحدود (مربعات الموائل) يُقص على شكل موريتانيا فلا يتجاوز الساحل والحدود */}
-      <clipPath id={clipId}>
-        {WILAYA_SHAPES.map((s) => s.rings.map((r, i) => <path key={`${s.wilaya}${i}`} d={ringPath(r)} />))}
-      </clipPath>
-      {under && <g clipPath={`url(#${clipId})`}>{under}</g>}
-      {WILAYA_SHAPES.map((s) => (
-        <g key={s.wilaya}>
-          {s.rings.map((r, i) => (
-            <path key={i} d={ringPath(r)} fill="none" stroke="#334155" strokeWidth="1.2"
-              vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
-          ))}
-        </g>
-      ))}
-      {children}
-      {labels && LABELS.filter((l) => l.wilaya !== 'نواكشوط').map((l) => (
-        <text key={l.wilaya} x={l.at[0]} y={-l.at[1]} fontSize="0.32" textAnchor="middle" fontWeight="700"
-          fill="#1e293b" stroke="#fff" strokeWidth="0.08" paintOrder="stroke">{l.wilaya}</text>
-      ))}
-      {/* اسم الموقع على الخريطة: علامتان باهتتان مائلتان وشريط في الأسفل، تبقى في أي لقطة شاشة.
-          السفلى فوق صحراء تكانت والحوض الشرقي، بعيداً عن الغطاء النباتي في الجنوب */}
-      {WATERMARKS.map(([lon, lat, size]) => (
-        <text key={lon} x={lon} y={-lat} fontSize={size} textAnchor="middle" fontWeight="900"
-          fill="#0f172a" fillOpacity="0.12" transform={`rotate(-25 ${lon} ${-lat})`}
-          style={{ pointerEvents: 'none' }}>جاتكم اسحاب · jatkoumshab.com</text>
-      ))}
-      <rect x={BADGE.x} y={-(BADGE.y + BADGE.h)} width={BADGE.w} height={BADGE.h} rx="0.08" fill="#0b2c5e" fillOpacity="0.9" />
-      <text x={BADGE.x + BADGE.w / 2} y={-(BADGE.y + BADGE.h * 0.3)} fontSize="0.32" textAnchor="middle" fontWeight="700" fill="#fff"
-        textLength={BADGE.w - 1.2} lengthAdjust="spacingAndGlyphs">
-        جاتكم اسحاب · www.jatkoumshab.com
-      </text>
-    </svg>
-  );
-}
 
 // ── الأقسام ──────────────────────────────────────────────────────────────
 function PastureSection({ rows }) {
@@ -356,14 +289,10 @@ export default function PasturesPage() {
 
         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <h2 className="text-lg font-black text-gray-800">📅 النشرة الموسمية</h2>
-          {bulletin ? (
-            <p className="text-sm text-gray-600 mt-1">
-              توقعات الأمطار والحرارة للأشهر القادمة وتراكم الأمطار في كل ولاية:{' '}
-              <Link to={`/news/${bulletin.slug}`} className="text-blue-600 font-bold hover:underline">{bulletin.title}</Link>
-            </p>
-          ) : (
-            <p className="text-sm text-gray-500 mt-1">تصدر كل شهرين، وتتناول توقعات الأمطار والحرارة للأشهر القادمة وتراكم الأمطار في كل ولاية.</p>
-          )}
+          <p className="text-sm text-gray-600 mt-1">
+            {bulletin ? <>آخرها: {bulletin.title}. </> : 'تصدر كل شهرين، وتتناول توقعات الأمطار والحرارة للأشهر القادمة وتراكم الأمطار في كل ولاية. '}
+            <Link to="/seasonal" className="text-blue-600 font-bold hover:underline">صفحة النشرة الموسمية ←</Link>
+          </p>
         </section>
 
         <footer className="text-[11px] text-gray-400 leading-relaxed px-1">

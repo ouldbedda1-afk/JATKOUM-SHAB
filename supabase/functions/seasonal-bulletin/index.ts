@@ -9,6 +9,8 @@
 //
 // لا تُنشر تلقائياً: تُحفظ مسودة (slug seasonal-YYYY-MM) وتصل الإدارةَ على تيليغرام بزر
 // نشر (telegram-webhook) ورابط لتعديلها في لوحة الإدارة.
+// أرقامها تُحفظ أيضاً في جدول seasonal_outlooks بالـslug نفسه، لخريطة صفحة /seasonal وجداولها؛
+// ولا يقرؤها الزوار إلا بعد نشر المقال.
 //
 // يُستدعى عبر pg_cron يوم 7 من يناير ومارس ومايو ويوليو وسبتمبر ونوفمبر.
 // النشر:  supabase functions deploy seasonal-bulletin --no-verify-jwt
@@ -288,6 +290,30 @@ function buildBulletin(today: string, forecasts: GroupForecast[], acc: Accumulat
   return { title, content: c, slug: `seasonal-${months[0].slice(0, 7)}` };
 }
 
+// أرقام النشرة لصفحة /seasonal
+function buildOutlook(slug: string, today: string, forecasts: GroupForecast[], acc: Accumulation | null) {
+  const r1 = (x: number) => Math.round(x * 10) / 10;
+  return {
+    slug, issued_on: today, months: forecasts[0].months,
+    groups: forecasts.map((f, gi) => {
+      const two = rainClass(f.rain2, f.normal2), four = rainClass(f.rain4, f.normal4);
+      return {
+        name: GROUPS[gi].name,
+        rain: r1(f.rain2), normal: r1(f.normal2), rain_class: two.cls, rain_text: two.text,
+        temp_anomaly: r1(f.temp2), temp_text: tempText(f.temp2),
+        rain_later: r1(f.rain4), normal_later: r1(f.normal4), rain_later_class: four.cls,
+      };
+    }),
+    accumulation: acc ? {
+      label: acc.label,
+      lines: acc.lines.map((l) => ({
+        name: GROUPS[l.group].name, recorded: Math.round(l.recorded), reference: Math.round(l.reference),
+        text: accumulationText(l.recorded, l.reference),
+      })),
+    } : null,
+  };
+}
+
 // ── 4. المسودة وتيليغرام ────────────────────────────────────────────────
 async function sendDraftToAdmin(id: string, content: string) {
   if (!TOKEN || !ADMIN_ID) return;
@@ -326,6 +352,10 @@ Deno.serve(async (req) => {
     const { data: existing } = await supabase.from('news_articles')
       .select('id, is_published').eq('slug', bulletin.slug).maybeSingle();
     if (existing?.is_published) return json({ skipped: 'منشورة مسبقاً', slug: bulletin.slug });
+
+    const { error: outlookError } = await supabase.from('seasonal_outlooks')
+      .upsert(buildOutlook(bulletin.slug, today, forecasts, acc), { onConflict: 'slug' });
+    if (outlookError) throw outlookError;
 
     const row = {
       title: bulletin.title, excerpt: bulletin.title, content: bulletin.content,

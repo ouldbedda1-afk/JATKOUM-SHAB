@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getNewsBySlug, getSimilarNews, getFbStats } from '../supabase';
 import Navbar from '../components/Navbar';
+import ArticleContent from '../components/ArticleContent';
 import LandmarkCredit from '../components/LandmarkCredit';
 import { getLandmarkBySrc } from '../wilayaLandmarks';
 
@@ -64,32 +65,6 @@ function SimilarCard({ article }) {
         <p className="text-[11px] text-gray-400 mt-1">{fmtDate(article.published_at)}</p>
       </div>
     </Link>
-  );
-}
-
-// Render content with basic formatting (newlines → paragraphs)
-// يحوّل **نص** إلى عنصر بارز — دعم بسيط للتشديد داخل نصوص الأخبار
-function BoldText({ text }) {
-  const parts = String(text ?? '').split(/(\*\*[^*]+\*\*)/g);
-  return parts.map((part, i) => {
-    const m = part.match(/^\*\*([^*]+)\*\*$/);
-    return m ? <b key={i}>{m[1]}</b> : <React.Fragment key={i}>{part}</React.Fragment>;
-  });
-}
-
-function ArticleContent({ content }) {
-  if (!content) return null;
-  const paragraphs = content.split(/\n\n+/).filter(Boolean);
-  return (
-    <div className="prose prose-sm max-w-none text-gray-800 leading-loose" dir="rtl">
-      {paragraphs.map((p, i) => (
-        <p key={i} className="mb-4 text-base leading-8">
-          {p.split('\n').map((line, j) => (
-            <React.Fragment key={j}><BoldText text={line} />{j < p.split('\n').length - 1 && <br />}</React.Fragment>
-          ))}
-        </p>
-      ))}
-    </div>
   );
 }
 

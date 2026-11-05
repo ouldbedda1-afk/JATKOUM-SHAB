@@ -7,13 +7,15 @@ import { searchCities } from '../weatherApi';
 
 const { FiSearch, FiMenu, FiX } = FiIcons;
 
+// short: الاسم في شريط سطح المكتب، حتى تتسع الروابط في 1280 بكسل؛ قائمة الجوال بالاسم الكامل
 const NAV_LINKS = [
   { icon: '🏠', label: 'الرئيسية',           to: '/'         },
-  { icon: '📦', label: 'أرشيف التوقعات',     to: '/forecast-archive' },
-  { icon: '🌧️', label: 'مقاييس الأمطار',     to: '/measurements' },
-  { icon: '🌿', label: 'المراعي والجراد',   to: '/pastures' },
+  { icon: '📦', label: 'أرشيف التوقعات',     short: 'الأرشيف',   to: '/forecast-archive' },
+  { icon: '🌧️', label: 'مقاييس الأمطار',     short: 'المقاييس',  to: '/measurements' },
+  { icon: '🌿', label: 'المراعي والجراد',   short: 'المراعي',   to: '/pastures' },
+  { icon: '📅', label: 'النشرة الموسمية',   short: 'الموسمية',  to: '/seasonal' },
   { icon: '🐫', label: 'الظالة',             to: '/althala'  },
-  { icon: '✍️', label: 'مدوّنو الطقس',       to: '/bloggers' },
+  { icon: '✍️', label: 'مدوّنو الطقس',       short: 'المدوّنون', to: '/bloggers' },
 ];
 
 const Navbar = ({ onCitySelect }) => {
@@ -84,8 +86,8 @@ const Navbar = ({ onCitySelect }) => {
                 <span>{l.icon}</span>{l.label}
               </a>
             ) : (
-              <Link key={l.label} to={l.to} className={cls}>
-                <span>{l.icon}</span>{l.label}
+              <Link key={l.label} to={l.to} className={cls} title={l.label}>
+                <span>{l.icon}</span>{l.short || l.label}
                 {active && <motion.span layoutId="nav-pill" className="absolute inset-0 rounded-xl" />}
               </Link>
             );

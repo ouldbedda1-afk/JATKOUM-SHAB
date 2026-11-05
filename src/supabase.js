@@ -851,6 +851,24 @@ export async function getLocustHabitat() {
   return data || [];
 }
 
+// النشرات الموسمية المنشورة، الأحدث أولاً (صفحة /seasonal)
+export async function getSeasonalBulletins(limit = 12) {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await supabase.from('news_articles')
+    .select('slug, title, content, published_at').like('slug', 'seasonal-%').eq('is_published', true)
+    .order('published_at', { ascending: false }).limit(limit);
+  if (error) { console.error('seasonal bulletins:', error.message); return []; }
+  return data || [];
+}
+
+// أرقام نشرة موسمية منشورة (الخريطة والجداول)
+export async function getSeasonalOutlook(slug) {
+  if (!isSupabaseConfigured || !slug) return null;
+  const { data, error } = await supabase.from('seasonal_outlooks').select('*').eq('slug', slug).maybeSingle();
+  if (error) { console.error('seasonal outlook:', error.message); return null; }
+  return data;
+}
+
 // آخر نشرة موسمية منشورة
 export async function getLatestSeasonalBulletin() {
   if (!isSupabaseConfigured) return null;

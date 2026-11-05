@@ -22,6 +22,7 @@ const staticPages = [
   { loc: '/news', changefreq: 'hourly', priority: '0.9' },
   { loc: '/althala', changefreq: 'weekly', priority: '0.6' },
   { loc: '/pastures', changefreq: 'daily', priority: '0.7' },
+  { loc: '/seasonal', changefreq: 'weekly', priority: '0.7' },
 ];
 
 const { data: articles, error } = await supabase
