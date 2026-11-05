@@ -6,7 +6,7 @@ const TILES = [
   { icon: '👥', label: 'بلاغات المواطنين',   to: '/althala',           color: 'from-emerald-500/10 to-emerald-500/5 text-emerald-700 border-emerald-200' },
   { icon: '✍️', label: 'مدوّنو الطقس',       to: '#bloggers',          color: 'from-purple-500/10 to-purple-500/5 text-purple-700 border-purple-200' },
   { icon: '🗂️', label: 'أرشيف الأمطار',     to: '#rain-archive',      color: 'from-sky-500/10 to-sky-500/5 text-sky-700 border-sky-200' },
-  { icon: '📅', label: 'التوقعات اليومية',   to: '/forecast',          color: 'from-amber-500/10 to-amber-500/5 text-amber-700 border-amber-200' },
+  { icon: '🌿', label: 'المراعي والجراد',    to: '/pastures',          color: 'from-amber-500/10 to-amber-500/5 text-amber-700 border-amber-200' },
   { icon: '📲', label: 'حمّل التطبيق',       to: '#install-app',       color: 'from-blue-600/10 to-blue-600/5 text-blue-700 border-blue-200' },
 ];
 

@@ -1,5 +1,4 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { useWeather } from '../useWeather';
 import { getWeatherIcon, getWeatherDescription } from '../weatherApi';
 
@@ -96,10 +95,6 @@ const WeeklyForecast = ({ city }) => {
           <h3 className="text-2xl font-extrabold text-gray-800">توقعات {cityName} 🇲🇷</h3>
           <p className="text-xs text-gray-500 mt-1">توقعات الثلاثة أيام القادمة للمدينة المختارة</p>
         </div>
-        <Link to="/forecast" className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1">
-          عرض الكل
-          <span className="text-[10px]">←</span>
-        </Link>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {forecast.map((item, i) => {

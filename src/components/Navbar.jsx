@@ -9,7 +9,6 @@ const { FiSearch, FiMenu, FiX, FiBell } = FiIcons;
 
 const NAV_LINKS = [
   { icon: '🏠', label: 'الرئيسية',           to: '/'         },
-  { icon: '📅', label: 'التوقعات الأسبوعية', to: '/forecast' },
   { icon: '📦', label: 'أرشيف التوقعات',     to: '/forecast-archive' },
   { icon: '🌧️', label: 'مقاييس الأمطار',     to: '/measurements' },
   { icon: '🌿', label: 'المراعي والجراد',   to: '/pastures' },

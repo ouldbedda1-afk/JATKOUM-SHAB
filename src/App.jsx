@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { logPageVisit } from './supabase';
 import ErrorBoundary from './components/ErrorBoundary';
 import InstallPWA from './components/InstallPWA';
@@ -7,7 +7,6 @@ import { WeatherProvider } from './WeatherContext';
 import Home from './pages/Home';
 
 // تحميل الصفحات الثانوية عند الطلب فقط (تسريع أول تحميل خصوصاً على الهاتف)
-const WeeklyForecastPage = lazy(() => import('./components/WeeklyForecastPage'));
 const AlThalaPage = lazy(() => import('./components/AlThalaPage'));
 const PasturesPage = lazy(() => import('./pages/PasturesPage'));
 const AdminPage = lazy(() => import('./components/AdminPage'));
@@ -42,7 +41,8 @@ function App() {
           <Suspense fallback={<PageFallback />}>
             <Routes>
               <Route path="/" element={<Home />} />
-              <Route path="/forecast" element={<WeeklyForecastPage />} />
+              {/* صفحة التوقعات الأسبوعية حُذفت؛ الروابط القديمة إليها تذهب إلى الرئيسية */}
+              <Route path="/forecast" element={<Navigate to="/" replace />} />
               <Route path="/forecast/:date/:wilayaSlug" element={<WilayaForecastPage />} />
               <Route path="/forecast-archive" element={<ForecastArchivePage />} />
               <Route path="/measurements" element={<MeasurementsPage />} />

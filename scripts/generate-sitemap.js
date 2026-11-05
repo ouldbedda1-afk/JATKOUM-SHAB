@@ -20,7 +20,6 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
 const staticPages = [
   { loc: '/', changefreq: 'daily', priority: '1.0' },
   { loc: '/news', changefreq: 'hourly', priority: '0.9' },
-  { loc: '/forecast', changefreq: 'daily', priority: '0.7' },
   { loc: '/althala', changefreq: 'weekly', priority: '0.6' },
   { loc: '/pastures', changefreq: 'daily', priority: '0.7' },
 ];
