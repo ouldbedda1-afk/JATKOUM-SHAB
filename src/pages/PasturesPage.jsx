@@ -13,6 +13,8 @@ const LON0 = -17.2, LAT1 = 27.4, SPAN_LON = 12.5, SPAN_LAT = 12.8;
 // شريط اسم الموقع داخل الخريطة في أسفلها، فوق مالي: من خط الطول 11.4 غرباً شرقاً لا تنزل موريتانيا
 // تحت 15.24 شمالاً، فالشريط بين 14.65 و15.15 لا يغطي شيئاً من الغطاء النباتي في موريتانيا
 const BADGE = { x: -11.3, y: 14.65, w: 6.5, h: 0.5 };
+// العلامتان الباهتتان [خط الطول، خط العرض، حجم الخط]: وسط الخريطة، وأصغر منها فوق صحراء تكانت والحوض الشرقي
+const WATERMARKS = [[LON0 + SPAN_LON / 2, LAT1 - SPAN_LAT / 2, 0.62], [-9.0, 17.6, 0.45]];
 const LOCUST_DAYS = 30;
 
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
@@ -124,10 +126,13 @@ function MauritaniaMap({ image, under, children, labels = true, fill = 'none' })
         <text key={l.wilaya} x={l.at[0]} y={-l.at[1]} fontSize="0.32" textAnchor="middle" fontWeight="700"
           fill="#1e293b" stroke="#fff" strokeWidth="0.08" paintOrder="stroke">{l.wilaya}</text>
       ))}
-      {/* اسم الموقع على الخريطة: علامة باهتة في الوسط وشريط في الأسفل، يبقيان في أي لقطة شاشة */}
-      <text x={LON0 + SPAN_LON / 2} y={-LAT1 + SPAN_LAT / 2} fontSize="0.62" textAnchor="middle" fontWeight="900"
-        fill="#0f172a" fillOpacity="0.12" transform={`rotate(-25 ${LON0 + SPAN_LON / 2} ${-LAT1 + SPAN_LAT / 2})`}
-        style={{ pointerEvents: 'none' }}>جاتكم اسحاب · jatkoumshab.com</text>
+      {/* اسم الموقع على الخريطة: علامتان باهتتان مائلتان وشريط في الأسفل، تبقى في أي لقطة شاشة.
+          السفلى فوق صحراء تكانت والحوض الشرقي، بعيداً عن الغطاء النباتي في الجنوب */}
+      {WATERMARKS.map(([lon, lat, size]) => (
+        <text key={lon} x={lon} y={-lat} fontSize={size} textAnchor="middle" fontWeight="900"
+          fill="#0f172a" fillOpacity="0.12" transform={`rotate(-25 ${lon} ${-lat})`}
+          style={{ pointerEvents: 'none' }}>جاتكم اسحاب · jatkoumshab.com</text>
+      ))}
       <rect x={BADGE.x} y={-(BADGE.y + BADGE.h)} width={BADGE.w} height={BADGE.h} rx="0.08" fill="#0b2c5e" fillOpacity="0.9" />
       <text x={BADGE.x + BADGE.w / 2} y={-(BADGE.y + BADGE.h * 0.3)} fontSize="0.32" textAnchor="middle" fontWeight="700" fill="#fff"
         textLength={BADGE.w - 1.2} lengthAdjust="spacingAndGlyphs">
