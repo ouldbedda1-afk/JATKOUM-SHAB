@@ -114,6 +114,17 @@ function MauritaniaMap({ image, children, labels = true, fill = 'none' }) {
         <text key={l.wilaya} x={l.at[0]} y={-l.at[1]} fontSize="0.32" textAnchor="middle" fontWeight="700"
           fill="#1e293b" stroke="#fff" strokeWidth="0.08" paintOrder="stroke">{l.wilaya}</text>
       ))}
+      {/* اسم الموقع على الخريطة: علامة باهتة في الوسط وشارة في الزاوية، تبقى في أي لقطة شاشة */}
+      <text x={LON0 + SPAN_LON / 2} y={-LAT1 + SPAN_LAT / 2} fontSize="0.62" textAnchor="middle" fontWeight="900"
+        fill="#0f172a" fillOpacity="0.12" transform={`rotate(-25 ${LON0 + SPAN_LON / 2} ${-LAT1 + SPAN_LAT / 2})`}
+        style={{ pointerEvents: 'none' }}>جاتكم اسحاب · jatkoumshab.com</text>
+      <g style={{ pointerEvents: 'none' }}>
+        <rect x={LON0 + SPAN_LON - 4.25} y={-LAT1 + SPAN_LAT - 0.62} width="4.1" height="0.48" rx="0.1" fill="#0b2c5e" fillOpacity="0.85" />
+        <text x={LON0 + SPAN_LON - 2.2} y={-LAT1 + SPAN_LAT - 0.29} fontSize="0.27" textAnchor="middle" fontWeight="700" fill="#fff"
+          textLength="3.8" lengthAdjust="spacingAndGlyphs">
+          جاتكم اسحاب · jatkoumshab.com
+        </text>
+      </g>
     </svg>
   );
 }
