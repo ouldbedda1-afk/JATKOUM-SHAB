@@ -16,7 +16,8 @@ await build({
     contents: `export { mauritanianCities } from './src/mauritaniaCityTable.js';
 export { toArabicCommune } from './src/mauritaniaCommuneNamesAr.js';
 export { wilayaToSlug } from './src/wilayaUrlSlugs.js';
-export { ERA5_CITIES, ERA5_REFERENCE, ERA5_SOURCE } from './src/rainEra5Normals.js';`,
+export { ERA5_CITIES, ERA5_REFERENCE, ERA5_SOURCE } from './src/rainEra5Normals.js';
+export { WILAYA_LANDMARKS } from './src/wilayaLandmarks.js';`,
     resolveDir: root,
   },
   bundle: true,
@@ -25,7 +26,7 @@ export { ERA5_CITIES, ERA5_REFERENCE, ERA5_SOURCE } from './src/rainEra5Normals.
   outfile: bundle,
   logLevel: 'error',
 });
-const { mauritanianCities, toArabicCommune, wilayaToSlug, ERA5_CITIES, ERA5_REFERENCE, ERA5_SOURCE } = await import(pathToFileURL(bundle).href);
+const { mauritanianCities, toArabicCommune, wilayaToSlug, ERA5_CITIES, ERA5_REFERENCE, ERA5_SOURCE, WILAYA_LANDMARKS } = await import(pathToFileURL(bundle).href);
 fs.rmSync(tmp, { recursive: true, force: true });
 
 // Same naming as the site: the Arabic commune name, else the key itself.
@@ -69,3 +70,15 @@ fs.writeFileSync(era5Out, [
   '',
 ].join('\n'));
 console.log(`${era5Cities.length} ERA5 capitals -> ${path.relative(root, era5Out)}`);
+
+// Landmark photo of each wilaya (src/wilayaLandmarks.js), the featured image of its forecast posts
+const landmarksOut = path.join(root, 'supabase/functions/_shared/wilayaLandmarks.ts');
+const landmarkSrc = Object.fromEntries(Object.entries(WILAYA_LANDMARKS).map(([w, l]) => [w, l.src]));
+fs.writeFileSync(landmarksOut, [
+  '// مولَّد آلياً من src/wilayaLandmarks.js بالأمر npm run generate:places — لا تعدّله يدوياً.',
+  '// صورة معلم كل ولاية (مسار في public/landmarks)، صورةً بارزة لمنشورات توقعاتها.',
+  '',
+  `export const WILAYA_LANDMARK_SRC: Record<string, string> = ${JSON.stringify(landmarkSrc, null, 2)};`,
+  '',
+].join('\n'));
+console.log(`${Object.keys(landmarkSrc).length} landmarks -> ${path.relative(root, landmarksOut)}`);

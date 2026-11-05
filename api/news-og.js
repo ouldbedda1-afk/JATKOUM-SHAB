@@ -43,7 +43,9 @@ export default async function handler(request, response) {
   const title = article?.title || 'جاتكم اسحاب - رصد جوي مباشر لموريتانيا';
   const description = excerpt(article?.content || article?.excerpt) ||
     'توقعات دقيقة للأمطار وخرائط رصد مباشرة لكل ولايات وبلديات موريتانيا.';
-  const image = article?.featured_image || DEFAULT_IMAGE;
+  // الصور المحلية تُحفظ بمسار نسبي، وفيسبوك يحتاج رابطاً كاملاً
+  const rawImage = article?.featured_image || DEFAULT_IMAGE;
+  const image = rawImage.startsWith('/') ? SITE + rawImage : rawImage;
 
   const html = `<!doctype html>
 <html lang="ar" dir="rtl">

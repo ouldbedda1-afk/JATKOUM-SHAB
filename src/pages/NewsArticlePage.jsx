@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getNewsBySlug, getSimilarNews, getFbStats } from '../supabase';
 import Navbar from '../components/Navbar';
+import LandmarkCredit from '../components/LandmarkCredit';
+import { getLandmarkBySrc } from '../wilayaLandmarks';
 
 const SITE_URL   = 'https://www.jatkoumshab.com';
 // Worker يخدم OG tags لبوتات فيسبوك — بعد النشر استبدل بالدومين الفعلي للـ Worker
@@ -182,6 +184,7 @@ export default function NewsArticlePage() {
             <img src={article.featured_image} alt={article.title}
               className="w-full max-h-80 object-cover" />
           )}
+          <LandmarkCredit landmark={getLandmarkBySrc(article.featured_image)} />
 
           <div className="p-6 md:p-8">
             {/* Category + wilaya */}

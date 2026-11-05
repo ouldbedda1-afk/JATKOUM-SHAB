@@ -5,6 +5,8 @@ import Navbar from '../components/Navbar';
 import StationObservationsCard from '../components/StationObservationsCard';
 import { slugToWilaya, wilayaToSlug } from '../wilayaUrlSlugs';
 import { getImageForAlert } from '../weatherImages';
+import { getWilayaLandmark } from '../wilayaLandmarks';
+import LandmarkCredit from '../components/LandmarkCredit';
 import { useWeatherContext } from '../WeatherContext';
 import { fetchWilayaCommunes } from '../weatherApi';
 import { buildForecastDays, groupThunderByLevel } from '../wilayaForecastBuilder';
@@ -290,7 +292,8 @@ export default function WilayaForecastPage() {
     return () => { document.title = 'جاتكم اسحاب | الطقس في موريتانيا'; };
   }, [pageTitle]);
 
-  const heroImage = article?.featured_image || getImageForAlert('أمطار', wilaya);
+  const landmark = getWilayaLandmark(wilaya);
+  const heroImage = landmark?.src || article?.featured_image || getImageForAlert('أمطار', wilaya);
 
   if (loading) return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
@@ -347,6 +350,7 @@ export default function WilayaForecastPage() {
               <h1 className="text-white font-black text-xl leading-tight">{pageTitle}</h1>
             </div>
           </div>
+          <LandmarkCredit landmark={landmark} />
 
           <div className="p-5 md:p-7">
             {/* Meta */}

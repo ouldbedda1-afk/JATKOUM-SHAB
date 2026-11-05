@@ -14,6 +14,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { PLACES, WILAYA_SLUGS } from '../_shared/mauritaniaPlaces.ts';
+import { WILAYA_LANDMARK_SRC } from '../_shared/wilayaLandmarks.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -90,6 +91,10 @@ function imageFor(category: string, title: string): string {
   if (/أمطار|مطر|هطول/.test(text)) return '/weather/rain.jpg';
   return '/weather/default.jpg';
 }
+
+// منشورات التوقعات تحمل صورة معلم من الولاية؛ والتحذيرات تبقى بصور الطقس
+const forecastImage = (wilaya: string, category: string, title: string) =>
+  WILAYA_LANDMARK_SRC[wilaya] || imageFor(category, title);
 
 async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -312,7 +317,7 @@ async function publishForecasts(days: ForecastDay[], today: string) {
       const { error } = await supabase.from('news_articles').update({
         title: updTitle, excerpt: updTitle,
         content: buildWilayaContent(wilaya, entries, today, true),
-        category, published_at: new Date().toISOString(),
+        category, published_at: new Date().toISOString(), featured_image: forecastImage(wilaya, category, title),
         tags: ['توقعات', wilaya, category, 'تحديث'],
         forecast_signature: currSig, forecast_signature_hash: currHash,
       }).eq('id', existing.id);
@@ -326,7 +331,7 @@ async function publishForecasts(days: ForecastDay[], today: string) {
       title, slug, excerpt: title, content, category, wilaya,
       author: 'جاتكم اسحاب', is_published: true, published_at: new Date().toISOString(),
       tags: ['توقعات', wilaya, category],
-      featured_image: imageFor(category, title),
+      featured_image: forecastImage(wilaya, category, title),
       forecast_signature: currSig, forecast_signature_hash: currHash,
     }]).select('id').single();
     if (error) { await tg(`❌ wilaya-publisher: فشل نشر ${slug}: ${error.message}`); continue; }
