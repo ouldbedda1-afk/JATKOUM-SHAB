@@ -488,64 +488,6 @@ export async function broadcastPush({ title, body, url, tag, dedupeKey, signatur
 }
 
 // ═══════════════════════════════════════════════════
-// المدوّنون والمقالات
-// ═══════════════════════════════════════════════════
-
-export async function getBloggers() {
-  if (!isSupabaseConfigured) return [];
-  try {
-    const { data, error } = await supabase
-      .from('bloggers').select('*').eq('active', true)
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data || [];
-  } catch (e) { return []; }
-}
-
-export async function getBloggerBySlug(slug) {
-  if (!isSupabaseConfigured) return null;
-  try {
-    const { data, error } = await supabase
-      .from('bloggers').select('*').eq('slug', slug).eq('active', true).single();
-    if (error) throw error;
-    return data;
-  } catch (e) { return null; }
-}
-
-export async function getBloggerByFacebookId(facebookId) {
-  if (!isSupabaseConfigured) return null;
-  try {
-    const { data, error } = await supabase
-      .from('bloggers').select('*').eq('facebook_id', facebookId).eq('active', true).single();
-    if (error) throw error;
-    return data;
-  } catch (e) { return null; }
-}
-
-export async function getPostsByBlogger(bloggerId) {
-  if (!isSupabaseConfigured) return [];
-  try {
-    const { data, error } = await supabase
-      .from('posts').select('*').eq('blogger_id', bloggerId).eq('published', true)
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data || [];
-  } catch (e) { return []; }
-}
-
-export async function getPostById(id) {
-  if (!isSupabaseConfigured) return null;
-  try {
-    const { data, error } = await supabase
-      .from('posts')
-      .select('*, bloggers(name, slug, facebook_id, specialty, wilaya)')
-      .eq('id', id).eq('published', true).single();
-    if (error) throw error;
-    return data;
-  } catch (e) { return null; }
-}
-
-// ═══════════════════════════════════════════════════
 // إحصاءات — أسئلة الوكيل وزيارات الصفحة
 // ═══════════════════════════════════════════════════
 
@@ -891,23 +833,6 @@ export async function getTopRainRecords10Years(limit = 3) {
     .map((r) => ({ ...r, wilaya: normWilaya(r.wilaya) }))
     .sort((a, b) => b.mm - a.mm)
     .slice(0, limit);
-}
-
-export async function createPost(bloggerId, { title, content, cover_url, wilaya }) {
-  const { data, error } = await supabase
-    .from('posts')
-    .insert([{ blogger_id: bloggerId, title, content, cover_url: cover_url || null, wilaya: wilaya || null, published: false }])
-    .select().single();
-  if (error) throw error;
-  return data;
-}
-
-export async function updatePost(postId, bloggerId, fields) {
-  const { data, error } = await supabase
-    .from('posts').update({ ...fields, updated_at: new Date().toISOString() })
-    .eq('id', postId).eq('blogger_id', bloggerId).select().single();
-  if (error) throw error;
-  return data;
 }
 
 // ═══════════════════════════════════════════════════

@@ -15,7 +15,6 @@ const NAV_LINKS = [
   { icon: '🌿', label: 'المراعي والجراد',   short: 'المراعي',   to: '/pastures' },
   { icon: '📅', label: 'النشرة الموسمية',   short: 'الموسمية',  to: '/seasonal' },
   { icon: '🐫', label: 'الظالة',             to: '/althala'  },
-  { icon: '✍️', label: 'مدوّنو الطقس',       short: 'المدوّنون', to: '/bloggers' },
 ];
 
 const Navbar = ({ onCitySelect }) => {

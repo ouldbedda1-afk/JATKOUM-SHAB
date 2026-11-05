@@ -11,9 +11,6 @@ const AlThalaPage = lazy(() => import('./components/AlThalaPage'));
 const PasturesPage = lazy(() => import('./pages/PasturesPage'));
 const SeasonalPage = lazy(() => import('./pages/SeasonalPage'));
 const AdminPage = lazy(() => import('./components/AdminPage'));
-const BloggersPage      = lazy(() => import('./pages/BloggersPage'));
-const BloggerPage       = lazy(() => import('./pages/BloggerPage'));
-const PostPage          = lazy(() => import('./pages/PostPage'));
 const NewsPage              = lazy(() => import('./pages/NewsPage'));
 const NewsArticlePage       = lazy(() => import('./pages/NewsArticlePage'));
 const LivestockReportPage   = lazy(() => import('./pages/LivestockReportPage'));
@@ -51,9 +48,10 @@ function App() {
               <Route path="/pastures" element={<PasturesPage />} />
               <Route path="/seasonal" element={<SeasonalPage />} />
               <Route path="/admin" element={<AdminPage />} />
-              <Route path="/bloggers" element={<BloggersPage />} />
-              <Route path="/blogger/:slug" element={<BloggerPage />} />
-              <Route path="/post/:id" element={<PostPage />} />
+              {/* صفحات المدوّنين حُذفت؛ الروابط القديمة إليها تذهب إلى الرئيسية */}
+              <Route path="/bloggers" element={<Navigate to="/" replace />} />
+              <Route path="/blogger/:slug" element={<Navigate to="/" replace />} />
+              <Route path="/post/:id" element={<Navigate to="/" replace />} />
               <Route path="/news" element={<NewsPage />} />
               <Route path="/news/:slug" element={<NewsArticlePage />} />
               <Route path="/althala/:id" element={<LivestockReportPage />} />

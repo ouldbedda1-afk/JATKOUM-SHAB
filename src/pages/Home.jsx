@@ -218,8 +218,11 @@ export default function Home() {
             {/* تابعنا */}
             <div className="space-y-3">
               <h4 className="font-black text-sm text-blue-100">روابط مفيدة</h4>
-              <Link to="/bloggers" className="block text-blue-200 hover:text-white text-sm font-bold transition-colors">
-                ✍️ المدوّنون
+              <Link to="/pastures" className="block text-blue-200 hover:text-white text-sm font-bold transition-colors">
+                🌿 المراعي والجراد
+              </Link>
+              <Link to="/seasonal" className="block text-blue-200 hover:text-white text-sm font-bold transition-colors">
+                📅 النشرة الموسمية
               </Link>
               <div className="flex items-center justify-center md:justify-start gap-3">
                 <a href="https://www.facebook.com/Beddetiii/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center" aria-label="فيسبوك">f</a>
