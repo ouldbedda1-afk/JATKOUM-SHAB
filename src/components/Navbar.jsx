@@ -5,7 +5,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 import { searchCities } from '../weatherApi';
 
-const { FiSearch, FiMenu, FiX, FiBell } = FiIcons;
+const { FiSearch, FiMenu, FiX } = FiIcons;
 
 const NAV_LINKS = [
   { icon: '🏠', label: 'الرئيسية',           to: '/'         },
@@ -67,15 +67,15 @@ const Navbar = ({ onCitySelect }) => {
           </div>
           <div className="flex flex-col leading-tight">
             <span className="text-lg md:text-xl font-black text-white tracking-tight">جاتكم اسحاب</span>
-            <span className="hidden sm:block text-[10px] font-medium text-blue-200/70 mt-0.5">رصد الطقس والأمطار · موريتانيا</span>
+            <span className="hidden sm:block xl:hidden 2xl:block text-[10px] font-medium text-blue-200/70 mt-0.5">رصد الطقس والأمطار · موريتانيا</span>
           </div>
         </Link>
 
-        {/* روابط سطح المكتب */}
-        <div className="hidden md:flex items-center gap-1.5">
+        {/* روابط سطح المكتب: من 1280 بكسل فأعلى؛ تحتها قائمة الجوال، كي لا يتجاوز الشريط عرض الشاشة */}
+        <div className="hidden xl:flex items-center gap-1 2xl:gap-1.5">
           {NAV_LINKS.map((l) => {
             const active = isActive(l.to);
-            const base = `relative flex items-center gap-2 px-4 py-2 rounded-xl text-[14px] font-bold transition-all duration-200 whitespace-nowrap`;
+            const base = `relative flex items-center gap-1.5 2xl:gap-2 px-3 2xl:px-4 py-2 rounded-xl text-[13px] 2xl:text-[14px] font-bold transition-all duration-200 whitespace-nowrap`;
             const cls = active
               ? `${base} bg-white text-[#0b2c5e] shadow-lg shadow-black/20`
               : `${base} text-white/80 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/15`;
@@ -96,7 +96,7 @@ const Navbar = ({ onCitySelect }) => {
         <div className="flex items-center gap-2 relative">
 
           {/* بحث سطح المكتب */}
-          <div className="relative hidden lg:block">
+          <div className="relative hidden xl:block">
             <input
               type="text"
               placeholder="ابحث عن مدينة أو بلدية..."
@@ -104,7 +104,7 @@ const Navbar = ({ onCitySelect }) => {
               onChange={handleSearch}
               onFocus={() => searchQuery && setShowResults(true)}
               onBlur={() => setTimeout(() => setShowResults(false), 200)}
-              className="bg-white/10 text-white placeholder-white/40 border border-white/15 rounded-full py-2 pr-10 pl-4 focus:bg-white/15 focus:border-white/30 focus:ring-2 focus:ring-white/20 focus:outline-none w-52 transition-all text-sm"
+              className="bg-white/10 text-white placeholder-white/40 border border-white/15 rounded-full py-2 pr-10 pl-4 focus:bg-white/15 focus:border-white/30 focus:ring-2 focus:ring-white/20 focus:outline-none w-44 2xl:w-52 transition-all text-sm"
             />
             <SafeIcon icon={FiSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 text-sm" />
             <AnimatePresence>
@@ -142,17 +142,12 @@ const Navbar = ({ onCitySelect }) => {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 shrink-0">
                 <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.884v2.25h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
               </svg>
-              <span className="hidden sm:inline">متابعة</span>
+              <span className="hidden sm:inline xl:hidden 2xl:inline">متابعة</span>
             </a>
           )}
 
-          {/* جرس */}
-          <button className="hidden sm:flex p-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-all border border-transparent hover:border-white/15" aria-label="الإشعارات">
-            <SafeIcon icon={FiBell} className="text-lg" />
-          </button>
-
           {/* أزرار الجوال */}
-          <div className="flex items-center gap-1.5 md:hidden">
+          <div className="flex items-center gap-1.5 xl:hidden">
             <Link to="/althala" className="flex items-center justify-center w-9 h-9 bg-amber-500/80 hover:bg-amber-500 rounded-xl shadow transition-all">
               <span className="text-base">🐫</span>
             </Link>
@@ -179,7 +174,7 @@ const Navbar = ({ onCitySelect }) => {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden border-t border-white/10 md:hidden"
+            className="overflow-hidden border-t border-white/10 xl:hidden"
           >
             <div className="p-4 bg-[#071e40]">
               <div className="relative">
@@ -218,9 +213,9 @@ const Navbar = ({ onCitySelect }) => {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden border-t border-white/10 md:hidden"
+            className="overflow-hidden border-t border-white/10 xl:hidden"
           >
-            <div className="p-4 grid grid-cols-2 gap-2 bg-[#071e40]">
+            <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-2 bg-[#071e40]">
               {NAV_LINKS.map((l) => {
                 const active = isActive(l.to);
                 const cls = `flex items-center gap-2.5 px-4 py-3.5 rounded-2xl font-bold text-sm transition-all ${active ? 'bg-white text-[#0b2c5e] shadow' : 'bg-white/8 text-white/80 border border-white/10 hover:bg-white/15 hover:text-white active:scale-95'}`;

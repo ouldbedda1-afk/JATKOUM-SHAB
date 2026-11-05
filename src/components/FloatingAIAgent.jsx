@@ -809,20 +809,16 @@ export default function FloatingAIAgent({ onCitySelect }) {
 
   const ctx = { stormClouds, rainForecasts, lightningStrikes, trackedCells };
 
-  // فتح تلقائي عند أول زيارة في الجلسة
+  // لا يُفتح تلقائياً، فلا يغطي الصفحة: فقاعة ترحيب مرة واحدة في الجلسة، بعد أن يرى الزائر الصفحة
   useEffect(() => {
-    const seen = sessionStorage.getItem('jatkoum_agent_seen');
-    if (!seen) {
-      const t = setTimeout(() => {
-        setOpen(true);
-        sessionStorage.setItem('jatkoum_agent_seen', '1');
-      }, 2000);
-      return () => clearTimeout(t);
-    } else {
-      // في الزيارات التالية — فقط فقاعة ترحيب
-      const t = setTimeout(() => setShowBubble(true), 4000);
-      return () => clearTimeout(t);
-    }
+    let seen = false;
+    try { seen = !!sessionStorage.getItem('jatkoum_agent_seen'); } catch { /* التخزين غير متاح */ }
+    if (seen) return;
+    const t = setTimeout(() => {
+      setShowBubble(true);
+      try { sessionStorage.setItem('jatkoum_agent_seen', '1'); } catch { /* التخزين غير متاح */ }
+    }, 10000);
+    return () => clearTimeout(t);
   }, []);
 
   useEffect(() => {

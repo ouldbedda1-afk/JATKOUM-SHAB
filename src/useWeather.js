@@ -12,6 +12,10 @@ export function useWeather(city = 'نواكشوط', coords = null, { forecastDay
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
   const fetchedRef = useRef(false);
+  // المدينة المطلوبة حالياً: نتيجة جلب قديم لمدينة أخرى تُهمل
+  const requestKey = `${city}|${coords?.lat}|${coords?.lon ?? coords?.lng}|${forecastDays}`;
+  const currentKeyRef = useRef(requestKey);
+  currentKeyRef.current = requestKey;
 
   useEffect(() => {
     // إعادة تعيين عند تغيير المدينة أو الإحداثيات
@@ -61,9 +65,6 @@ export function useWeather(city = 'نواكشوط', coords = null, { forecastDay
       }
     }
 
-    // ✅ الحالة 2: انتظر انتهاء Context قبل الجلب المستقل
-    if (context?.loading) return;
-
     // ✅ الحالة 2.5: الموقع الجغرافي قريب من مدينة معروفة في Context
     if (coords && context?.weatherData?.length > 0) {
       let nearest = null, bestDist = Infinity;
@@ -82,16 +83,19 @@ export function useWeather(city = 'نواكشوط', coords = null, { forecastDay
       }
     }
 
-    // ✅ الحالة 3: جلب مستقل — مرة واحدة فقط (منع إعادة الدخول)
+    // ✅ الحالة 3: جلب مستقل فوري لهذه المدينة وحدها — مرة واحدة فقط (منع إعادة الدخول).
+    // لا ننتظر Context: جلب كل المدن يستغرق عشرات الثواني، وبطاقة الطقس أعلى الصفحة تنتظره.
+    // ولا نُلغي النتيجة عند تحدّث Context أثناء الجلب، وإلا بقيت البطاقة تدور بلا نهاية.
     if (hasFreshData || fetchedRef.current === true) return;
     fetchedRef.current = true;
 
-    let isMounted = true;
+    const key = requestKey;
+    const isMounted = () => currentKeyRef.current === key;
     (async () => {
       try {
         setLoading(true);
         const result = await getWeatherData(city, coords, { forecastDays, bypassCircuit: true });
-        if (isMounted) {
+        if (isMounted()) {
           setData(result);
           if (!result?.isFallback) {
             fetchedRef.current = 'fresh';
@@ -101,18 +105,17 @@ export function useWeather(city = 'نواكشوط', coords = null, { forecastDay
           }
         }
       } catch (err) {
-        if (isMounted) {
+        if (isMounted()) {
           setError(err.message);
           // اسمح بإعادة المحاولة عند الخطأ
           fetchedRef.current = false;
         }
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted()) setLoading(false);
       }
     })();
-
-    return () => { isMounted = false; };
-  }, [city, coords?.lat, coords?.lon, coords?.lng, forecastDays, context?.weatherData, context?.loading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city, coords?.lat, coords?.lon, coords?.lng, forecastDays, context?.weatherData]);
 
   return { data, loading, error };
 }

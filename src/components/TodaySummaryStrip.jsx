@@ -11,6 +11,8 @@ export default function TodaySummaryStrip() {
     let maxRain = 0, maxRainCity = '';
 
     weatherData.forEach((c) => {
+      // بيانات بديلة عند تعذّر الجلب: قيمها صفرية لا حقيقية
+      if (c.isFallback) return;
       const tmax = c.daily?.temperature_2m_max?.[0];
       const rain = c.daily?.precipitation_sum?.[0];
       const name = toArabicCommune(c.city) || c.city;

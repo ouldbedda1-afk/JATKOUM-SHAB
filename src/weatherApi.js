@@ -226,12 +226,14 @@ let concurrentRequests = 0;
 const MAX_CONCURRENT_REQUESTS = 1; // طلب واحد في كل مرة لتفادي 429
 const requestQueue = [];
 
-function acquireSlot() {
+// priority: طلب مدينة واحدة يعرضه الزائر الآن (بطاقة الطقس أعلى الصفحة) يتقدّم الطابور،
+// فلا ينتظر خلف طلبات كل المدن
+function acquireSlot(priority = false) {
   if (concurrentRequests < MAX_CONCURRENT_REQUESTS) {
     concurrentRequests++;
     return Promise.resolve();
   }
-  return new Promise(resolve => requestQueue.push(resolve));
+  return new Promise(resolve => (priority ? requestQueue.unshift(resolve) : requestQueue.push(resolve)));
 }
 
 function releaseSlot() {
@@ -243,8 +245,8 @@ function releaseSlot() {
   }
 }
 
-async function enqueueFetch(url, options, { bypassCircuit = false } = {}) {
-  await acquireSlot();
+async function enqueueFetch(url, options, { bypassCircuit = false, priority = false } = {}) {
+  await acquireSlot(priority);
   try {
     return await fetchWithRetry(url, options, 3, 3000, bypassCircuit);
   } finally {
@@ -306,7 +308,8 @@ async function fetchWithRetry(url, options = {}, retries = 3, backoff = 3000, by
 
     return response;
   } catch (error) {
-    if (error.message && error.message.includes('Too Many Requests')) throw error;
+    // تجاوز الحد اليومي لا يُعاد: الإعادة تؤخر البطاقة عشرات الثواني ثم تفشل كذلك
+    if (error.message && (error.message.includes('Too Many Requests') || error.message.includes('Daily API request limit'))) throw error;
 
     if (retries > 0) {
       await new Promise(r => setTimeout(r, backoff));
@@ -787,7 +790,7 @@ export async function getWeatherData(city = 'نواكشوط', customCoords = nul
 
       const sourceUrl = `${OPEN_METEO_API}?${params}`;
       const target = buildProxyTarget(sourceUrl);
-      const response = await enqueueFetch(target, undefined, { bypassCircuit });
+      const response = await enqueueFetch(target, undefined, { bypassCircuit, priority: true });
       if (!response.ok) throw new Error(`API error: ${response.status} ${response.statusText || ''}`);
 
       const data = await response.json();

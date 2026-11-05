@@ -21,12 +21,25 @@ const InstallPWA = () => {
     }
   };
 
+  // لا ندعو إلى التثبيت في الزيارة الأولى: يرى الزائر الموقع أولاً. تُعدّ الزيارة مرة في كل جلسة
+  const returningVisitor = () => {
+    try {
+      if (!sessionStorage.getItem('pwa_visit_counted')) {
+        sessionStorage.setItem('pwa_visit_counted', '1');
+        localStorage.setItem('pwa_visits', String(Number(localStorage.getItem('pwa_visits') || 0) + 1));
+      }
+      return Number(localStorage.getItem('pwa_visits') || 0) >= 2;
+    } catch {
+      return false;
+    }
+  };
+
   useEffect(() => {
     // التحقق مما إذا كان التطبيق مثبتاً بالفعل
     const isRunningStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
     setIsStandalone(isRunningStandalone);
 
-    if (recentlyDismissed()) return; // أُغلِق مؤخراً → لا نظهره
+    if (!returningVisitor() || recentlyDismissed()) return; // زيارة أولى أو أُغلِق مؤخراً → لا نظهره
 
     // اكتشاف نظام iOS
     const userAgent = window.navigator.userAgent.toLowerCase();
@@ -37,15 +50,15 @@ const InstallPWA = () => {
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      // إظهار الرسالة بعد ثانيتين من دخول الموقع
+      // إظهار الرسالة بعد 15 ثانية من دخول الموقع
       if (!isRunningStandalone && !recentlyDismissed()) {
-        setTimeout(() => setIsVisible(true), 2000);
+        setTimeout(() => setIsVisible(true), 15000);
       }
     });
 
     // بالنسبة لـ iOS، نظهر الرسالة يدوياً لأن النظام لا يدعم الحدث التلقائي
     if (isIOSDevice && !isRunningStandalone) {
-      setTimeout(() => setIsVisible(true), 2000);
+      setTimeout(() => setIsVisible(true), 15000);
     }
 
     // إخفاء الرسالة عند التثبيت بنجاح
@@ -85,7 +98,7 @@ const InstallPWA = () => {
       >
         <div className="bg-white rounded-[2rem] shadow-2xl border-2 border-emerald-500 p-5 overflow-hidden relative">
           {/* خلفية جمالية */}
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-full -mr-16 -mt-16 z-0" />
+          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-full -mr-16 -mt-16 z-0 pointer-events-none" />
           
           <button
             onClick={() => {

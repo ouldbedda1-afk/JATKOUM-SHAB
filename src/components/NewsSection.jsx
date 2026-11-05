@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getPublishedNews, getLivestockReports } from '../supabase';
+import { getPublishedNews } from '../supabase';
 import { getImageForAlert } from '../weatherImages';
 
 const BREAKING_CATEGORIES = ['عواصف', 'أمطار', 'فيضانات'];
@@ -109,55 +109,16 @@ function SmallCard({ article }) {
   );
 }
 
-function LivestockCard({ report }) {
-  const isLost = report.report_type === 'lost';
-  const location = [report.village, report.region].filter(Boolean).join(' · ');
-  return (
-    <Link to={`/althala/${report.id}`} className="flex gap-3 bg-white rounded-xl border border-gray-100 hover:border-amber-200 hover:shadow-md transition-all overflow-hidden p-3">
-      {report.image_url ? (
-        <img src={report.image_url} alt="" loading="lazy"
-          className="w-20 h-16 object-cover rounded-lg shrink-0" />
-      ) : (
-        <div className="w-20 h-16 rounded-lg shrink-0 flex items-center justify-center text-2xl bg-amber-50">
-          🐄
-        </div>
-      )}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5 mb-1">
-          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${isLost ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-            {isLost ? '🔴 ضالة' : '🟢 وُجدت'}
-          </span>
-          <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-bold">
-            {report.animal_type}
-          </span>
-        </div>
-        <p className="text-sm font-bold text-gray-900 line-clamp-1">
-          {isLost ? 'ضالة' : 'وُجدت'} {report.animal_type} في {location || 'موريتانيا'}
-        </p>
-        {report.description ? (
-          <p className="text-[11px] text-gray-500 line-clamp-1 mt-0.5">{report.description}</p>
-        ) : null}
-        <p className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1">
-          📞 {report.contact_phone} · {fmtDate(report.created_at)}
-        </p>
-      </div>
-    </Link>
-  );
-}
 
 export default function NewsSection() {
-  const [articles,  setArticles]  = useState([]);
-  const [livestock, setLivestock] = useState([]);
-  const [loading,   setLoading]   = useState(true);
+  const [articles, setArticles] = useState([]);
+  const [loading,  setLoading]  = useState(true);
 
+  // بلاغات الظالة لها قسمها في الرئيسية (LivestockHomePreview)
   useEffect(() => {
-    Promise.all([
-      getPublishedNews({ limit: 7 }).then(({ data }) => data || []),
-      getLivestockReports().then(d => (Array.isArray(d) ? d : []).slice(0, 3)).catch(() => []),
-    ]).then(([news, live]) => {
-      setArticles(news);
-      setLivestock(live);
-    }).finally(() => setLoading(false));
+    getPublishedNews({ limit: 7 })
+      .then(({ data }) => setArticles(data || []))
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) {
@@ -176,7 +137,7 @@ export default function NewsSection() {
     );
   }
 
-  if (articles.length === 0 && livestock.length === 0) return null;
+  if (articles.length === 0) return null;
 
   const [featured, ...rest] = articles.length ? articles : [null];
   const sidebar = (rest || []).slice(0, 4);
@@ -213,24 +174,6 @@ export default function NewsSection() {
                 عرض جميع الأخبار
               </Link>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── آخر بلاغات الظالة ── */}
-      {livestock.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-1 h-7 bg-amber-500 rounded-full" />
-              <h2 className="text-xl font-black text-gray-900">آخر بلاغات الظالة</h2>
-            </div>
-            <Link to="/livestock" className="text-sm font-bold text-amber-600 hover:underline flex items-center gap-1">
-              كل البلاغات <span>←</span>
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {livestock.map((r, i) => <LivestockCard key={i} report={r} />)}
           </div>
         </div>
       )}
