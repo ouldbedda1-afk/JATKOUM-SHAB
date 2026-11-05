@@ -14,7 +14,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { PLACES, WILAYA_SLUGS } from '../_shared/mauritaniaPlaces.ts';
-import { WILAYA_LANDMARK_SRC } from '../_shared/wilayaLandmarks.ts';
+import { landmarkFor } from '../_shared/wilayaLandmarks.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -94,7 +94,7 @@ function imageFor(category: string, title: string): string {
 
 // منشورات التوقعات تحمل صورة معلم من الولاية؛ والتحذيرات تبقى بصور الطقس
 const forecastImage = (wilaya: string, category: string, title: string) =>
-  WILAYA_LANDMARK_SRC[wilaya] || imageFor(category, title);
+  landmarkFor(wilaya) || imageFor(category, title);
 
 async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));

@@ -223,9 +223,6 @@ export default function Home() {
               </Link>
               <div className="flex items-center justify-center md:justify-start gap-3">
                 <a href="https://www.facebook.com/Beddetiii/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center" aria-label="فيسبوك">f</a>
-                <a href="https://wa.me/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center text-lg" aria-label="واتساب">✆</a>
-                <a href="https://t.me/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center text-lg" aria-label="تيليجرام">✈</a>
-                <a href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center text-lg" aria-label="يوتيوب">▷</a>
               </div>
             </div>
           </div>

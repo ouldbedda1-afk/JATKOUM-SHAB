@@ -18,7 +18,8 @@ export { toArabicCommune } from './src/mauritaniaCommuneNamesAr.js';
 export { wilayaToSlug } from './src/wilayaUrlSlugs.js';
 export { ERA5_CITIES, ERA5_REFERENCE, ERA5_SOURCE } from './src/rainEra5Normals.js';
 export { WILAYA_LANDMARKS } from './src/wilayaLandmarks.js';
-export { WILAYA_SHAPES } from './src/mauritaniaWilayaShapes.js';`,
+export { WILAYA_SHAPES } from './src/mauritaniaWilayaShapes.js';
+export { SNAPSHOT_POINTS } from './src/weatherApi.js';`,
     resolveDir: root,
   },
   bundle: true,
@@ -26,8 +27,12 @@ export { WILAYA_SHAPES } from './src/mauritaniaWilayaShapes.js';`,
   platform: 'neutral',
   outfile: bundle,
   logLevel: 'error',
+  // src/weatherApi.js يقرأ متغيرات Vite عند التحميل
+  define: { 'import.meta.env': '{}' },
+  // src/weatherSnapshot.js يستورد Supabase استيراداً متأخراً لا يُنفَّذ هنا
+  external: ['./supabase'],
 });
-const { mauritanianCities, toArabicCommune, wilayaToSlug, ERA5_CITIES, ERA5_REFERENCE, ERA5_SOURCE, WILAYA_LANDMARKS, WILAYA_SHAPES } = await import(pathToFileURL(bundle).href);
+const { mauritanianCities, toArabicCommune, wilayaToSlug, ERA5_CITIES, ERA5_REFERENCE, ERA5_SOURCE, WILAYA_LANDMARKS, WILAYA_SHAPES, SNAPSHOT_POINTS } = await import(pathToFileURL(bundle).href);
 fs.rmSync(tmp, { recursive: true, force: true });
 
 // Same naming as the site: the Arabic commune name, else the key itself.
@@ -81,6 +86,18 @@ fs.writeFileSync(landmarksOut, [
   '',
   `export const WILAYA_LANDMARK_SRC: Record<string, string> = ${JSON.stringify(landmarkSrc, null, 2)};`,
   '',
+  '// مطابقة متسامحة مع اختلاف الكتابة (كيدي ماغا/كيدماغا، لبراكنه/البراكنة، داخلت/داخلة، إينشيري/انشيري)',
+  "const wilayaKey = (w: string) => String(w || '')",
+  "  .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ت(?=\\s)/g, 'ه').replace(/ى/g, 'ي')",
+  "  .replace(/^ال|^ل/, '').replace(/[اي]/g, '').replace(/\\s+/g, '');",
+  'const BY_KEY: Record<string, string> = Object.fromEntries(',
+  '  Object.entries(WILAYA_LANDMARK_SRC).map(([w, src]) => [wilayaKey(w), src]));',
+  '',
+  'export function landmarkFor(wilaya: string | null | undefined): string | null {',
+  '  if (!wilaya) return null;',
+  '  return WILAYA_LANDMARK_SRC[wilaya] ?? BY_KEY[wilayaKey(wilaya)] ?? null;',
+  '}',
+  '',
 ].join('\n'));
 console.log(`${Object.keys(landmarkSrc).length} landmarks -> ${path.relative(root, landmarksOut)}`);
 
@@ -95,3 +112,16 @@ fs.writeFileSync(shapesOut, [
   '',
 ].join('\n'));
 console.log(`${WILAYA_SHAPES.length} wilaya shapes -> ${path.relative(root, shapesOut)}`);
+
+// Weather snapshot points (SNAPSHOT_POINTS in src/weatherApi.js): the cities and communes the weather-snapshot
+// function fetches for every visitor, with the site's own names
+const snapshotOut = path.join(root, 'supabase/functions/_shared/weatherSnapshotPoints.ts');
+fs.writeFileSync(snapshotOut, [
+  '// مولَّد آلياً من SNAPSHOT_POINTS في src/weatherApi.js بالأمر npm run generate:places — لا تعدّله يدوياً.',
+  '// core: المدن الأساسية (طقس ساعي وأيام)، communes: باقي البلديات (الطقس الحالي والأيام).',
+  '',
+  'type Point = { city: string; lat: number; lon: number };',
+  `export const SNAPSHOT_POINTS: { core: Point[]; communes: Point[] } = ${JSON.stringify(SNAPSHOT_POINTS)};`,
+  '',
+].join('\n'));
+console.log(`${SNAPSHOT_POINTS.core.length} core + ${SNAPSHOT_POINTS.communes.length} commune weather points -> ${path.relative(root, snapshotOut)}`);

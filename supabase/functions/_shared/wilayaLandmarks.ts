@@ -19,3 +19,15 @@ export const WILAYA_LANDMARK_SRC: Record<string, string> = {
   "نواكشوط الغربية": "/landmarks/nouakchott.jpg",
   "نواكشوط الجنوبية": "/landmarks/nouakchott.jpg"
 };
+
+// مطابقة متسامحة مع اختلاف الكتابة (كيدي ماغا/كيدماغا، لبراكنه/البراكنة، داخلت/داخلة، إينشيري/انشيري)
+const wilayaKey = (w: string) => String(w || '')
+  .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ت(?=\s)/g, 'ه').replace(/ى/g, 'ي')
+  .replace(/^ال|^ل/, '').replace(/[اي]/g, '').replace(/\s+/g, '');
+const BY_KEY: Record<string, string> = Object.fromEntries(
+  Object.entries(WILAYA_LANDMARK_SRC).map(([w, src]) => [wilayaKey(w), src]));
+
+export function landmarkFor(wilaya: string | null | undefined): string | null {
+  if (!wilaya) return null;
+  return WILAYA_LANDMARK_SRC[wilaya] ?? BY_KEY[wilayaKey(wilaya)] ?? null;
+}

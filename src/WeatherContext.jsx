@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { getAllCitiesWeather, fetchExtraCommunesBatch, getActiveFires, getMarineWeather, clearWeatherCache, getModelRainingNow } from './weatherApi';
 import { getRecentRainReports, getRecentBawahReports, getUpcomingRainForecasts, getActiveAlerts, getApprovedNews, getWeatherBulletins, syncStormCells, getRemoteSuppressions, getStormCells, supabase as supabaseClient } from './supabase';
-import { getSatelliteVegetationStatus } from './satelliteVegetation';
 import { getRainingNowFromSatellite, getSameDayHeavyRainEventsFromSatellite, getRainingNowFromIMERG } from './satelliteRain';
 import { MAURITANIA_RADAR_GRID } from './mauritaniaRadarGrid';
 import { startLightning, subscribeLightning } from './lightningBlitzortung';
@@ -28,7 +27,6 @@ export const WeatherProvider = ({ children }) => {
   const [approvedNews,      setApprovedNews]      = useState([]);
   const [weatherBulletins,  setWeatherBulletins]  = useState([]);
   const [ecmwfBriefs,      setEcmwfBriefs]      = useState([]);
-  const [vegetationData,   setVegetationData]   = useState(null);
   const [rainingNow,       setRainingNow]       = useState([]);
   const [sameDayRainEvents, setSameDayRainEvents] = useState([]);
   const [trackedCells,     setTrackedCells]     = useState([]);
@@ -65,13 +63,12 @@ export const WeatherProvider = ({ children }) => {
       console.log('🔄 جلب البيانات المركزية...');
 
       // ✅ جلب كل البيانات دفعةً واحدة — weatherApi.js يتكفل بالـ cache ومنع التكرار
-      const [weather, activeFires, marine, reports, fieldBawahReports, vegetation, forecasts, alerts, ecmwf, news, bulletins] = await Promise.all([
+      const [weather, activeFires, marine, reports, fieldBawahReports, forecasts, alerts, ecmwf, news, bulletins] = await Promise.all([
         getAllCitiesWeather().catch(e => { console.error('weather:', e); return []; }),
         getActiveFires().catch(e  => { console.error('fires:',   e); return []; }),
         getMarineWeather().catch(e => { console.error('marine:',  e); return []; }),
         getRecentRainReports().catch(e  => { console.error('rain:',  e); return []; }),
         getRecentBawahReports().catch(e => { console.error('bawah:', e); return []; }),
-        getSatelliteVegetationStatus().catch(e => { console.error('veg:', e); return null; }),
         getUpcomingRainForecasts().catch(e => { console.error('forecasts:', e); return []; }),
         getActiveAlerts().catch(e => { console.error('alerts:', e); return []; }),
         getEcmwfBriefs().catch(e => { console.error('ecmwf:', e); return []; }),
@@ -84,7 +81,6 @@ export const WeatherProvider = ({ children }) => {
       setMarineData(marine     || []);
       setRainReports(reports   || []);
       setBawahReports(fieldBawahReports || []);
-      setVegetationData(vegetation);
       setRainForecasts(forecasts || []);
       setManualAlerts(alerts || []);
       setEcmwfBriefs(ecmwf || []);
@@ -232,7 +228,6 @@ export const WeatherProvider = ({ children }) => {
     manualAlerts,
     approvedNews,
     ecmwfBriefs,
-    vegetationData,
     weatherBulletins,
     rainingNow,
     modelRainingNow,
@@ -261,7 +256,7 @@ export const WeatherProvider = ({ children }) => {
     }
   }), [
     weatherData, fires, marineData,
-    rainReports, bawahReports, rainForecasts, manualAlerts, approvedNews, ecmwfBriefs, vegetationData,
+    rainReports, bawahReports, rainForecasts, manualAlerts, approvedNews, ecmwfBriefs,
     weatherBulletins, rainingNow, modelRainingNow, sameDayRainEvents, trackedCells, stormClouds, stormCloudsUpdatedAt, lightningStrikes, loading, lastUpdated, error,
   ]);
 

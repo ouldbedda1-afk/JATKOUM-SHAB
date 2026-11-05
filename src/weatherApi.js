@@ -1,4 +1,5 @@
 import { getCanonicalMauritaniaPlaceKey } from './mauritaniaPlaceNames';
+import { getSnapshotWeather } from './weatherSnapshot';
 import {
   getAdministrativeContext,
   manualMauritanianCities,
@@ -411,6 +412,17 @@ const ALL_TRACKED_CITIES = [
     ...filteredMauritaniaCommunesList.map((commune) => commune.city),
   ]),
 ].filter((city) => mauritanianCities[city]);
+
+// النقاط التي تجلبها دالة weather-snapshot على الخادم، بالأسماء نفسها التي يعرضها الموقع
+// (scripts/generate-shared-places.mjs ينسخها إلى supabase/functions/_shared/weatherSnapshotPoints.ts)
+const snapshotPoint = (c) => ({ city: c, lat: mauritanianCities[c].lat, lon: mauritanianCities[c].lon });
+const SNAPSHOT_CORE = coreMauritanianCities.filter((c) => mauritanianCities[c]);
+export const SNAPSHOT_POINTS = {
+  core: SNAPSHOT_CORE.map(snapshotPoint),
+  // البلديات التي ليست في المدن الأساسية (تلك موجودة في core)
+  communes: [...new Set(rotatingCommuneCoverageBatches.flat())]
+    .filter((c) => mauritanianCities[c] && !SNAPSHOT_CORE.includes(c)).map(snapshotPoint),
+};
 
 const COVERAGE_CHUNK_SIZE = 100; // حد أقصى لكل طلب Open-Meteo (لتفادي طلب ضخم يفشل)
 
@@ -863,6 +875,26 @@ export async function getAllCitiesWeather() {
     return mergeTrackedWeatherResults(cached, mergedCache, trackedCities);
   }
 
+  // النسخة المشتركة من الخادم أولاً (weather-snapshot): لا طلبات إلى Open-Meteo من المتصفح
+  const snapshot = await getSnapshotWeather(trackedCities);
+  if (snapshot) {
+    const results = trackedCities.filter((name) => snapshot.has(name)).map((cityName) => {
+      const coords = mauritanianCities[cityName];
+      return {
+        city: cityName,
+        cityEn: coords.name,
+        cityType: coords.type || 'مقاطعة',
+        ...getAdministrativeContext(coords),
+        ...snapshot.get(cityName),
+      };
+    });
+    setCached(cacheKey, results);
+    const mergedResults = mergeTrackedWeatherResults(results, mergedCache, trackedCities);
+    setCached(ALL_CITIES_MERGED_CACHE_KEY, mergedResults);
+    lsSet(ALL_CITIES_STALE_CACHE_KEY, mergedResults);
+    return mergedResults;
+  }
+
   if (isCircuitOpen || isDailyLimitBlocked()) {
     const staleMerged = mergedCache.length > 0 ? mergedCache : lsGet(ALL_CITIES_STALE_CACHE_KEY, true);
     return staleMerged || getFallbackCitiesWeather(trackedCities);
@@ -998,6 +1030,19 @@ async function fetchCommuneBatch(batch, batchCacheKey, onBatchReady) {
 
   const promise = (async () => {
     try {
+      // النسخة المشتركة من الخادم أولاً
+      const snapshot = await getSnapshotWeather(batch);
+      if (snapshot) {
+        const results = batch.filter((c) => snapshot.has(c)).map((cityName) => {
+          const coords = mauritanianCities[cityName];
+          return { city: cityName, cityEn: coords.name, cityType: coords.type || 'مقاطعة', ...getAdministrativeContext(coords), ...snapshot.get(cityName) };
+        });
+        setCached(batchCacheKey, results);
+        if (onBatchReady) onBatchReady(results);
+        return results;
+      }
+      if (isCircuitOpen || isDailyLimitBlocked()) return [];
+
       const lats = batch.map(c => mauritanianCities[c].lat).join(',');
       const lons = batch.map(c => mauritanianCities[c].lon).join(',');
       const params = new URLSearchParams({
@@ -1033,7 +1078,6 @@ async function fetchCommuneBatch(batch, batchCacheKey, onBatchReady) {
 }
 
 export async function fetchExtraCommunesBatch(onBatchReady) {
-  if (isCircuitOpen || isDailyLimitBlocked()) return;
   const batchIndex = getNextCoverageBatchIndex();
   const batch = rotatingCommuneCoverageBatches[batchIndex] || [];
   return fetchCommuneBatch(batch, `${ALL_CITIES_CACHE_KEY}_extra_${batchIndex}`, onBatchReady);
@@ -1045,7 +1089,7 @@ export async function fetchExtraCommunesBatch(onBatchReady) {
  * التغطية الدورية للصفحة الرئيسية.
  */
 export async function fetchWilayaCommunes(wilayaName) {
-  if (isCircuitOpen || isDailyLimitBlocked() || !wilayaName) return [];
+  if (!wilayaName) return [];
   const batch = wilayaCoverageBatchesMap.get(wilayaName) || [];
   return fetchCommuneBatch(batch, `${ALL_CITIES_CACHE_KEY}_wilaya_${wilayaName}`);
 }

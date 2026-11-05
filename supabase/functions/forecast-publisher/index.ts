@@ -28,6 +28,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { CITIES } from '../_shared/mauritaniaCities.ts';
+import { landmarkFor } from '../_shared/wilayaLandmarks.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -266,7 +267,8 @@ async function publishOrUpdate(opts: {
       author: 'جاتكم اسحاب', is_published: true, published_at: new Date().toISOString(),
       tags: opts.tags,
       forecast_signature: opts.signatureData, forecast_signature_hash: opts.signatureHash,
-      featured_image: '',
+      // صورة معلم الولاية الرئيسية في التوقع
+      featured_image: landmarkFor(opts.wilaya) ?? '',
     }]);
     if (error) {
       await tg(`❌ فشل نشر ${opts.slug}: ${error.message}`);
@@ -290,6 +292,7 @@ async function publishOrUpdate(opts: {
 
   const { error } = await supabase.from('news_articles').update({
     title: opts.title, excerpt: opts.title, content, category: opts.category, wilaya: opts.wilaya,
+    featured_image: landmarkFor(opts.wilaya) ?? '',
     published_at: new Date().toISOString(), tags: opts.tags,
     forecast_signature: opts.signatureData, forecast_signature_hash: opts.signatureHash,
   }).eq('id', existing.id);
