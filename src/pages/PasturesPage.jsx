@@ -10,7 +10,9 @@ const ORDER = ['الحوض الشرقي', 'الحوض الغربي', 'لعصاب
 
 // إطار الخريطة بالدرجات، كإطار صورة GIBS التي تحسب منها دالة pasture-ndvi
 const LON0 = -17.2, LAT1 = 27.4, SPAN_LON = 12.5, SPAN_LAT = 12.8;
-const STRIP = 0.6; // ارتفاع شريط اسم الموقع أسفل الخريطة، بالدرجات
+// شريط اسم الموقع داخل الخريطة في أسفلها، فوق مالي: من خط الطول 11.4 غرباً شرقاً لا تنزل موريتانيا
+// تحت 15.24 شمالاً، فالشريط بين 14.65 و15.15 لا يغطي شيئاً من الغطاء النباتي في موريتانيا
+const BADGE = { x: -11.3, y: 14.65, w: 6.5, h: 0.5 };
 const LOCUST_DAYS = 30;
 
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
@@ -100,7 +102,7 @@ const LABELS = WILAYA_SHAPES.map((s) => ({ wilaya: s.wilaya, at: LABEL_AT[s.wila
 function MauritaniaMap({ image, under, children, labels = true, fill = 'none' }) {
   const clipId = useId();
   return (
-    <svg viewBox={`${LON0} ${-LAT1} ${SPAN_LON} ${SPAN_LAT + STRIP}`} className="w-full h-auto block bg-sky-50" role="img"
+    <svg viewBox={`${LON0} ${-LAT1} ${SPAN_LON} ${SPAN_LAT}`} className="w-full h-auto block bg-sky-50" role="img"
       aria-label="خريطة ولايات موريتانيا">
       {image && <image href={image} x={LON0} y={-LAT1} width={SPAN_LON} height={SPAN_LAT} preserveAspectRatio="none" />}
       {fill !== 'none' && WILAYA_SHAPES.map((s) => s.rings.map((r, i) => <path key={`${s.wilaya}${i}`} d={ringPath(r)} fill={fill} />))}
@@ -126,11 +128,10 @@ function MauritaniaMap({ image, under, children, labels = true, fill = 'none' })
       <text x={LON0 + SPAN_LON / 2} y={-LAT1 + SPAN_LAT / 2} fontSize="0.62" textAnchor="middle" fontWeight="900"
         fill="#0f172a" fillOpacity="0.12" transform={`rotate(-25 ${LON0 + SPAN_LON / 2} ${-LAT1 + SPAN_LAT / 2})`}
         style={{ pointerEvents: 'none' }}>جاتكم اسحاب · jatkoumshab.com</text>
-      {/* شريط أسفل الخريطة، خارج إطارها فلا يغطي شيئاً منها */}
-      <rect x={LON0} y={-LAT1 + SPAN_LAT} width={SPAN_LON} height={STRIP} fill="#0b2c5e" />
-      <text x={LON0 + SPAN_LON / 2} y={-LAT1 + SPAN_LAT + STRIP * 0.68} fontSize="0.3" textAnchor="middle" fontWeight="700" fill="#fff"
-        textLength={SPAN_LON - 1.2} lengthAdjust="spacingAndGlyphs">
-        جاتكم اسحاب · رصد الطقس والأمطار في موريتانيا · www.jatkoumshab.com
+      <rect x={BADGE.x} y={-(BADGE.y + BADGE.h)} width={BADGE.w} height={BADGE.h} rx="0.08" fill="#0b2c5e" fillOpacity="0.9" />
+      <text x={BADGE.x + BADGE.w / 2} y={-(BADGE.y + BADGE.h * 0.3)} fontSize="0.32" textAnchor="middle" fontWeight="700" fill="#fff"
+        textLength={BADGE.w - 1.2} lengthAdjust="spacingAndGlyphs">
+        جاتكم اسحاب · www.jatkoumshab.com
       </text>
     </svg>
   );
