@@ -842,6 +842,15 @@ export async function getLocustObservations(days = 30) {
   return data || [];
 }
 
+// المناطق المهيأة لتكاثر الجراد (خلايا نصف درجة)، من الأقمار الصناعية
+export async function getLocustHabitat() {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await supabase.from('locust_habitat')
+    .select('lat, lon, wilaya, status, rain_30d, green_share, ndvi_date');
+  if (error) { console.error('locust_habitat:', error.message); return []; }
+  return data || [];
+}
+
 // آخر نشرة موسمية منشورة
 export async function getLatestSeasonalBulletin() {
   if (!isSupabaseConfigured) return null;

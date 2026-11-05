@@ -8,6 +8,7 @@
     "generate:rss": "node scripts/generate-rss.js",
     "generate:sitemap": "node scripts/generate-sitemap.js",
     "generate:places": "node scripts/generate-shared-places.mjs",
+    "generate:locust-habitat": "node scripts/generate-locust-habitat.mjs",
     "predeploy": "npm run generate:rss && npm run generate:sitemap && npm run build",
     "deploy": "gh-pages -d dist",
     "build": "vite build",

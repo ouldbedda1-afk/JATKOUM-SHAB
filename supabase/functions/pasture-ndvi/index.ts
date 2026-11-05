@@ -14,6 +14,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { WILAYA_SHAPES } from '../_shared/wilayaShapes.ts';
+import { GIBS_WMS, decodePng, loadColormap, ndviAt } from '../_shared/gibsNdvi.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -22,7 +23,6 @@ const supabase = createClient(
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
 const LAYER = 'MODIS_Terra_L3_NDVI_16Day';
-const WMS = 'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi';
 const COLORMAP = 'https://gibs.earthdata.nasa.gov/colormaps/v1.3/MODIS_L3_NDVI.xml';
 // إطار موريتانيا: الطول من -17.2 إلى -4.7، والعرض من 14.6 إلى 27.4
 const LON0 = -17.2, LON1 = -4.7, LAT0 = 14.6, LAT1 = 27.4;
@@ -33,83 +33,6 @@ const SKIP = new Set(['نواكشوط']);
 
 const json = (obj: unknown, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
-
-// ── فك صورة PNG (8 بت: RGB أو RGBA أو بلوحة ألوان) إلى RGBA ─────────────────
-async function inflate(data: Uint8Array): Promise<Uint8Array> {
-  const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate'));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
-}
-
-async function decodePng(buf: Uint8Array): Promise<{ width: number; height: number; rgba: Uint8Array }> {
-  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-  let pos = 8, width = 0, height = 0, colorType = 0, bitDepth = 0;
-  let palette: Uint8Array | null = null, trns: Uint8Array | null = null;
-  const idat: Uint8Array[] = [];
-  while (pos < buf.length) {
-    const len = view.getUint32(pos);
-    const type = String.fromCharCode(...buf.subarray(pos + 4, pos + 8));
-    const data = buf.subarray(pos + 8, pos + 8 + len);
-    if (type === 'IHDR') {
-      width = view.getUint32(pos + 8); height = view.getUint32(pos + 12);
-      bitDepth = data[8]; colorType = data[9];
-    } else if (type === 'PLTE') palette = data;
-    else if (type === 'tRNS') trns = data;
-    else if (type === 'IDAT') idat.push(data);
-    else if (type === 'IEND') break;
-    pos += 12 + len;
-  }
-  if (bitDepth !== 8 || ![2, 3, 6].includes(colorType)) throw new Error(`PNG غير مدعوم: ${colorType}/${bitDepth}`);
-  const joined = new Uint8Array(idat.reduce((n, c) => n + c.length, 0));
-  let o = 0;
-  for (const c of idat) { joined.set(c, o); o += c.length; }
-  const raw = await inflate(joined);
-
-  const bpp = colorType === 6 ? 4 : colorType === 2 ? 3 : 1;
-  const stride = width * bpp;
-  const pixels = new Uint8Array(height * stride);
-  let prev = new Uint8Array(stride);
-  for (let y = 0, p = 0; y < height; y++) {
-    const filter = raw[p++];
-    const line = raw.slice(p, p + stride); p += stride;
-    for (let x = 0; x < stride; x++) {
-      const a = x >= bpp ? line[x - bpp] : 0, up = prev[x], c = x >= bpp ? prev[x - bpp] : 0;
-      if (filter === 1) line[x] = (line[x] + a) & 255;
-      else if (filter === 2) line[x] = (line[x] + up) & 255;
-      else if (filter === 3) line[x] = (line[x] + ((a + up) >> 1)) & 255;
-      else if (filter === 4) {
-        const pa = Math.abs(up - c), pb = Math.abs(a - c), pc = Math.abs(a + up - 2 * c);
-        line[x] = (line[x] + (pa <= pb && pa <= pc ? a : pb <= pc ? up : c)) & 255;
-      }
-    }
-    pixels.set(line, y * stride);
-    prev = line;
-  }
-
-  const rgba = new Uint8Array(width * height * 4);
-  for (let i = 0; i < width * height; i++) {
-    if (colorType === 6) rgba.set(pixels.subarray(i * 4, i * 4 + 4), i * 4);
-    else if (colorType === 2) { rgba.set(pixels.subarray(i * 3, i * 3 + 3), i * 4); rgba[i * 4 + 3] = 255; }
-    else {
-      const k = pixels[i];
-      rgba[i * 4] = palette![k * 3]; rgba[i * 4 + 1] = palette![k * 3 + 1]; rgba[i * 4 + 2] = palette![k * 3 + 2];
-      rgba[i * 4 + 3] = trns && k < trns.length ? trns[k] : 255;
-    }
-  }
-  return { width, height, rgba };
-}
-
-// ── جدول الألوان: لون ← قيمة NDVI (منتصف المجال) ───────────────────────────
-async function loadColormap(): Promise<Map<number, number>> {
-  const xml = await (await fetch(COLORMAP)).text();
-  const map = new Map<number, number>();
-  const re = /rgb="(\d+),(\d+),(\d+)" transparent="(\w+)"[^>]*value="\[([-\d.]+),([-\d.]+)\)"/g;
-  for (const m of xml.matchAll(re)) {
-    if (m[4] !== 'false') continue;
-    map.set((+m[1] << 16) | (+m[2] << 8) | +m[3], (parseFloat(m[5]) + parseFloat(m[6])) / 2);
-  }
-  if (map.size < 50) throw new Error('جدول ألوان NDVI غير متوقع');
-  return map;
-}
 
 // ── قناع الولايات: لكل نقطة في الصورة رقم ولايتها (أو -1) بطريقة المسح الأفقي ──
 function buildMask(): Int16Array {
@@ -138,7 +61,7 @@ function buildMask(): Int16Array {
 
 // ── متوسط NDVI لكل ولاية في فترة ما ──────────────────────────────────────
 async function wilayaMeans(date: string, mask: Int16Array, colors: Map<number, number>) {
-  const url = `${WMS}?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=${LAYER}&CRS=EPSG:4326` +
+  const url = `${GIBS_WMS}?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=${LAYER}&CRS=EPSG:4326` +
     `&BBOX=${LAT0},${LON0},${LAT1},${LON1}&WIDTH=${W}&HEIGHT=${H}&FORMAT=image/png&TIME=${date}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`GIBS ${res.status} ${date}`);
@@ -147,8 +70,8 @@ async function wilayaMeans(date: string, mask: Int16Array, colors: Map<number, n
   const sum = new Float64Array(WILAYA_SHAPES.length), count = new Int32Array(WILAYA_SHAPES.length);
   for (let i = 0; i < mask.length; i++) {
     const wi = mask[i];
-    if (wi < 0 || rgba[i * 4 + 3] === 0) continue;
-    const v = colors.get((rgba[i * 4] << 16) | (rgba[i * 4 + 1] << 8) | rgba[i * 4 + 2]);
+    if (wi < 0) continue;
+    const v = ndviAt(rgba, i, colors);
     if (v === undefined) continue;
     sum[wi] += v; count[wi]++;
   }
@@ -166,7 +89,7 @@ Deno.serve(async (req) => {
     const isService = req.headers.get('authorization') === `Bearer ${SERVICE_KEY}`;
     const force = isService && body.force === true;
 
-    const [colors, mask] = [await loadColormap(), buildMask()];
+    const [colors, mask] = [await loadColormap(COLORMAP), buildMask()];
     const minPixels = 0.5 * mask.reduce((n, v) => n + (v >= 0 ? 1 : 0), 0);
 
     // أحدث فترة متاحة: تتأخر الصورة المركّبة أسبوعين تقريباً عن نهاية فترتها
