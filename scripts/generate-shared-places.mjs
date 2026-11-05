@@ -17,7 +17,8 @@ await build({
 export { toArabicCommune } from './src/mauritaniaCommuneNamesAr.js';
 export { wilayaToSlug } from './src/wilayaUrlSlugs.js';
 export { ERA5_CITIES, ERA5_REFERENCE, ERA5_SOURCE } from './src/rainEra5Normals.js';
-export { WILAYA_LANDMARKS } from './src/wilayaLandmarks.js';`,
+export { WILAYA_LANDMARKS } from './src/wilayaLandmarks.js';
+export { WILAYA_SHAPES } from './src/mauritaniaWilayaShapes.js';`,
     resolveDir: root,
   },
   bundle: true,
@@ -26,7 +27,7 @@ export { WILAYA_LANDMARKS } from './src/wilayaLandmarks.js';`,
   outfile: bundle,
   logLevel: 'error',
 });
-const { mauritanianCities, toArabicCommune, wilayaToSlug, ERA5_CITIES, ERA5_REFERENCE, ERA5_SOURCE, WILAYA_LANDMARKS } = await import(pathToFileURL(bundle).href);
+const { mauritanianCities, toArabicCommune, wilayaToSlug, ERA5_CITIES, ERA5_REFERENCE, ERA5_SOURCE, WILAYA_LANDMARKS, WILAYA_SHAPES } = await import(pathToFileURL(bundle).href);
 fs.rmSync(tmp, { recursive: true, force: true });
 
 // Same naming as the site: the Arabic commune name, else the key itself.
@@ -82,3 +83,15 @@ fs.writeFileSync(landmarksOut, [
   '',
 ].join('\n'));
 console.log(`${Object.keys(landmarkSrc).length} landmarks -> ${path.relative(root, landmarksOut)}`);
+
+// Simplified wilaya boundaries (src/mauritaniaWilayaShapes.js), for the pasture (NDVI) averages
+const shapesOut = path.join(root, 'supabase/functions/_shared/wilayaShapes.ts');
+fs.writeFileSync(shapesOut, [
+  '// مولَّد آلياً من src/mauritaniaWilayaShapes.js بالأمر npm run generate:places — لا تعدّله يدوياً.',
+  '// حدود الولايات مبسّطة، [خط الطول، خط العرض]. المصدر: geoBoundaries، رخصة CC BY-SA 3.0.',
+  '',
+  'export const WILAYA_SHAPES: { wilaya: string; rings: [number, number][][] }[] = ' +
+    `${JSON.stringify(WILAYA_SHAPES)};`,
+  '',
+].join('\n'));
+console.log(`${WILAYA_SHAPES.length} wilaya shapes -> ${path.relative(root, shapesOut)}`);

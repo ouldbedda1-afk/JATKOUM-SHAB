@@ -12,6 +12,7 @@ const NAV_LINKS = [
   { icon: '📅', label: 'التوقعات الأسبوعية', to: '/forecast' },
   { icon: '📦', label: 'أرشيف التوقعات',     to: '/forecast-archive' },
   { icon: '🌧️', label: 'مقاييس الأمطار',     to: '/measurements' },
+  { icon: '🌿', label: 'المراعي والجراد',   to: '/pastures' },
   { icon: '🐫', label: 'الظالة',             to: '/althala'  },
   { icon: '✍️', label: 'مدوّنو الطقس',       to: '/bloggers' },
 ];

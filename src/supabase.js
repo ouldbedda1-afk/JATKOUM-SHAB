@@ -821,6 +821,37 @@ export async function getStationLatest() {
   return data || [];
 }
 
+// حالة المراعي: آخر فترة محسوبة لكل الولايات، والفترتان السابقتان لها
+export async function getPastureNdvi() {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await supabase.from('pasture_ndvi').select('*')
+    .order('period', { ascending: false }).limit(60);
+  if (error) { console.error('pasture_ndvi:', error.message); return []; }
+  const latest = data?.[0]?.period;
+  return (data || []).filter((r) => r.period === latest);
+}
+
+// مسوحات الجراد الصحراوي في آخر `days` يوماً
+export async function getLocustObservations(days = 30) {
+  if (!isSupabaseConfigured) return [];
+  const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  const { data, error } = await supabase.from('locust_observations')
+    .select('id, obs_date, wilaya, region, district, village, lat, lon, locust_type, presence_type, behaviour, breeding, area_treated_ha, severity')
+    .gte('obs_date', since).order('obs_date', { ascending: false }).limit(3000);
+  if (error) { console.error('locust_observations:', error.message); return []; }
+  return data || [];
+}
+
+// آخر نشرة موسمية منشورة
+export async function getLatestSeasonalBulletin() {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await supabase.from('news_articles')
+    .select('slug, title, published_at').like('slug', 'seasonal-%').eq('is_published', true)
+    .order('published_at', { ascending: false }).limit(1);
+  if (error) { console.error('seasonal bulletin:', error.message); return null; }
+  return data?.[0] || null;
+}
+
 export async function getTopRainRecords10Years(limit = 3) {
   if (!isSupabaseConfigured) return [];
   const tenYearsAgo = new Date();
