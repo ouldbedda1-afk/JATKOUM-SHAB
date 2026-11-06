@@ -147,7 +147,7 @@ async function latestSceneBefore(token: string, lat: number, lon: number, untilI
 }
 
 // اسم الموقع وعلامات البؤر تُدمج في الصورة نفسها، فتبقى في نسخة تيليغرام وفي أي نسخة تُنزَّل.
-// الشريط (الشعار وجاتكم اسحاب والرابط ونسبة Copernicus) والحلقة والمربع صور في public/brand على الموقع
+// الشريط (الشعار وجاتكم اسحاب والرابط ونسبة Copernicus) والحلقتان صور في public/brand على الموقع
 let overlays: Promise<Image[]> | null = null;
 const loadOverlays = () => (overlays ||= Promise.all(['fire-watermark.png', 'fire-ring.png', 'fire-new.png'].map(async (f) => {
   const res = await fetch(`${SITE}/brand/${f}`);
@@ -156,12 +156,12 @@ const loadOverlays = () => (overlays ||= Promise.all(['fire-watermark.png', 'fir
 })));
 
 // العلامات: حلقة كبيرة لموضع الحريق (المركز)، وحلقات صغيرة لبؤره الأولى (حتى ساعتين بعد رصده)،
-// ومربعات برتقالية للبؤر الجديدة التي رُصدت بعد ذلك داخل الإطار
+// ودوائر برتقالية مفرغة أكبر للبؤر الجديدة (لا تحجب اللهب) التي رُصدت بعد ذلك داخل الإطار
 type Spot = { lat: number; lon: number; detected_at: string };
 const NEW_AFTER_MS = 2 * 3600 * 1000;
 
 async function brandImage(jpeg: Uint8Array, center: Spot, spots: Spot[]) {
-  const [band, ring, square] = await loadOverlays();
+  const [band, ring, newRing] = await loadOverlays();
   const img = await Image.decode(jpeg) as Image;
   const small = ring.clone().resize(24, 24);
   const cx = img.width / 2, cy = img.height / 2;
@@ -177,7 +177,7 @@ async function brandImage(jpeg: Uint8Array, center: Spot, spots: Spot[]) {
   }
   img.composite(ring, Math.round(cx - ring.width / 2), Math.round(cy - ring.height / 2));
   for (const m of marks.filter((m) => m.isNew)) {
-    img.composite(square, Math.round(m.x - square.width / 2), Math.round(m.y - square.height / 2));
+    img.composite(newRing, Math.round(m.x - newRing.width / 2), Math.round(m.y - newRing.height / 2));
   }
   img.composite(band, Math.round((img.width - band.width) / 2), img.height - band.height);
   return await img.encodeJPEG(85);
@@ -292,7 +292,7 @@ async function attachImages() {
     await tgPhoto(url,
       `🛰️ صورة الحريق: ${f.wilaya} — على بعد ${f.distance_km} كم ${directionFrom(f.direction, f.place)}\n` +
       `رُصد الحريق ${arDate(f.detected_at)}، والتقط Sentinel-2 الصورة ${arDate(scene)}.\n` +
-      'الحلقة الكبيرة موضع الحريق والصغيرة بؤره الأولى، والمربعات البرتقالية بؤر جديدة رُصدت بعده، والأحمر لهب مشتعل لحظة التقاط الصورة. المصدر: Copernicus Sentinel-2');
+      'الحلقة الكبيرة موضع الحريق والصغيرة بؤره الأولى، والدوائر البرتقالية بؤر جديدة رُصدت بعده، والأحمر لهب مشتعل لحظة التقاط الصورة. المصدر: Copernicus Sentinel-2');
   }
   return attached;
 }
