@@ -231,14 +231,18 @@ Deno.serve(async () => {
     if (oldImages?.length) await supabase.storage.from('fire-images').remove(oldImages.map((r) => `${r.id}.jpg`));
     await supabase.from('fire_hotspots').delete().lt('detected_at', cutoff);
 
-    // حرائق كبيرة جديدة: تجمّعات متقاربة أو بؤرة شديدة
+    // حرائق كبيرة: تجمّعات متقاربة أو بؤرة شديدة، في كل بؤر اليومين (لا الجديدة وحدها،
+    // فالتجمّع قد يكتمل على دفعات). يُعلَّم الحريق مرة واحدة: إن كانت إحدى بؤره معلَّمة فهو معروف
     const cells = new Map<string, Record<string, unknown>[]>();
-    for (const r of fresh) {
+    for (const r of list) {
       const key = `${Math.round((r.lat as number) / CLUSTER_DEG)},${Math.round((r.lon as number) / CLUSTER_DEG)}`;
       (cells.get(key) || cells.set(key, []).get(key)!).push(r);
     }
+    const { data: marked } = await supabase.from('fire_hotspots').select('id').eq('big', true).in('id', list.map((r) => r.id as string));
+    const markedIds = new Set((marked ?? []).map((r) => r.id));
     const bigCells = [...cells.values()]
-      .filter((c) => c.length >= CLUSTER_MIN || c.some((r) => (r.frp as number) >= BIG_FRP_MW));
+      .filter((c) => c.length >= CLUSTER_MIN || c.some((r) => (r.frp as number) >= BIG_FRP_MW))
+      .filter((c) => !c.some((r) => markedIds.has(r.id as string)));
     const big = bigCells.map((c) => c.reduce((a, b) => ((b.frp as number) > (a.frp as number) ? b : a)));
     // البؤرة الأشد في كل تجمّع تمثّل الحريق الكبير، وتُتابَع حتى تصلها صورة
     for (let k = 0; k < big.length; k++) {
