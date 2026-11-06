@@ -493,6 +493,99 @@ async function publishWeatherAlerts(weather: PlaceWeather[], today: string): Pro
   return published;
 }
 
+// ── 7. ارتفاع درجات الحرارة أو تراجعها ───────────────────────────────────
+// ليست تحذيراً: خبر «يتوقع بإذن الله أن ترتفع/تتراجع درجات الحرارة» حين تتغير العظمى بوضوح عن
+// اليوم السابق. يُقارن متوسط العظمى في بلديات كل ولاية (نواكشوط الثلاث ولاية واحدة)، وتُذكر
+// الولايات لا البلديات. خبر واحد لكل يوم ولكل اتجاه.
+const TEMP_RISE_C = 3;       // ارتفاع العظمى عن اليوم السابق
+const TEMP_RISE_MIN_C = 35;  // ولا يُذكر الارتفاع إلا إن بلغت العظمى هذا الحد (لا خبر عن 22 → 25 في الشتاء)
+const TEMP_DROP_C = 6;       // تراجع العظمى عن اليوم السابق
+// ولايات الساحل: الريح الشرقية (من الشمال الشرقي إلى الجنوب الشرقي) قارية جافة ترفع الحرارة فيها
+const COASTAL = new Set(['نواكشوط', 'الترارزة', 'داخلة نواذيبو', 'انشيري']);
+const tempGroup = (w: string) => (w.startsWith('نواكشوط') ? 'نواكشوط' : w);
+
+async function fetchTempTrend() {
+  const out: { wilaya: string; time: string[]; tmax: number[]; wind: number[] }[] = [];
+  for (let start = 0; start < PLACES.length; start += CHUNK) {
+    const chunk = PLACES.slice(start, start + CHUNK);
+    const params = new URLSearchParams({
+      latitude: chunk.map((p) => p.lat).join(','),
+      longitude: chunk.map((p) => p.lon).join(','),
+      daily: 'temperature_2m_max,wind_direction_10m_dominant',
+      timezone: 'Africa/Nouakchott', past_days: '1', forecast_days: '3',
+    });
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
+    if (!res.ok) throw new Error(`Open-Meteo HTTP ${res.status}`);
+    const json = await res.json();
+    const items = Array.isArray(json) ? json : [json];
+    items.forEach((item, i) => out.push({
+      wilaya: tempGroup(chunk[i].wilaya), time: item.daily.time,
+      tmax: item.daily.temperature_2m_max, wind: item.daily.wind_direction_10m_dominant,
+    }));
+  }
+  return out;
+}
+
+const avgOf = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+const isEasterly = (deg: number) => deg >= 30 && deg <= 150;
+
+async function publishTempChanges(today: string): Promise<number> {
+  const places = await fetchTempTrend();
+  // اليوم نفسه في جولة الصباح فقط؛ وغداً في كل جولة (والـslug يمنع التكرار)
+  const targets = [...(new Date().getUTCHours() < 10 ? [today] : []), places[0]?.time.find((t) => t > today)].filter(Boolean) as string[];
+  let published = 0;
+
+  for (const dateStr of targets) {
+    const i = places[0].time.indexOf(dateStr);
+    if (i < 1) continue;
+    const byWilaya = new Map<string, { now: number[]; before: number[]; wind: number[] }>();
+    for (const p of places) {
+      if (p.tmax[i] == null || p.tmax[i - 1] == null) continue;
+      const w = byWilaya.get(p.wilaya) || { now: [], before: [], wind: [] };
+      w.now.push(p.tmax[i]); w.before.push(p.tmax[i - 1]); if (p.wind[i] != null) w.wind.push(p.wind[i]);
+      byWilaya.set(p.wilaya, w);
+    }
+    const rise: { wilaya: string; now: number; delta: number; easterly: boolean }[] = [];
+    const drop: { wilaya: string; now: number; delta: number }[] = [];
+    for (const [wilaya, v] of byWilaya) {
+      const now = avgOf(v.now), delta = now - avgOf(v.before);
+      const easterly = COASTAL.has(wilaya) && v.wind.length > 0 && v.wind.filter(isEasterly).length > v.wind.length / 2;
+      if (delta >= TEMP_RISE_C && now >= TEMP_RISE_MIN_C) rise.push({ wilaya, now, delta, easterly });
+      if (delta <= -TEMP_DROP_C) drop.push({ wilaya, now, delta });
+    }
+
+    const dateAr = arabicFullDate(dateStr);
+    const dayWord = dateStr === today ? 'اليوم' : 'غداً';
+    for (const [kind, list] of [['rise', rise], ['drop', drop]] as const) {
+      if (!list.length) continue;
+      const slug = `temp-${kind}-${dateStr}`;
+      if (await slugExists(slug)) continue;
+      const verb = kind === 'rise' ? 'ترتفع' : 'تتراجع';
+      const sorted = [...list].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+      const lines = sorted.map((w) =>
+        `• **${w.wilaya}:** العظمى نحو ${Math.round(w.now)}°م (${w.delta > 0 ? '+' : '−'}${Math.round(Math.abs(w.delta))}°م)`).join('\n');
+      const windNote = kind === 'rise' && rise.some((w) => w.easterly)
+        ? `\n\n💨 يعود الارتفاع في ${rise.filter((w) => w.easterly).map((w) => `ولاية ${w.wilaya}`).join(' و')} إلى رياح شرقية جافة قادمة من الداخل.`
+        : '';
+      const tip = kind === 'rise' && sorted[0].now >= 38
+        ? '\n\n💧 يُنصح بالإكثار من شرب الماء وتجنب التعرض المباشر للشمس وقت الظهيرة.' : '';
+      const title = `🌡️ يتوقع بإذن الله أن ${verb} درجات الحرارة ${dayWord} — ${dateAr}`;
+      const content = `📅 ${arabicFullDateWithYear(dateStr)}\n\n` +
+        `🌡️ يتوقع بإذن الله أن ${verb} درجات الحرارة ${dayWord} مقارنةً باليوم السابق في ` +
+        `${list.length === 1 ? `ولاية ${list[0].wilaya}` : 'الولايات التالية'}:\n\n${lines}${windNote}${tip}\n\n` +
+        '#موريتانيا #الطقس #جاتكم_اسحاب';
+      if (await insertAlert({
+        title, slug, category: 'طقس', imageKey: kind === 'rise' ? 'حر' : 'طقس',
+        tags: ['حرارة', 'توقعات', dateStr, ...list.map((w) => w.wilaya)], content,
+      })) {
+        published++;
+        await postToFacebook(title, content, slug);
+      }
+    }
+  }
+  return published;
+}
+
 Deno.serve(async () => {
   try {
     const today = new Date().toISOString().slice(0, 10);
@@ -501,6 +594,11 @@ Deno.serve(async () => {
 
     const forecasts = days.length ? await publishForecasts(days, today) : { published: 0, updated: 0, skipped: 0, results: [] };
     const alerts = await publishWeatherAlerts(weather, today);
+    // تعذّر هذه لا يُفشل التوقعات والتحذيرات
+    const tempChanges = await publishTempChanges(today).catch(async (e) => {
+      await tg(`⚠️ wilaya-publisher: تعذّر خبر تغيّر الحرارة: ${e instanceof Error ? e.message : e}`);
+      return 0;
+    });
 
     const { error: snapErr } = await supabase.from('weather_snapshots').upsert(
       { snapshot_date: today, forecasts: days, cities_count: weather.length },
@@ -508,7 +606,7 @@ Deno.serve(async () => {
     );
     if (snapErr) console.warn('weather_snapshots:', snapErr.message);
 
-    return new Response(JSON.stringify({ places: weather.length, forecasts, alerts }), {
+    return new Response(JSON.stringify({ places: weather.length, forecasts, alerts, tempChanges }), {
       headers: { 'content-type': 'application/json' },
     });
   } catch (err: unknown) {
