@@ -1018,6 +1018,20 @@ async function callAdminNews(payload) {
   return data;
 }
 
+/** الإدارة: أوامر صور الحرائق في دالة fire-hotspots (جلب صورة لبؤرة، أو دوائر يضعها المشرف) */
+export async function adminFireAction(payload) {
+  const adminToken = getAdminToken();
+  if (!adminToken) throw new Error('سجّل الدخول إلى لوحة الإدارة أولاً');
+  const res = await fetch(`${supabaseUrl}/functions/v1/fire-hotspots`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken, Authorization: `Bearer ${supabaseAnonKey}` },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) throw new Error(data.error || `خطأ ${res.status}`);
+  return data;
+}
+
 /** الإدارة: تشغيل نشر توقعات الولايات والتحذيرات على الخادم الآن (بدل انتظار الجدولة) */
 export async function runWilayaPublisher() {
   const res = await fetch(`${supabaseUrl}/functions/v1/wilaya-publisher`, {

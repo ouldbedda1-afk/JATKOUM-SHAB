@@ -14,7 +14,7 @@
 //
 // يُستدعى عبر pg_cron كل ثلاث ساعات. مفتاح FIRMS في السر FIRMS_MAP_KEY.
 // النشر:  supabase functions deploy fire-hotspots --no-verify-jwt
-// الطلب (POST): {}
+// الطلب (POST): {} — وأوامر لوحة الإدارة (adminAction أدناه) بترويسة x-admin-token والسر ADMIN_TOKEN
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { WILAYA_SHAPES } from '../_shared/wilayaShapes.ts';
@@ -55,8 +55,14 @@ function evaluatePixel(s){
   return [2.5 * s.B04, 2.5 * s.B03, 2.5 * s.B02];
 }`;
 
+// لوحة الإدارة تستدعي الدالة من المتصفح
+const cors = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, content-type, x-admin-token, apikey',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 const json = (obj: unknown, status = 200) =>
-  new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
+  new Response(JSON.stringify(obj), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
 function inside([x, y]: [number, number], ring: [number, number][]) {
   let hit = false;
@@ -157,8 +163,10 @@ const loadOverlays = () => (overlays ||= Promise.all(['fire-watermark.png', 'fir
   return await Image.decode(new Uint8Array(await res.arrayBuffer())) as Image;
 })));
 
-// العلامات: دائرة برتقالية مفرغة واحدة حول كل بؤرة حريق في الإطار (marks.ts)
-type Spot = { lat: number; lon: number; detected_at: string };
+// العلامات: دائرة برتقالية مفرغة واحدة حول كل بؤرة حريق في الإطار (marks.ts)، إلا إذا وضع المشرف
+// الدوائر بيده من لوحة الإدارة (manual_marks: [{x, y, r}] بكسلات الصورة 600×600)؛ عندها تُرسم دوائره وحدها
+type Spot = { lat: number; lon: number; detected_at: string; manual_marks?: Ring[] | null };
+type Ring = { x: number; y: number; r: number };
 
 async function brandImage(jpeg: Uint8Array, center: Spot, spots: Spot[]) {
   const [band, mark] = await loadOverlays();
@@ -168,7 +176,8 @@ async function brandImage(jpeg: Uint8Array, center: Spot, spots: Spot[]) {
     x: (p.lon - (center.lon - IMAGE_HALF_DEG)) / (2 * IMAGE_HALF_DEG) * img.width,
     y: ((center.lat + IMAGE_HALF_DEG) - p.lat) / (2 * IMAGE_HALF_DEG) * img.height,
   })).filter((m) => m.x >= 0 && m.y >= 0 && m.x <= img.width && m.y <= maxY);
-  for (const c of fireClusters(img, points, maxY)) drawRing(img, c.x, c.y, c.r, maxY);
+  const rings = center.manual_marks ?? fireClusters(img, points, maxY);
+  for (const c of rings) drawRing(img, c.x, c.y, c.r, maxY);
   img.composite(mark, img.width - mark.width - 6, 6);
   img.composite(band, Math.round((img.width - band.width) / 2), maxY);
   return await img.encodeJPEG(85);
@@ -200,24 +209,32 @@ async function storeImage(path: string, raw: Uint8Array, center: Spot) {
   return { url: publicUrl(path, spots.length), count: spots.length };
 }
 
-// صور محفوظة رُصدت في إطارها بؤر بعد رسمها: تُعاد علاماتها من النسخة الخام
+// إعادة رسم صورتي الحريق (بعده وقبله) من نسختيهما الخام
+type FireRow = Spot & { id: string; image_url: string | null; before_image_url: string | null };
+async function redraw(f: FireRow, spots: Spot[], version: number) {
+  const update: Record<string, unknown> = {};
+  for (const [column, path] of [['image_url', `${f.id}.jpg`], ['before_image_url', `${f.id}-before.jpg`]]) {
+    if (!f[column as 'image_url']) continue;
+    const { data: blob } = await supabase.storage.from('fire-images').download(rawPath(path));
+    if (!blob) continue;   // صورة قديمة بلا نسخة خام
+    await upload(path, await brandImage(new Uint8Array(await blob.arrayBuffer()), f, spots));
+    update[column] = publicUrl(path, version);
+  }
+  return update;
+}
+
+// صور محفوظة رُصدت في إطارها بؤر بعد رسمها: تُعاد علاماتها من النسخة الخام.
+// دوائر المشرف لا تتغير بالبؤر الجديدة، فلا تُعاد صورها هنا
 async function refreshMarks() {
   const { data: rows } = await supabase.from('fire_hotspots')
     .select('id, lat, lon, detected_at, image_url, before_image_url, marked_count')
-    .eq('big', true).or('image_url.not.is.null,before_image_url.not.is.null');
+    .eq('big', true).is('manual_marks', null).or('image_url.not.is.null,before_image_url.not.is.null');
   let redrawn = 0;
   for (const f of rows ?? []) {
     const spots = await spotsAround(f.lat, f.lon);
     if (spots.length === f.marked_count) continue;
-    const update: Record<string, unknown> = { marked_count: spots.length };
-    for (const [column, path] of [['image_url', `${f.id}.jpg`], ['before_image_url', `${f.id}-before.jpg`]]) {
-      if (!f[column as 'image_url']) continue;
-      const { data: blob } = await supabase.storage.from('fire-images').download(rawPath(path));
-      if (!blob) continue;   // صورة قديمة بلا نسخة خام
-      await upload(path, await brandImage(new Uint8Array(await blob.arrayBuffer()), f, spots));
-      update[column] = publicUrl(path, spots.length);
-    }
-    await supabase.from('fire_hotspots').update(update).eq('id', f.id);
+    const update = await redraw(f, spots, spots.length);
+    await supabase.from('fire_hotspots').update({ ...update, marked_count: spots.length }).eq('id', f.id);
     redrawn++;
   }
   return redrawn;
@@ -253,12 +270,15 @@ const arDate = (iso: string) => { const d = new Date(iso); return `${d.getUTCDat
 
 // الحرائق الكبيرة التي لم تصلها صورة بعد: يُبحث لكل منها عن أول مشهد صافٍ بعد رصده؛ وإلى أن يمر
 // القمر تُحفظ أحدث صورة صافية للمكان قبل الحريق (لا تُرسل إلى تيليغرام)
-async function attachImages() {
+// onlyId: حريق واحد طلب المشرف صورته من لوحة الإدارة
+async function attachImages(onlyId?: string) {
   if (!SH_CLIENT_ID || !SH_CLIENT_SECRET) return 'بلا مفتاح Copernicus';
-  const { data: pending } = await supabase.from('fire_hotspots')
-    .select('id, lat, lon, detected_at, wilaya, place, distance_km, direction, image_tries, before_image_url')
-    .eq('big', true).is('image_url', null)
-    // الأقل بحثاً أولاً، فلا تبقى حرائق خارج الدفعة دائماً
+  let query = supabase.from('fire_hotspots')
+    .select('id, lat, lon, detected_at, wilaya, place, distance_km, direction, image_tries, before_image_url, manual_marks')
+    .eq('big', true).is('image_url', null);
+  if (onlyId) query = query.eq('id', onlyId);
+  // الأقل بحثاً أولاً، فلا تبقى حرائق خارج الدفعة دائماً
+  const { data: pending } = await query
     .order('image_tries', { ascending: true }).order('detected_at', { ascending: false }).limit(IMAGES_PER_RUN);
   if (!pending?.length) return 0;
   const token = await shToken();
@@ -288,7 +308,54 @@ async function attachImages() {
   return attached;
 }
 
-Deno.serve(async () => {
+// أوامر لوحة الإدارة (بترويسة x-admin-token):
+//   { "action": "request_image", "id": "..." }          — بؤرة لم تُعدّ حريقاً كبيراً: تُتابَع وتُجلب صورتها الآن
+//   { "action": "set_marks", "id": "...", "marks": [...] } — دوائر المشرف، أو null للعودة إلى الدوائر التلقائية
+const ADMIN_TOKEN = Deno.env.get('ADMIN_TOKEN') ?? '';
+const MAX_MARKS = 30;
+
+async function adminAction(body: Record<string, unknown>) {
+  const id = String(body.id ?? '');
+  if (body.action === 'request_image') {
+    const { data: f } = await supabase.from('fire_hotspots').select('lat, lon').eq('id', id).maybeSingle();
+    if (!f) return json({ ok: false, error: 'البؤرة غير موجودة' }, 404);
+    const spots = await spotsAround(f.lat, f.lon);
+    await supabase.from('fire_hotspots').update({ big: true, cluster_size: spots.length }).eq('id', id);
+    const images = await attachImages(id);
+    const { data: row } = await supabase.from('fire_hotspots').select('image_url, before_image_url').eq('id', id).single();
+    return json({ ok: true, images, ...row });
+  }
+  if (body.action === 'set_marks') {
+    let marks: Ring[] | null = null;
+    if (body.marks != null) {
+      if (!Array.isArray(body.marks) || body.marks.length > MAX_MARKS) return json({ ok: false, error: 'دوائر غير صالحة' }, 400);
+      marks = body.marks.map((m) => ({ x: Number(m?.x), y: Number(m?.y), r: Number(m?.r) }));
+      if (marks.some((m) => ![m.x, m.y].every((v) => v >= 0 && v <= IMAGE_PX) || !(m.r >= 8 && m.r <= 300))) {
+        return json({ ok: false, error: 'دوائر غير صالحة' }, 400);
+      }
+    }
+    const { data: f } = await supabase.from('fire_hotspots')
+      .select('id, lat, lon, detected_at, image_url, before_image_url').eq('id', id).eq('big', true).maybeSingle();
+    if (!f) return json({ ok: false, error: 'الحريق غير موجود' }, 404);
+    const spots = await spotsAround(f.lat, f.lon);
+    const update = await redraw({ ...f, manual_marks: marks }, spots, Date.now());
+    await supabase.from('fire_hotspots').update({ ...update, manual_marks: marks, marked_count: spots.length }).eq('id', id);
+    return json({ ok: true, ...update });
+  }
+  return json({ ok: false, error: 'أمر غير معروف' }, 400);
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
+  const adminToken = req.headers.get('x-admin-token');
+  if (adminToken !== null) {
+    if (!ADMIN_TOKEN || adminToken !== ADMIN_TOKEN) return json({ ok: false, error: 'غير مصرّح' }, 401);
+    try {
+      return await adminAction(await req.json().catch(() => ({})));
+    } catch (e) {
+      return json({ ok: false, error: String(e) }, 500);
+    }
+  }
   try {
     if (!MAP_KEY) return json({ ok: false, error: 'FIRMS_MAP_KEY غير معرّف' }, 500);
 

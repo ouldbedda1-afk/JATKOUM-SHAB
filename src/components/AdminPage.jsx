@@ -5,6 +5,7 @@ import NewsAdmin from './NewsAdmin';
 import ForecastPublisher from './ForecastPublisher';
 import SnapshotArchive from './SnapshotArchive';
 import VisitorStats from './VisitorStats';
+import FireMarksAdmin from './FireMarksAdmin';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 
@@ -15,6 +16,7 @@ const TABS = [
   { id: 'archive',   label: '📦 أرشيف التوقعات' },
   { id: 'news_mgmt', label: '📰 إدارة الأخبار' },
   { id: 'visitors',  label: '👥 الزوار' },
+  { id: 'fires',     label: '🔥 الحرائق' },
   { id: 'rain',      label: 'تبشيرات المطر' },
   { id: 'livestock', label: 'الظالة' },
 ];
@@ -156,6 +158,8 @@ export default function AdminPage() {
               <SnapshotArchive />
             ) : tab === 'news_mgmt' ? (
               <NewsAdmin />
+            ) : tab === 'fires' ? (
+              <FireMarksAdmin />
             ) : tab === 'visitors' ? (
               <VisitorStats />
             ) : (<>
