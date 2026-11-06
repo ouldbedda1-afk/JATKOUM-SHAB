@@ -1020,65 +1020,6 @@ export async function runWilayaPublisher() {
   return data;
 }
 
-/** جلب خلايا العواصف من DB لاستعادة firstSeen بعد إعادة التحميل */
-export async function getStormCells() {
-  if (!isSupabaseConfigured) return [];
-  try {
-    const twoHoursAgo = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
-    const { data } = await supabase
-      .from('storm_cells')
-      .select('*')
-      .gt('last_seen', twoHoursAgo)
-      .or(`suppressed_until.is.null,suppressed_until.lt.${new Date().toISOString()}`);
-    return data || [];
-  } catch { return []; }
-}
-
-/** مزامنة خلايا العواصف النشطة مع Supabase */
-export async function syncStormCells(cells) {
-  if (!isSupabaseConfigured) return;
-  try {
-    // احذف الخلايا القديمة أولاً (غير موجودة في القائمة الحالية)
-    const ids = cells.map((c) => String(c.id));
-    if (ids.length > 0) {
-      await supabase.from('storm_cells')
-        .delete()
-        .not('id', 'in', `(${ids.map((id) => `'${id}'`).join(',')})`);
-    } else {
-      await supabase.from('storm_cells').delete().neq('id', '');
-    }
-    // ادفع الخلايا الحالية
-    if (cells.length > 0) {
-      const rows = cells.map((c) => ({
-        id:         String(c.id),
-        city:       c.cities?.[0]?.city || null,
-        wilaya:     c.cities?.[0]?.wilaya || null,
-        lat:        c.lat,
-        lon:        c.lon,
-        mmh:        c.mmh || 0,
-        first_seen: new Date(c.firstSeen || Date.now()).toISOString(),
-        last_seen:  new Date(c.lastSeen  || Date.now()).toISOString(),
-      }));
-      await supabase.from('storm_cells').upsert(rows, { onConflict: 'id', ignoreDuplicates: false });
-    }
-  } catch (e) {
-    console.warn('syncStormCells:', e);
-  }
-}
-
-/** جلب الإخماد اليدوي من Supabase لتطبيقه محلياً */
-export async function getRemoteSuppressions() {
-  if (!isSupabaseConfigured) return [];
-  try {
-    const { data } = await supabase
-      .from('storm_suppressions')
-      .select('lat,lon,suppressed_until')
-      .gt('suppressed_until', new Date().toISOString());
-    return data || [];
-  } catch {
-    return [];
-  }
-}
 
 // ═══════════════════════════════════════════════════════════
 //  NEWS ARTICLES — منصة الأخبار الجوية

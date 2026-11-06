@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { getAllCitiesWeather, fetchExtraCommunesBatch, getActiveFires, getMarineWeather, clearWeatherCache, getModelRainingNow } from './weatherApi';
-import { getRecentRainReports, getRecentBawahReports, getUpcomingRainForecasts, getActiveAlerts, getApprovedNews, getWeatherBulletins, syncStormCells, getRemoteSuppressions, getStormCells, supabase as supabaseClient } from './supabase';
+import { getRecentRainReports, getRecentBawahReports, getUpcomingRainForecasts, getActiveAlerts, getApprovedNews, getWeatherBulletins } from './supabase';
 import { getRainingNowFromSatellite, getSameDayHeavyRainEventsFromSatellite, getRainingNowFromIMERG } from './satelliteRain';
 import { MAURITANIA_RADAR_GRID } from './mauritaniaRadarGrid';
 import { startLightning, subscribeLightning } from './lightningBlitzortung';
-import { updateTracks, clearTracks, removeTrack, suppressCell, seedTracks } from './cellTracking';
+import { updateTracks, clearTracks, removeTrack } from './cellTracking';
 import { getDeepCloudsFromEumetsat } from './satelliteCloudsEU';
 import { getEcmwfBriefs } from './ecmwfBriefs';
 
@@ -96,23 +96,13 @@ export const WeatherProvider = ({ children }) => {
       // ☁️ الرصد الجديد فقط: قمم سحب Meteosat IR (EUMETSAT) — على البلديات (أسماء وولايات صحيحة)
       if (weather && weather.length > 0) {
         getDeepCloudsFromEumetsat(weather)
-          .then(async (clouds) => {
-            try {
-              // 1. استعد firstSeen الأصلي من DB (يحل مشكلة إعادة التحميل)
-              const dbCells = await getStormCells();
-              seedTracks(dbCells);
-              // 2. طبّق الإخماد البعيد قبل التتبع
-              const remote = await getRemoteSuppressions();
-              remote.forEach((s) => suppressCell(s.lat, s.lon,
-                (new Date(s.suppressed_until).getTime() - Date.now()) / 3600000));
-            } catch { /* تجاهل */ }
-
+          .then((clouds) => {
+            // التتبع في المتصفح وحده؛ لا يُحفظ في قاعدة البيانات
             setStormClouds(clouds || []);
             setStormCloudsUpdatedAt(new Date());
             try {
               const { active } = updateTracks(clouds || []);
               setTrackedCells(active);
-              syncStormCells(active).catch(() => {});
             } catch (e) { console.warn('storm tracking:', e); }
           })
           .catch((e) => {
@@ -144,34 +134,6 @@ export const WeatherProvider = ({ children }) => {
     return () => unsub();
   }, []);
 
-  // 📡 Realtime: استقبال إخماد العواصف من Telegram فوراً
-  useEffect(() => {
-    if (!supabaseClient) return;
-    const channel = supabaseClient
-      .channel('storm-suppressions-live')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'storm_suppressions' },
-        (payload) => {
-          const { lat, lon, suppressed_until } = payload.new;
-          const hoursLeft = (new Date(suppressed_until).getTime() - Date.now()) / 3600000;
-          if (hoursLeft > 0) {
-            suppressCell(lat, lon, hoursLeft);
-            // احذف الخلايا المتأثرة من الحالة فوراً
-            setTrackedCells((prev) => {
-              const filtered = prev.filter((t) => {
-                const d = Math.sqrt((t.lat - lat) ** 2 + (t.lon - lon) ** 2) * 111;
-                return d > 85;
-              });
-              if (filtered.length !== prev.length) {
-                syncStormCells(filtered).catch(() => {});
-              }
-              return filtered;
-            });
-          }
-        }
-      )
-      .subscribe();
-    return () => { supabaseClient.removeChannel(channel); };
-  }, []);
 
   useEffect(() => {
     // ✅ جلب أول مرة فقط عند التحميل

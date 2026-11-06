@@ -247,39 +247,6 @@ Deno.serve(async (req) => {
         return new Response('ok');
       }
 
-      // ── معالجة أزرار خلايا العواصف ──
-      if (action === 'storm') {
-        if (kind === 'suppress') {
-          // احذف الخلية وأضفها لقائمة الإخماد 3 ساعات
-          const { data: cell } = await supabase.from('storm_cells').select('lat,lon').eq('id', id).single();
-          const suppressUntil = new Date(Date.now() + 3 * 3600 * 1000).toISOString();
-          await supabase.from('storm_cells').delete().eq('id', id);
-          if (cell) {
-            await supabase.from('storm_suppressions').insert([{
-              lat: cell.lat, lon: cell.lon, suppressed_until: suppressUntil,
-            }]);
-          }
-          await tg('answerCallbackQuery', { callback_query_id: cq.id, text: '✅ تم حذف الخلية وإخمادها 3 ساعات' });
-          if (chatId && msgId) {
-            await tg('editMessageText', {
-              chat_id: chatId, message_id: msgId,
-              text: (cq.message.text || '') + '\n\n❌ <b>انتهت — تم الحذف</b>',
-              parse_mode: 'HTML',
-            });
-          }
-        } else {
-          await tg('answerCallbackQuery', { callback_query_id: cq.id, text: '👍 حسناً، تبقى مراقبة' });
-          if (chatId && msgId) {
-            await tg('editMessageText', {
-              chat_id: chatId, message_id: msgId,
-              text: (cq.message.text || '') + '\n\n✅ <b>مازالت نشطة</b>',
-              parse_mode: 'HTML',
-            });
-          }
-        }
-        return new Response('ok');
-      }
-
       // ── مسودة النشرة الموسمية (seasonal-bulletin): نشر على الموقع وفيسبوك، أو حذف ──
       if (kind === 'seasonal') {
         const { data: article } = await supabase.from('news_articles')
