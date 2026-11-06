@@ -20,6 +20,17 @@ function fmtDateTime(dateStr) {
   return `${fmtDate(dateStr)} ${fmtTime(dateStr)}`;
 }
 
+// أكثر المواضع بؤراً في الشريط؛ والبقية في قسم الحرائق بصفحة المراعي
+const MAX_FIRE_NEWS = 6;
+
+// عدد البؤر بصيغته العربية: بؤرة واحدة، بؤرتان، 3–10 بؤر، 11 بؤرة فأكثر
+function hotspotCount(n) {
+  if (n === 1) return 'بؤرة واحدة';
+  if (n === 2) return 'بؤرتان';
+  if (n <= 10) return `${n} بؤر`;
+  return `${n} بؤرة`;
+}
+
 function formatShortList(items, limit = 5) {
   const uniqueItems = [...new Set((items || []).filter(Boolean))];
   if (uniqueItems.length === 0) return '';
@@ -231,13 +242,24 @@ const NewsTicker = () => {
         });
     }
 
-    // --- حرائق آخر 24 ساعة (NASA FIRMS): سطر واحد يلخصها حسب الولاية ---
+    // --- حرائق آخر 24 ساعة (NASA FIRMS): خبر لكل موضع، بأقرب بلدية والمسافة والاتجاه ---
     const fireNews = [];
     if (fires && fires.length > 0) {
-      const byWilaya = {};
-      fires.forEach((f) => { if (f.wilaya) byWilaya[f.wilaya] = (byWilaya[f.wilaya] || 0) + 1; });
-      const top = Object.entries(byWilaya).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([w, n]) => `${w} (${n})`).join('، ');
-      fireNews.push(`🔥 رصدت الأقمار الصناعية ${fires.length} بؤرة حريق في آخر 24 ساعة: ${top}.`);
+      const byPlace = new Map();
+      fires.forEach((f) => {
+        const key = `${f.nearestCity}|${f.direction}`;
+        const g = byPlace.get(key) || { ...f, count: 0, dists: [] };
+        g.count++; g.dists.push(f.distanceKm);
+        byPlace.set(key, g);
+      });
+      [...byPlace.values()]
+        .sort((a, b) => b.count - a.count)
+        .slice(0, MAX_FIRE_NEWS)
+        .forEach((g) => {
+          const km = Math.round(g.dists.reduce((x, y) => x + y, 0) / g.dists.length);
+          const where = km <= 2 ? `قرب ${g.nearestCity}` : `على بعد ${km} كم ${g.direction} ${g.nearestCity}`;
+          fireNews.push(`🔥 عاجل: حريق ${where}${g.wilaya ? ` (${g.wilaya})` : ''}${g.count > 1 ? ` — ${hotspotCount(g.count)}` : ''}`);
+        });
     }
 
     // ترتيب: عاجل → توقعات المركز الأوروبي → أخبار المستخدمين → حرائق → عام.
