@@ -60,7 +60,7 @@ const NewsTicker = () => {
   } = useWeatherContext();
 
   const newsItems = useMemo(() => {
-    if (loading || !weatherData) return ["جاري تحميل آخر الأخبار..."];
+    if (loading || !weatherData) return [];
 
     const dataAgeMs = lastUpdated ? Date.now() - lastUpdated.getTime() : Infinity;
     const dataIsFresh = dataAgeMs < 60 * 60 * 1000;
@@ -130,10 +130,10 @@ const NewsTicker = () => {
       // العواصف الآن تُضاف أدناه من الأقمار الصناعية فقط
       if (dataIsFresh) {
         if (wind > 45) {
-          urgentAlerts.push(`URGENT | رياح قوية ${Math.round(wind)} km/h في ${cityData.city} [${fmtTime(now)}]`);
+          urgentAlerts.push(`عاجل | رياح قوية ${Math.round(wind)} كم/س في ${cityData.city} [${fmtTime(now)}]`);
         }
         if (temp > 45) {
-          urgentAlerts.push(`URGENT | موجة حر ${Math.round(temp)}°C في ${cityData.city} [${fmtDate(now)}]`);
+          urgentAlerts.push(`عاجل | موجة حر ${Math.round(temp)}°م في ${cityData.city} [${fmtDate(now)}]`);
         }
       }
 
@@ -156,17 +156,17 @@ const NewsTicker = () => {
           );
         } else if (dCode >= 80 && (dailyRain[i] ?? 0) >= 5) {
           forecastAlerts.push(
-            `أمطار ${(dailyRain[i]).toFixed(1)} mm متوقعة في ${cityData.city} — ${dateLabel}`
+            `أمطار ${(dailyRain[i]).toFixed(1)} مم متوقعة في ${cityData.city} — ${dateLabel}`
           );
         }
         if ((dailyWind[i] ?? 0) > 60) {
           forecastAlerts.push(
-            `رياح عاتية ${Math.round(dailyWind[i])} km/h متوقعة في ${cityData.city} — ${dateLabel}`
+            `رياح عاتية ${Math.round(dailyWind[i])} كم/س متوقعة في ${cityData.city} — ${dateLabel}`
           );
         }
         if ((dailyMaxT[i] ?? 0) >= 45) {
           forecastAlerts.push(
-            `حر شديد ${Math.round(dailyMaxT[i])}°C متوقع في ${cityData.city} — ${dateLabel}`
+            `حر شديد ${Math.round(dailyMaxT[i])}°م متوقع في ${cityData.city} — ${dateLabel}`
           );
         }
       });
@@ -177,7 +177,7 @@ const NewsTicker = () => {
       const tomorrowDate = dailyDates[1] ? fmtDate(dailyDates[1]) : '';
       if (todayMax && tomorrowMax && tomorrowMax <= todayMax - 5) {
         generalAlerts.push(
-          `بشرى: انخفاض في الحرارة غداً في مقاطعة ${cityData.city} — ${tomorrowMax}°C (${tomorrowDate})`
+          `بشرى: انخفاض في الحرارة غداً في ${cityData.city} — ${Math.round(tomorrowMax)}°م (${tomorrowDate})`
         );
       }
     });
@@ -185,7 +185,7 @@ const NewsTicker = () => {
     // --- أقمار صناعية: أمطار + عواصف مؤكدة ---
     if (rainingNow && rainingNow.length > 0) {
       const radarAge  = rainingNow[0]?.radarAge ?? null;
-      const ageLabel  = radarAge != null ? ` [Radar: ${radarAge} min ago]` : '';
+      const ageLabel  = radarAge != null ? ` [الرادار: قبل ${radarAge} دقيقة]` : '';
 
       // تمييز المقاطعات التي كودها >= 95 (عاصفة رعدية) مع تأكيد الأقمار
       const satelliteNames = new Set(rainingNow.map(r => r.city));
@@ -233,35 +233,22 @@ const NewsTicker = () => {
 
     // --- حرائق ---
     const fireNews = (fires || []).map(
-      f => `عاجل: حريق على بعد ${f.distanceKm} km ${f.direction} مقاطعة ${f.nearestCity}`
+      f => `عاجل: حريق على بعد ${f.distanceKm} كم ${f.direction} ${toArabicCommune(f.nearestCity) || f.nearestCity}`
     );
 
-    const hasClouds  = weatherData.some(c => c.current?.weather_code >= 1);
-    const cloudNews  = hasClouds
-      ? ["جاتكم اسحاب: نراقب معكم حركة السحب والحرائق لحظة بلحظة."]
-      : ["جاتكم اسحاب: نراقب معكم حالة الطقس والحرائق لضمان سلامة المراعي."];
-
-    const staticNews = [
-      "جديد: تم تفعيل قسم 'الظالة' لمساعدة المنمين في العثور على مواشيهم.",
-      "تنبيه: تابع تحديثات 'بشائر الخير' يومياً لضمان سلامة القطعان والمراعي."
-    ];
-
-    // ترتيب: عاجل → توقعات المركز الأوروبي → أخبار المستخدمين → حرائق → سحب → عام → ثابت
-    const finalNews = [
+    // ترتيب: عاجل → توقعات المركز الأوروبي → أخبار المستخدمين → حرائق → عام.
+    // لا نصوص ثابتة: بلا أخبار حقيقية لا يظهر الشريط أصلاً
+    return [
       ...(sameDayHeadline ? [sameDayHeadline] : []),
       ...externalAlerts,
       ...urgentAlerts,
       ...forecastAlerts.slice(0, 6),
       ...fireNews,
-      ...cloudNews,
       ...generalAlerts.slice(0, 3),
-      ...staticNews
     ];
-
-    return finalNews.length > 0
-      ? finalNews
-      : ["لا توجد حالياً تنبيهات جوية مؤكدة في النظام الآلي. تستمر المتابعة المباشرة لأي تطور جديد."];
   }, [loading, weatherData, fires, rainReports, rainingNow, modelRainingNow, sameDayRainEvents, ecmwfBriefs, weatherBulletins, lastUpdated]);
+
+  if (newsItems.length === 0) return null;
 
   // سرعة ثابتة: ~4.5 ثانية لكل خبر (حد أدنى 18ث) — يضمن مرور كل الأخبار بوضوح
   const tickerDuration = Math.max(18, newsItems.length * 4.5);

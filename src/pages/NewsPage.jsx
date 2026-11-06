@@ -15,7 +15,7 @@ const PER_PAGE = 12;
 
 function fmtDate(d) {
   if (!d) return '';
-  return new Date(d).toLocaleDateString('ar', { day: 'numeric', month: 'long', year: 'numeric' });
+  return new Date(d).toLocaleDateString('ar-u-nu-latn', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function NewsCard({ article }) {

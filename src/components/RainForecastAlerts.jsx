@@ -12,7 +12,7 @@ const { FiAlertCircle, FiX, FiBell, FiShare2, FiMessageCircle, FiNavigation, FiC
  * يتضمن توقعات الأمطار والمناطق المتأثرة
  */
 function generateBroadcastText(forecasts, lastUpdated, selectedCity) {
-  const nowStr = lastUpdated ? lastUpdated.toLocaleDateString('ar-EG') : '';
+  const nowStr = lastUpdated ? lastUpdated.toLocaleDateString('ar-u-nu-latn') : '';
   let text = `📡 *بشائر الخير - توقعات الأمطار*\n`;
   text += `📅 ${nowStr}\n`;
   if (selectedCity && selectedCity.name) {
@@ -267,7 +267,7 @@ const RainForecastAlerts = ({ selectedCity }) => {
               <p className="text-sm font-semibold text-blue-900">تنبيهات بشائر الخير</p>
               <p className="text-xs text-blue-700 mt-1">
                 تم تحديث البيانات{' '}
-                {lastUpdated ? `الساعة ${lastUpdated.toLocaleTimeString('ar-SA')}` : 'حالياً'}
+                {lastUpdated ? `الساعة ${lastUpdated.toLocaleTimeString('ar-u-nu-latn')}` : 'حالياً'}
               </p>
             </div>
             <button onClick={() => setShowNotification(false)} className="text-blue-400 hover:text-blue-600 transition">
@@ -572,7 +572,7 @@ const RainForecastAlerts = ({ selectedCity }) => {
 
       {/* آخر تحديث */}
       <p className="text-xs text-gray-500 text-center mt-6">
-        آخر تحديث للبيانات: {lastUpdated ? lastUpdated.toLocaleString('ar-SA') : 'جاري التحديث...'}
+        آخر تحديث للبيانات: {lastUpdated ? lastUpdated.toLocaleString('ar-u-nu-latn') : 'جاري التحديث...'}
       </p>
     </div>
   );

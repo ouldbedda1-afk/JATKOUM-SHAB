@@ -95,7 +95,7 @@ function firstRainTime(cityData) {
   const today = new Date(); today.setHours(0,0,0,0);
   const diff = Math.round((new Date(hrs[0].t.split('T')[0]) - today) / 86400000);
   const day = diff === 0 ? 'اليوم' : diff === 1 ? 'غداً' : `يوم ${DAY_NAMES[first.getDay()]}`;
-  return `${day} حوالي الساعة ${first.toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' })}`;
+  return `${day} حوالي الساعة ${first.toLocaleTimeString('ar-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
 function windDuringRain(cityData) {

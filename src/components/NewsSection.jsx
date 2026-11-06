@@ -20,7 +20,7 @@ function fmtDate(d) {
   if (mins < 60) return `منذ ${mins} دقيقة`;
   const hrs = Math.floor(diff / 3600000);
   if (hrs < 24) return `منذ ${hrs} ساعة`;
-  return new Date(d).toLocaleDateString('ar', { day: 'numeric', month: 'long' });
+  return new Date(d).toLocaleDateString('ar-u-nu-latn', { day: 'numeric', month: 'long' });
 }
 
 function BreakingBadge() {

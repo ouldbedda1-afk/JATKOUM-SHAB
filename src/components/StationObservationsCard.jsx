@@ -82,10 +82,13 @@ export default function StationObservationsCard({ wilaya = null }) {
                   {s.temperature != null && <span className="text-orange-600 text-base font-black">{fmt(s.temperature, 1)}°</span>}
                   {s.humidity != null && <span>💧 {fmt(s.humidity)}%</span>}
                   {s.wind_speed != null && <span>💨 {fmt(s.wind_speed * 3.6)} كم/س</span>}
-                  <span className={s.rain_24h > 0 ? 'text-blue-700' : 'text-gray-400'}>
-                    🌧️ {s.rain_24h > 0 ? `${fmt(s.rain_24h, 1)} مم` : 'لا أمطار'}
-                    <span className="text-[10px] font-normal text-gray-400"> / 24 س</span>
-                  </span>
+                  {/* المطر يُذكر فقط إن هطل، كي لا يتكرر «لا أمطار» في كل سطر */}
+                  {s.rain_24h > 0 && (
+                    <span className="text-blue-700">
+                      🌧️ {fmt(s.rain_24h, 1)} مم
+                      <span className="text-[10px] font-normal text-gray-400"> / 24 س</span>
+                    </span>
+                  )}
                 </div>
               </div>
             );

@@ -12,7 +12,7 @@ const WORKER_URL = 'https://share.jatkoumshab.com';
 
 function fmtDate(d) {
   if (!d) return '';
-  return new Date(d).toLocaleDateString('ar', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  return new Date(d).toLocaleDateString('ar-u-nu-latn', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function ShareButtons({ url, title, slug }) {

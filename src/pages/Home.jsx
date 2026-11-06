@@ -38,7 +38,6 @@ export default function Home() {
   const [fbFollowers, setFbFollowers] = useState(null);
   useEffect(() => { getFbStats([]).then(({ followers }) => setFbFollowers(followers)); }, []);
 
-  const [showLocBanner, setShowLocBanner] = useState(false);
   const [locLoading, setLocLoading] = useState(false);
 
   const requestLocation = useCallback(() => {
@@ -47,7 +46,6 @@ export default function Home() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
-        setShowLocBanner(false);
         setLocLoading(false);
         try {
           const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=ar`);
@@ -64,7 +62,7 @@ export default function Home() {
       (error) => {
         console.warn('Geolocation error:', error);
         setLocLoading(false);
-        setShowLocBanner(true); // نسي/رفض الموقع → نعرض شريط دعوة لإعادة المحاولة
+        // نسي/رفض الموقع: زر «موقعي» في بطاقة الطقس يعيد المحاولة
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
@@ -106,40 +104,13 @@ export default function Home() {
       <NewsTicker />
       <Suspense fallback={null}><LightningSoundAlert /></Suspense>
 
-      {/* شريط دعوة لتحديد الموقع عند نسيانه/رفضه */}
-      {showLocBanner && (
-        <div className="bg-blue-600 text-white">
-          <div className="max-w-[1600px] mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
-            <span className="text-xs md:text-sm font-bold flex items-center gap-2">
-              📍 فعّل موقعك لعرض طقس منطقتك مباشرةً
-            </span>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={requestLocation}
-                disabled={locLoading}
-                className="bg-white text-blue-700 text-xs font-black px-4 py-1.5 rounded-full hover:bg-blue-50 transition-all disabled:opacity-60"
-              >
-                {locLoading ? 'جارٍ...' : 'تحديد موقعي'}
-              </button>
-              <button
-                onClick={() => setShowLocBanner(false)}
-                className="text-white/80 hover:text-white text-lg leading-none px-1"
-                aria-label="إغلاق"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <main className="max-w-[1600px] mx-auto px-4 md:px-6 mt-4 md:mt-8">
         <TodaySummaryStrip />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 mt-6">
           {/* Main Content */}
           <div className="lg:col-span-8 space-y-6 md:space-y-8">
-            <WeatherHero city={selectedCity} favCity={favCity} onFavCity={saveFavCity} />
+            <WeatherHero city={selectedCity} favCity={favCity} onFavCity={saveFavCity} onLocate={requestLocation} locating={locLoading} />
             <Suspense fallback={<LazyFallback />}><WeatherAlerts /></Suspense>
             <Suspense fallback={<LazyFallback />}><NewsSection /></Suspense>
             <Suspense fallback={<LazyFallback />}><LivestockHomePreview /></Suspense>
@@ -185,7 +156,7 @@ export default function Home() {
                   className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/15 transition-colors border border-white/15 rounded-full px-3 py-1.5 text-[11px] font-bold"
                 >
                   <span className="text-blue-200">f</span>
-                  {fbFollowers.toLocaleString('ar')} متابع على فيسبوك
+                  {fbFollowers.toLocaleString('ar-u-nu-latn')} متابع على فيسبوك
                 </a>
               )}
               <p className="text-[11px] text-blue-200/70 leading-relaxed">
@@ -193,26 +164,12 @@ export default function Home() {
               </p>
             </div>
 
-            {/* تنزيل التطبيق */}
+            {/* الموقع على الهاتف: لا تطبيق في المتاجر بعد، والموقع نفسه يُثبَّت كتطبيق (PWA) */}
             <div className="space-y-3">
-              <h4 className="font-black text-sm text-blue-100">حمّل تطبيق جاتكم اسحاب</h4>
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
-                <span className="inline-flex items-center gap-2 bg-black/40 hover:bg-black/55 transition-colors border border-white/15 rounded-xl px-4 py-2 cursor-pointer">
-                  <span className="text-2xl">▶</span>
-                  <span className="text-right leading-tight">
-                    <span className="block text-[9px] text-blue-200">GET IT ON</span>
-                    <span className="block text-sm font-bold">Google Play</span>
-                  </span>
-                </span>
-                <span className="inline-flex items-center gap-2 bg-black/40 hover:bg-black/55 transition-colors border border-white/15 rounded-xl px-4 py-2 cursor-pointer">
-                  <span className="text-2xl"></span>
-                  <span className="text-right leading-tight">
-                    <span className="block text-[9px] text-blue-200">Download on the</span>
-                    <span className="block text-sm font-bold">App Store</span>
-                  </span>
-                </span>
-              </div>
-              <p className="text-[10px] text-blue-200/60">قريباً على المتاجر — التطبيق قيد الإعداد.</p>
+              <h4 className="font-black text-sm text-blue-100">📲 جاتكم اسحاب على هاتفك</h4>
+              <p className="text-[12px] text-blue-200/90 leading-relaxed">
+                من قائمة المتصفح اختر «إضافة إلى الشاشة الرئيسية»، فيعمل الموقع كتطبيق وتصلك تنبيهات الطقس.
+              </p>
             </div>
 
             {/* تابعنا */}

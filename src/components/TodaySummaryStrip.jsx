@@ -49,7 +49,7 @@ export default function TodaySummaryStrip() {
 
       {lastUpdated && (
         <span className="text-[11px] text-gray-400 mr-auto shrink-0">
-          🕐 آخر تحديث {lastUpdated.toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' })}
+          🕐 آخر تحديث {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' })}
         </span>
       )}
     </div>

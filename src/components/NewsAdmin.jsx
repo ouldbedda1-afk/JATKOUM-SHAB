@@ -28,7 +28,7 @@ const EMPTY = {
 
 function fmtDate(d) {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('ar', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(d).toLocaleDateString('ar-u-nu-latn', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 export default function NewsAdmin() {

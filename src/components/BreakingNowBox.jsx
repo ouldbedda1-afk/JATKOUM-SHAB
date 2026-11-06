@@ -81,8 +81,8 @@ export default function BreakingNowBox() {
     setPublishing(true);
     try {
       const now = new Date();
-      const dateStr = now.toLocaleDateString('ar', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-      const timeStr = now.toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
+      const dateStr = now.toLocaleDateString('ar-u-nu-latn', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      const timeStr = now.toLocaleTimeString('ar-u-nu-latn', { hour: '2-digit', minute: '2-digit' });
 
       const isStorm = breaking.thunderCities.length > 0;
       const isRain  = breaking.rainCities.length > 0;

@@ -31,10 +31,10 @@ const WILAYAS = [
 
 // calendar: 'gregory' يفرض التقويم الميلادي — ar-SA يستخدم الهجري افتراضياً
 function arabicDay(date) {
-  return date.toLocaleDateString('ar-SA', { weekday: 'long', calendar: 'gregory' });
+  return date.toLocaleDateString('ar-u-nu-latn', { weekday: 'long', calendar: 'gregory' });
 }
 function arabicDate(date) {
-  return date.toLocaleDateString('ar-SA', { day: 'numeric', month: 'long', calendar: 'gregory' });
+  return date.toLocaleDateString('ar-u-nu-latn', { day: 'numeric', month: 'long', calendar: 'gregory' });
 }
 
 // Next N days as options
