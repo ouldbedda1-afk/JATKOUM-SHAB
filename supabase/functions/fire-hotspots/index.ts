@@ -58,6 +58,11 @@ function direction(fromLat: number, fromLon: number, lat: number, lon: number) {
   return ['شمال', 'شمال شرق', 'شرق', 'جنوب شرق', 'جنوب', 'جنوب غرب', 'غرب', 'شمال غرب'][Math.round(deg / 45) % 8];
 }
 const VILLAGE_SUFFIX = ' (قرية)';
+// «غرب اركيز»، والمركّب «في الجنوب الغربي من اركيز»
+const COMPOUND: Record<string, string> = {
+  'شمال شرق': 'الشمال الشرقي', 'شمال غرب': 'الشمال الغربي', 'جنوب شرق': 'الجنوب الشرقي', 'جنوب غرب': 'الجنوب الغربي',
+};
+const directionFrom = (dir: string, place: string) => (COMPOUND[dir] ? `في ${COMPOUND[dir]} من ${place}` : `${dir} ${place}`);
 
 async function fetchSource(source: string) {
   const res = await fetch(`https://firms.modaps.eosdis.nasa.gov/api/area/csv/${MAP_KEY}/${source}/${BBOX}/${DAYS}`);
@@ -127,7 +132,7 @@ Deno.serve(async () => {
       .map((c) => c.reduce((a, b) => ((b.frp as number) > (a.frp as number) ? b : a)));
     if (big.length) {
       const lines = big.slice(0, 12).map((r) =>
-        `🔥 ${r.wilaya}: على بعد ${r.distance_km} كم ${r.direction} ${r.place} (${Math.round(r.frp as number)} ميغاواط)`);
+        `🔥 ${r.wilaya}: على بعد ${r.distance_km} كم ${directionFrom(r.direction as string, r.place as string)} (${Math.round(r.frp as number)} ميغاواط)`);
       await tg(`🛰️ *حرائق جديدة رصدتها الأقمار الصناعية*\n\n${lines.join('\n')}` +
         `${big.length > 12 ? `\n… و${big.length - 12} أخرى` : ''}\n\nالمصدر: NASA FIRMS\n🔗 ${SITE}/pastures`);
     }

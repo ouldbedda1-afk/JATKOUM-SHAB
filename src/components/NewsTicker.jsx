@@ -23,6 +23,12 @@ function fmtDateTime(dateStr) {
 // أكثر المواضع بؤراً في الشريط؛ والبقية في قسم الحرائق بصفحة المراعي
 const MAX_FIRE_NEWS = 6;
 
+// الاتجاه من البلدية: «غرب اركيز»، والمركّب «في الجنوب الغربي من اركيز»
+const COMPOUND_DIRECTIONS = {
+  'شمال شرق': 'الشمال الشرقي', 'شمال غرب': 'الشمال الغربي', 'جنوب شرق': 'الجنوب الشرقي', 'جنوب غرب': 'الجنوب الغربي',
+};
+const directionFrom = (dir, place) => (COMPOUND_DIRECTIONS[dir] ? `في ${COMPOUND_DIRECTIONS[dir]} من ${place}` : `${dir} ${place}`);
+
 // عدد البؤر بصيغته العربية: بؤرة واحدة، بؤرتان، 3–10 بؤر، 11 بؤرة فأكثر
 function hotspotCount(n) {
   if (n === 1) return 'بؤرة واحدة';
@@ -257,7 +263,7 @@ const NewsTicker = () => {
         .slice(0, MAX_FIRE_NEWS)
         .forEach((g) => {
           const km = Math.round(g.dists.reduce((x, y) => x + y, 0) / g.dists.length);
-          const where = km <= 2 ? `قرب ${g.nearestCity}` : `على بعد ${km} كم ${g.direction} ${g.nearestCity}`;
+          const where = km <= 2 ? `قرب ${g.nearestCity}` : `على بعد ${km} كم ${directionFrom(g.direction, g.nearestCity)}`;
           fireNews.push(`🔥 عاجل: حريق ${where}${g.wilaya ? ` (${g.wilaya})` : ''}${g.count > 1 ? ` — ${hotspotCount(g.count)}` : ''}`);
         });
     }
