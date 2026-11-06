@@ -98,7 +98,7 @@ const WeatherHero = ({ city, favCity, onFavCity, onLocate, locating = false }) =
   };
 
   const stats = [
-    { icon: FiCloudRain, label: 'احتمال المطر', value: rainProb !== null ? `${rainProb}%` : '--' },
+    { icon: FiCloudRain, label: 'المطر', value: rainProb !== null ? `${rainProb}%` : '--' },
     { icon: FiWind,      label: 'الرياح',       value: wind !== null ? `${wind} كم/س` : '--' },
     { icon: FiDroplet,   label: 'الرطوبة',      value: humidity !== null ? `${humidity}%` : '--' },
     { icon: FiActivity,  label: 'الضغط',        value: pressure !== null ? `${pressure} hPa` : '--' },
@@ -180,7 +180,8 @@ const WeatherHero = ({ city, favCity, onFavCity, onLocate, locating = false }) =
                 {condition}
                 {tmax != null && tmin != null && (
                   <span className="block sm:inline text-white/60 font-normal text-xs sm:text-sm">
-                    <span className="hidden sm:inline"> · </span>العظمى {Math.round(tmax)}° · الصغرى {Math.round(tmin)}°
+                    {/* الأرقام بعزل اتجاهها، كي لا تنتقل علامة ° في السطر العربي */}
+                    <span className="hidden sm:inline"> · </span>العظمى <bdi dir="ltr">{Math.round(tmax)}°</bdi> · الصغرى <bdi dir="ltr">{Math.round(tmin)}°</bdi>
                   </span>
                 )}
               </p>
@@ -194,7 +195,7 @@ const WeatherHero = ({ city, favCity, onFavCity, onLocate, locating = false }) =
             <div key={label} className="bg-white/10 border border-white/10 rounded-xl px-1.5 py-2.5 text-center">
               <SafeIcon icon={Icon} className="text-sm text-white/70 mx-auto" />
               <p className="text-[10px] text-white/60 mt-1">{label}</p>
-              <p className="text-sm font-bold leading-tight mt-0.5" dir="ltr">{value}</p>
+              <p className="text-[13px] font-bold leading-tight mt-0.5 whitespace-nowrap" dir="ltr">{value}</p>
             </div>
           ))}
         </div>

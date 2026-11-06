@@ -149,7 +149,8 @@ const Navbar = ({ onCitySelect }) => {
 
           {/* أزرار الجوال */}
           <div className="flex items-center gap-1.5 xl:hidden">
-            <Link to="/althala" className="flex items-center justify-center w-9 h-9 bg-amber-500/80 hover:bg-amber-500 rounded-xl shadow transition-all">
+            {/* على الهاتف الظالة في «المزيد» بشريط التنقل السفلي، فيُخفى الزر ليتسع الشريط لزر القائمة */}
+            <Link to="/althala" className="hidden sm:flex items-center justify-center w-9 h-9 bg-amber-500/80 hover:bg-amber-500 rounded-xl shadow transition-all">
               <span className="text-base">🐫</span>
             </Link>
             <button
