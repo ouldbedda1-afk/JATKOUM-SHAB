@@ -20,6 +20,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { WILAYA_SHAPES } from '../_shared/wilayaShapes.ts';
 import { PLACES } from '../_shared/mauritaniaPlaces.ts';
 import { Image } from 'https://deno.land/x/imagescript@1.3.0/mod.ts';
+import { fireClusters, drawRing } from './marks.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -146,40 +147,30 @@ async function latestSceneBefore(token: string, lat: number, lon: number, untilI
   return scenes[scenes.length - 1];
 }
 
-// اسم الموقع وعلامات البؤر تُدمج في الصورة نفسها، فتبقى في نسخة تيليغرام وفي أي نسخة تُنزَّل.
-// الشريط (الشعار وجاتكم اسحاب والرابط ونسبة Copernicus) والحلقتان صور في public/brand على الموقع
+// اسم الموقع وعلامات البؤر تُدمج في الصورة نفسها، فتبقى في نسخة تيليغرام وفي أي نسخة تُنزَّل:
+// الشريط أسفلها (الشعار وجاتكم اسحاب والرابط ونسبة Copernicus)، واسم الموقع شفافاً في زاويتها العليا.
+// كلاهما صورة في public/brand على الموقع
 let overlays: Promise<Image[]> | null = null;
-const loadOverlays = () => (overlays ||= Promise.all(['fire-watermark.png', 'fire-ring.png', 'fire-new.png'].map(async (f) => {
+const loadOverlays = () => (overlays ||= Promise.all(['fire-watermark.png', 'fire-mark.png'].map(async (f) => {
   const res = await fetch(`${SITE}/brand/${f}`);
   if (!res.ok) throw new Error(`${f}: ${res.status}`);
   return await Image.decode(new Uint8Array(await res.arrayBuffer())) as Image;
 })));
 
-// العلامات: حلقة كبيرة لموضع الحريق (المركز)، وحلقات صغيرة لبؤره الأولى (حتى ساعتين بعد رصده)،
-// ودوائر برتقالية مفرغة أكبر للبؤر الجديدة (لا تحجب اللهب) التي رُصدت بعد ذلك داخل الإطار
+// العلامات: دائرة برتقالية مفرغة واحدة حول كل بؤرة حريق في الإطار (marks.ts)
 type Spot = { lat: number; lon: number; detected_at: string };
-const NEW_AFTER_MS = 2 * 3600 * 1000;
 
 async function brandImage(jpeg: Uint8Array, center: Spot, spots: Spot[]) {
-  const [band, ring, newRing] = await loadOverlays();
+  const [band, mark] = await loadOverlays();
   const img = await Image.decode(jpeg) as Image;
-  const small = ring.clone().resize(24, 24);
-  const cx = img.width / 2, cy = img.height / 2;
-  const start = Date.parse(center.detected_at);
-  const marks = spots.map((p) => ({
+  const maxY = img.height - band.height;
+  const points = spots.map((p) => ({
     x: (p.lon - (center.lon - IMAGE_HALF_DEG)) / (2 * IMAGE_HALF_DEG) * img.width,
     y: ((center.lat + IMAGE_HALF_DEG) - p.lat) / (2 * IMAGE_HALF_DEG) * img.height,
-    isNew: Date.parse(p.detected_at) - start > NEW_AFTER_MS,
-  })).filter((m) => m.x >= 0 && m.y >= 0 && m.x <= img.width && m.y <= img.height - band.height);
-  // الأولى تحت الجديدة، وما وقع منها داخل الحلقة الكبيرة يُترك لها
-  for (const m of marks.filter((m) => !m.isNew && Math.hypot(m.x - cx, m.y - cy) >= ring.width / 2)) {
-    img.composite(small, Math.round(m.x - small.width / 2), Math.round(m.y - small.height / 2));
-  }
-  img.composite(ring, Math.round(cx - ring.width / 2), Math.round(cy - ring.height / 2));
-  for (const m of marks.filter((m) => m.isNew)) {
-    img.composite(newRing, Math.round(m.x - newRing.width / 2), Math.round(m.y - newRing.height / 2));
-  }
-  img.composite(band, Math.round((img.width - band.width) / 2), img.height - band.height);
+  })).filter((m) => m.x >= 0 && m.y >= 0 && m.x <= img.width && m.y <= maxY);
+  for (const c of fireClusters(img, points, maxY)) drawRing(img, c.x, c.y, c.r, maxY);
+  img.composite(mark, img.width - mark.width - 6, 6);
+  img.composite(band, Math.round((img.width - band.width) / 2), maxY);
   return await img.encodeJPEG(85);
 }
 
@@ -292,7 +283,7 @@ async function attachImages() {
     await tgPhoto(url,
       `🛰️ صورة الحريق: ${f.wilaya} — على بعد ${f.distance_km} كم ${directionFrom(f.direction, f.place)}\n` +
       `رُصد الحريق ${arDate(f.detected_at)}، والتقط Sentinel-2 الصورة ${arDate(scene)}.\n` +
-      'الحلقة الكبيرة موضع الحريق والصغيرة بؤره الأولى، والدوائر البرتقالية بؤر جديدة رُصدت بعده، والأحمر لهب مشتعل لحظة التقاط الصورة. المصدر: Copernicus Sentinel-2');
+      'الدائرة البرتقالية تحيط بكل بؤرة حريق، والأحمر لهب مشتعل لحظة التقاط الصورة. المصدر: Copernicus Sentinel-2');
   }
   return attached;
 }
