@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jatkoum-shab-v6'; // تحديث النسخة لإجبار المتصفح على تجاوز الكاش القديم
+const CACHE_NAME = 'jatkoum-shab-v7'; // تحديث النسخة لإجبار المتصفح على تجاوز الكاش القديم
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -81,13 +81,17 @@ function isHashedAsset(url) {
 
 // صور ثابتة لا تحمل hash لكنها نادراً ما تتغير (شعار الموقع، صور التحذيرات الجوية)
 function isStaticImage(url) {
-  return /\/(logo\.png|weather\/[^/]+\.(jpg|jpeg|png|webp))(\?.*)?$/.test(url);
+  return /\/(logo\.png|(weather|landmarks)\/[^/]+\.(jpg|jpeg|png|webp))(\?.*)?$/.test(url);
 }
 
 self.addEventListener('fetch', (event) => {
   const url = event.request.url;
 
-  // تجاهل طلبات الـ API والخارجية
+  // الطلبات إلى مواقع أخرى يتولاها المتصفح مباشرة: طلبها من هنا يخضع لـ connect-src في سياسة
+  // أمان الموقع، فتفشل (408) صور خارجية كصور ناسا للغطاء النباتي
+  if (!url.startsWith('http') || new URL(url).origin !== self.location.origin) return;
+
+  // تجاهل طلبات الـ API
   if (
     url.includes('supabase.co') ||
     url.includes('api.open-meteo.com') ||
