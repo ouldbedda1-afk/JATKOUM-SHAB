@@ -146,51 +146,90 @@ async function latestSceneBefore(token: string, lat: number, lon: number, untilI
   return scenes[scenes.length - 1];
 }
 
-// اسم الموقع وحلقة على موضع الحريق تُدمجان في الصورة نفسها، فتبقيان في نسخة تيليغرام وفي أي نسخة تُنزَّل.
-// الشريط (الشعار وجاتكم اسحاب والرابط ونسبة Copernicus) والحلقة صورتان في public/brand على الموقع
-let overlays: Promise<[Image, Image]> | null = null;
-const loadOverlays = () => (overlays ||= Promise.all(['fire-watermark.png', 'fire-ring.png'].map(async (f) => {
+// اسم الموقع وعلامات البؤر تُدمج في الصورة نفسها، فتبقى في نسخة تيليغرام وفي أي نسخة تُنزَّل.
+// الشريط (الشعار وجاتكم اسحاب والرابط ونسبة Copernicus) والحلقة والمربع صور في public/brand على الموقع
+let overlays: Promise<Image[]> | null = null;
+const loadOverlays = () => (overlays ||= Promise.all(['fire-watermark.png', 'fire-ring.png', 'fire-new.png'].map(async (f) => {
   const res = await fetch(`${SITE}/brand/${f}`);
   if (!res.ok) throw new Error(`${f}: ${res.status}`);
-  return Image.decode(new Uint8Array(await res.arrayBuffer()));
-})) as Promise<[Image, Image]>);
+  return await Image.decode(new Uint8Array(await res.arrayBuffer())) as Image;
+})));
 
-// كل بؤر الحريق المرصودة داخل إطار الصورة: حلقة كبيرة لموضع الحريق (المركز) وحلقات صغيرة للبقية،
-// فيُرى أين رُصد اللهب (الأحمر في الصورة قد يكون حرائق أحدث في حقول مجاورة)
-type Spot = { lat: number; lon: number };
+// العلامات: حلقة كبيرة لموضع الحريق (المركز)، وحلقات صغيرة لبؤره الأولى (حتى ساعتين بعد رصده)،
+// ومربعات برتقالية للبؤر الجديدة التي رُصدت بعد ذلك داخل الإطار
+type Spot = { lat: number; lon: number; detected_at: string };
+const NEW_AFTER_MS = 2 * 3600 * 1000;
+
 async function brandImage(jpeg: Uint8Array, center: Spot, spots: Spot[]) {
-  const [band, ring] = await loadOverlays();
+  const [band, ring, square] = await loadOverlays();
   const img = await Image.decode(jpeg) as Image;
   const small = ring.clone().resize(24, 24);
-  const toPx = (p: Spot) => [
-    (p.lon - (center.lon - IMAGE_HALF_DEG)) / (2 * IMAGE_HALF_DEG) * img.width,
-    ((center.lat + IMAGE_HALF_DEG) - p.lat) / (2 * IMAGE_HALF_DEG) * img.height,
-  ];
   const cx = img.width / 2, cy = img.height / 2;
-  for (const p of spots) {
-    const [x, y] = toPx(p);
-    if (Math.hypot(x - cx, y - cy) < ring.width / 2) continue;     // داخل الحلقة الكبيرة
-    if (x < 0 || y < 0 || x > img.width || y > img.height - band.height) continue;
-    img.composite(small, Math.round(x - small.width / 2), Math.round(y - small.height / 2));
+  const start = Date.parse(center.detected_at);
+  const marks = spots.map((p) => ({
+    x: (p.lon - (center.lon - IMAGE_HALF_DEG)) / (2 * IMAGE_HALF_DEG) * img.width,
+    y: ((center.lat + IMAGE_HALF_DEG) - p.lat) / (2 * IMAGE_HALF_DEG) * img.height,
+    isNew: Date.parse(p.detected_at) - start > NEW_AFTER_MS,
+  })).filter((m) => m.x >= 0 && m.y >= 0 && m.x <= img.width && m.y <= img.height - band.height);
+  // الأولى تحت الجديدة، وما وقع منها داخل الحلقة الكبيرة يُترك لها
+  for (const m of marks.filter((m) => !m.isNew && Math.hypot(m.x - cx, m.y - cy) >= ring.width / 2)) {
+    img.composite(small, Math.round(m.x - small.width / 2), Math.round(m.y - small.height / 2));
   }
   img.composite(ring, Math.round(cx - ring.width / 2), Math.round(cy - ring.height / 2));
+  for (const m of marks.filter((m) => m.isNew)) {
+    img.composite(square, Math.round(m.x - square.width / 2), Math.round(m.y - square.height / 2));
+  }
   img.composite(band, Math.round((img.width - band.width) / 2), img.height - band.height);
   return await img.encodeJPEG(85);
 }
 
 // بؤر الحرائق المحفوظة داخل إطار الصورة حول الموضع
 async function spotsAround(lat: number, lon: number): Promise<Spot[]> {
-  const { data } = await supabase.from('fire_hotspots').select('lat, lon')
+  const { data } = await supabase.from('fire_hotspots').select('lat, lon, detected_at')
     .gte('lat', lat - IMAGE_HALF_DEG).lte('lat', lat + IMAGE_HALF_DEG)
     .gte('lon', lon - IMAGE_HALF_DEG).lte('lon', lon + IMAGE_HALF_DEG);
   return data ?? [];
 }
 
-async function storeImage(path: string, raw: Uint8Array, center: Spot) {
-  const bytes = await brandImage(raw, center, await spotsAround(center.lat, center.lon));
+const rawPath = (path: string) => path.replace(/\.jpg$/, '-raw.jpg');
+const publicUrl = (path: string, version: number) =>
+  `${SUPABASE_URL}/storage/v1/object/public/fire-images/${path}?v=${version}`;
+
+async function upload(path: string, bytes: Uint8Array) {
   const { error } = await supabase.storage.from('fire-images').upload(path, bytes, { contentType: 'image/jpeg', upsert: true });
   if (error) throw error;
-  return `${SUPABASE_URL}/storage/v1/object/public/fire-images/${path}`;
+}
+
+// تُحفظ الصورة الخام أيضاً، لإعادة رسم العلامات حين تُرصد بؤر جديدة دون طلب جديد من Copernicus.
+// رقم الإصدار في الرابط (عدد البؤر) يتجاوز النسخة المخزنة في المتصفحات
+async function storeImage(path: string, raw: Uint8Array, center: Spot) {
+  const spots = await spotsAround(center.lat, center.lon);
+  await upload(rawPath(path), raw);
+  await upload(path, await brandImage(raw, center, spots));
+  return { url: publicUrl(path, spots.length), count: spots.length };
+}
+
+// صور محفوظة رُصدت في إطارها بؤر بعد رسمها: تُعاد علاماتها من النسخة الخام
+async function refreshMarks() {
+  const { data: rows } = await supabase.from('fire_hotspots')
+    .select('id, lat, lon, detected_at, image_url, before_image_url, marked_count')
+    .eq('big', true).or('image_url.not.is.null,before_image_url.not.is.null');
+  let redrawn = 0;
+  for (const f of rows ?? []) {
+    const spots = await spotsAround(f.lat, f.lon);
+    if (spots.length === f.marked_count) continue;
+    const update: Record<string, unknown> = { marked_count: spots.length };
+    for (const [column, path] of [['image_url', `${f.id}.jpg`], ['before_image_url', `${f.id}-before.jpg`]]) {
+      if (!f[column as 'image_url']) continue;
+      const { data: blob } = await supabase.storage.from('fire-images').download(rawPath(path));
+      if (!blob) continue;   // صورة قديمة بلا نسخة خام
+      await upload(path, await brandImage(new Uint8Array(await blob.arrayBuffer()), f, spots));
+      update[column] = publicUrl(path, spots.length);
+    }
+    await supabase.from('fire_hotspots').update(update).eq('id', f.id);
+    redrawn++;
+  }
+  return redrawn;
 }
 
 async function sceneImage(token: string, lat: number, lon: number, sceneIso: string) {
@@ -240,19 +279,20 @@ async function attachImages() {
       if (!f.before_image_url) {
         const before = await latestSceneBefore(token, f.lat, f.lon, f.detected_at);
         if (before) {
-          const beforeUrl = await storeImage(`${f.id}-before.jpg`, await sceneImage(token, f.lat, f.lon, before), f);
-          await supabase.from('fire_hotspots').update({ before_image_url: beforeUrl, before_image_date: before }).eq('id', f.id);
+          const stored = await storeImage(`${f.id}-before.jpg`, await sceneImage(token, f.lat, f.lon, before), f);
+          await supabase.from('fire_hotspots').update({ before_image_url: stored.url, before_image_date: before, marked_count: stored.count }).eq('id', f.id);
         }
       }
       continue;
     }
-    const url = await storeImage(`${f.id}.jpg`, await sceneImage(token, f.lat, f.lon, scene), f);
-    await supabase.from('fire_hotspots').update({ image_url: url, image_date: scene }).eq('id', f.id);
+    const stored = await storeImage(`${f.id}.jpg`, await sceneImage(token, f.lat, f.lon, scene), f);
+    const url = stored.url;
+    await supabase.from('fire_hotspots').update({ image_url: url, image_date: scene, marked_count: stored.count }).eq('id', f.id);
     attached++;
     await tgPhoto(url,
       `🛰️ صورة الحريق: ${f.wilaya} — على بعد ${f.distance_km} كم ${directionFrom(f.direction, f.place)}\n` +
       `رُصد الحريق ${arDate(f.detected_at)}، والتقط Sentinel-2 الصورة ${arDate(scene)}.\n` +
-      'الحلقة الكبيرة موضع الحريق، والصغيرة بؤر أخرى رصدتها الأقمار، والأحمر لهب مشتعل لحظة التقاط الصورة. المصدر: Copernicus Sentinel-2');
+      'الحلقة الكبيرة موضع الحريق والصغيرة بؤره الأولى، والمربعات البرتقالية بؤر جديدة رُصدت بعده، والأحمر لهب مشتعل لحظة التقاط الصورة. المصدر: Copernicus Sentinel-2');
   }
   return attached;
 }
@@ -298,7 +338,8 @@ Deno.serve(async () => {
     const cutoff = new Date(Date.now() - KEEP_DAYS * 86400000).toISOString();
     const { data: oldImages } = await supabase.from('fire_hotspots').select('id').lt('detected_at', cutoff).eq('big', true);
     if (oldImages?.length) {
-      await supabase.storage.from('fire-images').remove(oldImages.flatMap((r) => [`${r.id}.jpg`, `${r.id}-before.jpg`]));
+      await supabase.storage.from('fire-images').remove(oldImages.flatMap((r) =>
+        [`${r.id}.jpg`, `${r.id}-raw.jpg`, `${r.id}-before.jpg`, `${r.id}-before-raw.jpg`]));
     }
     await supabase.from('fire_hotspots').delete().lt('detected_at', cutoff);
 
@@ -327,7 +368,8 @@ Deno.serve(async () => {
     }
 
     const images = await attachImages().catch((e) => `صور: ${e}`);
-    return json({ ok: true, hotspots: list.length, fresh: fresh.length, big: big.length, images, failed });
+    const redrawn = await refreshMarks().catch((e) => `علامات: ${e}`);
+    return json({ ok: true, hotspots: list.length, fresh: fresh.length, big: big.length, images, redrawn, failed });
   } catch (e) {
     return json({ ok: false, error: String(e) }, 500);
   }

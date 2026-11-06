@@ -284,7 +284,7 @@ function FireImages({ fires }) {
     <div className="px-5 py-4 border-t border-gray-100">
       <h3 className="font-black text-gray-800">🛰️ صور الحرائق الكبيرة</h3>
       <p className="text-xs text-gray-500 mt-1">
-        من القمر الأوروبي Sentinel-2 بدقة 10 أمتار، الذي يمر كل يومين إلى ثلاثة. الحريق في مركز الصورة، واللهب النشط بالأحمر إن كان مشتعلاً لحظة مرور القمر.
+        من القمر الأوروبي Sentinel-2 بدقة 10 أمتار، الذي يمر كل يومين إلى ثلاثة. 🟡 الحلقة الكبيرة موضع الحريق والصغيرة بؤره الأولى، 🟧 المربعات البرتقالية بؤر جديدة رُصدت بعده، والأحمر لهب مشتعل لحظة مرور القمر.
       </p>
       {withImage.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-3">
