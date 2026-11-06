@@ -1,29 +1,45 @@
 import React, { useMemo } from 'react';
-import { motion } from 'framer-motion';
-import * as FiIcons from 'react-icons/fi';
-import SafeIcon from '../common/SafeIcon';
 import { useWeatherContext } from '../WeatherContext';
-import { getWeatherIcon, getWeatherDescription } from '../weatherApi';
+import { getWeatherIcon } from '../weatherApi';
+import { toArabicCommune } from '../mauritaniaCommuneNamesAr';
 
-const { FiCloudRain, FiWind, FiThermometer } = FiIcons;
+const TOP_LIMIT = 5;
 
-const TOP_LIMIT = 3;
-
-// تدرج لوني حسب درجة الحرارة
-function getTempTheme(temp, isHot) {
-  if (isHot) {
-    if (temp >= 44) return { grad: 'from-red-700 to-rose-600',     text: 'text-white', sub: 'text-red-100',    badge: 'bg-red-900/60',   glow: 'shadow-red-500/30' };
-    if (temp >= 40) return { grad: 'from-orange-600 to-red-600',   text: 'text-white', sub: 'text-orange-100', badge: 'bg-orange-900/60', glow: 'shadow-orange-500/30' };
-    if (temp >= 35) return { grad: 'from-amber-500 to-orange-600', text: 'text-white', sub: 'text-amber-100',  badge: 'bg-amber-900/60',  glow: 'shadow-amber-500/30' };
-    return              { grad: 'from-yellow-500 to-amber-600',    text: 'text-white', sub: 'text-yellow-100', badge: 'bg-yellow-900/60', glow: 'shadow-yellow-500/20' };
-  } else {
-    if (temp <= 10) return { grad: 'from-blue-900 to-indigo-800',  text: 'text-white', sub: 'text-blue-100',   badge: 'bg-blue-950/60',   glow: 'shadow-blue-500/30' };
-    if (temp <= 18) return { grad: 'from-blue-700 to-cyan-600',    text: 'text-white', sub: 'text-blue-100',   badge: 'bg-blue-900/60',   glow: 'shadow-blue-500/30' };
-    if (temp <= 24) return { grad: 'from-teal-600 to-cyan-500',    text: 'text-white', sub: 'text-teal-100',   badge: 'bg-teal-900/60',   glow: 'shadow-teal-500/20' };
-    return              { grad: 'from-sky-500 to-blue-500',        text: 'text-white', sub: 'text-sky-100',    badge: 'bg-sky-900/60',    glow: 'shadow-sky-500/20' };
-  }
+// لون رقم الحرارة: من الأزرق للأبرد إلى الأحمر للأحر
+function tempColor(t) {
+  if (t >= 42) return 'bg-red-600 text-white';
+  if (t >= 38) return 'bg-orange-500 text-white';
+  if (t >= 34) return 'bg-amber-400 text-amber-950';
+  if (t >= 28) return 'bg-yellow-200 text-yellow-900';
+  if (t >= 22) return 'bg-sky-100 text-sky-800';
+  return 'bg-blue-600 text-white';
 }
 
+function RankList({ title, list }) {
+  return (
+    <div className="min-w-0">
+      <h3 className="text-sm font-black text-gray-700 mb-2">{title}</h3>
+      <ol className="space-y-1.5">
+        {list.map((c, i) => {
+          const temp = Math.round(c.current.temperature_2m);
+          return (
+            <li key={c.city} className="flex items-center gap-2 text-sm">
+              <span className="w-4 text-[11px] font-bold text-gray-400 shrink-0">{i + 1}</span>
+              <span className="text-base shrink-0" aria-hidden="true">{getWeatherIcon(c.current.weather_code ?? 0)}</span>
+              <span className="min-w-0 flex-1">
+                <span className="font-bold text-gray-800 truncate block leading-tight">{toArabicCommune(c.city) || c.city}</span>
+                {c.wilaya && <span className="text-[10px] text-gray-400 block leading-tight truncate">{c.wilaya}</span>}
+              </span>
+              <span className={`shrink-0 text-xs font-black rounded-lg px-2 py-1 tabular-nums ${tempColor(temp)}`}>{temp}°</span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+// المقاطعات الأكثر حرارة والأكثر برودة الآن: بطاقة واحدة بقائمتين مختصرتين
 const CityGrid = () => {
   const { weatherData: cities, loading } = useWeatherContext();
 
@@ -32,111 +48,23 @@ const CityGrid = () => {
     const valid = cities
       .filter(c => c?.current?.temperature_2m != null && !c.isFallback && c.cityType !== 'قرية')
       .sort((a, b) => b.current.temperature_2m - a.current.temperature_2m);
-    return { hot: valid, cold: [...valid].reverse() };
+    return { hot: valid.slice(0, TOP_LIMIT), cold: valid.slice(-TOP_LIMIT).reverse() };
   }, [cities]);
 
-  if (loading) {
-    return (
-      <div className="mt-12 space-y-10">
-        {[0, 1].map(s => (
-          <div key={s}>
-            <div className="h-8 w-72 bg-gray-200 rounded-full animate-pulse mb-6" />
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="rounded-3xl animate-pulse h-40 bg-gradient-to-br from-gray-200 to-gray-100" />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
+  if (loading) return <div className="bg-white rounded-2xl border border-gray-100 h-56 animate-pulse" />;
   if (!sorted.hot.length) return null;
 
-  const MoughataaCard = ({ city, rank, isHot }) => {
-    const temp   = Math.round(city.current.temperature_2m);
-    const code   = city.current.weather_code ?? 0;
-    const wind   = Math.round(city.current.wind_speed_10m ?? 0);
-    const rain   = city.hourly?.precipitation_probability?.[0] ?? 0;
-    const theme  = getTempTheme(temp, isHot);
-    return (
-      <motion.div
-        layout
-        initial={{ opacity: 0, y: 12, scale: 0.96 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ delay: Math.min(rank * 0.08, 0.4), type: 'spring', stiffness: 260, damping: 22 }}
-        whileHover={{ y: -4, scale: 1.02 }}
-        className={`relative overflow-hidden bg-gradient-to-br ${theme.grad} rounded-3xl p-5 shadow-xl ${theme.glow} cursor-default`}
-      >
-        {/* زخرفة خلفية */}
-        <div className="absolute -top-6 -right-6 w-24 h-24 bg-white/10 rounded-full blur-xl pointer-events-none" />
-        <div className="absolute -bottom-4 -left-4 w-20 h-20 bg-black/10 rounded-full blur-xl pointer-events-none" />
-
-        {/* أيقونة الطقس */}
-        <div className="flex items-center justify-end mb-3">
-          <span className="text-3xl drop-shadow-md">{getWeatherIcon(code)}</span>
-        </div>
-
-        {/* اسم المدينة */}
-        <p className={`text-lg font-black ${theme.text} leading-tight mb-0.5 drop-shadow`}>{city.city}</p>
-        {city.wilaya && (
-          <p className={`text-xs font-medium ${theme.sub} opacity-80 mb-3`}>{city.wilaya}</p>
-        )}
-
-        {/* درجة الحرارة */}
-        <div className="flex items-end justify-between">
-          <p className={`text-5xl font-black ${theme.text} leading-none drop-shadow-lg`}
-            style={{ textShadow: '0 2px 10px rgba(0,0,0,0.3)' }}>
-            {temp}°
-          </p>
-          <div className={`flex flex-col items-end gap-1 text-xs font-medium ${theme.sub} opacity-90`}>
-            <span className="flex items-center gap-1">
-              <SafeIcon icon={FiWind} className="text-[10px]" />
-              {wind} كم/س
-            </span>
-            {rain > 0 && (
-              <span className="flex items-center gap-1 font-bold">
-                <SafeIcon icon={FiCloudRain} className="text-[10px]" />
-                {rain}%
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* حالة الطقس */}
-        <p className={`text-[11px] font-medium ${theme.sub} opacity-70 mt-2 truncate`}>
-          {getWeatherDescription(code)}
-        </p>
-      </motion.div>
-    );
-  };
-
-  const Section = ({ title, emoji, data, isHot }) => (
-    <div>
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-3">
-          <div className={`w-1.5 h-9 rounded-full ${isHot ? 'bg-gradient-to-b from-orange-400 to-red-500' : 'bg-gradient-to-b from-blue-400 to-cyan-500'}`} />
-          <div>
-            <h3 className="text-xl font-black text-gray-800">{title} {emoji}</h3>
-            <p className="text-xs text-gray-400 font-medium mt-0.5">أعلى {Math.min(TOP_LIMIT, data.length)} مقاطعات · المصدر: ECMWF</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {data.slice(0, TOP_LIMIT).map((city, i) => (
-          <MoughataaCard key={city.city} city={city} rank={i} isHot={isHot} />
-        ))}
-      </div>
-    </div>
-  );
-
   return (
-    <div className="mt-12 space-y-14">
-      <Section title="المقاطعات الأكثر حرارة" emoji="🔥" data={sorted.hot}  isHot={true}  />
-      <Section title="المقاطعات الأكثر برودة" emoji="❄️" data={sorted.cold} isHot={false} />
-    </div>
+    <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-5" dir="rtl">
+      <div className="flex items-baseline justify-between gap-2 mb-4">
+        <h2 className="text-lg font-black text-gray-800">🌡️ الحرارة الآن</h2>
+        <span className="text-[11px] text-gray-400">المصدر: ECMWF</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-8">
+        <RankList title="🔥 الأكثر حرارة" list={sorted.hot} />
+        <RankList title="❄️ الأكثر برودة" list={sorted.cold} />
+      </div>
+    </section>
   );
 };
 
