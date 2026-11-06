@@ -7,6 +7,10 @@
 // المشرف يُنبَّه على تيليغرام بالحرائق الكبيرة الجديدة فقط: تجمّع 5 بؤر فأكثر متقاربة (نحو 3 كم)،
 // أو بؤرة طاقتها الإشعاعية 30 ميغاواط فأكثر.
 //
+// صور الحرائق الكبيرة: يتابع كل حريق كبير حتى تلتقط أقمار Sentinel-2 (دقة 10 أمتار، كل يومين إلى ثلاثة)
+// أول صورة صافية بعد رصده، فيحفظها في الحاوية fire-images (نحو 11×11 كم، اللهب النشط بالأحمر) ويرسلها
+// إلى المشرف. عبر Copernicus Data Space (السرّان SH_CLIENT_ID وSH_CLIENT_SECRET).
+//
 // يُستدعى عبر pg_cron كل ثلاث ساعات. مفتاح FIRMS في السر FIRMS_MAP_KEY.
 // النشر:  supabase functions deploy fire-hotspots --no-verify-jwt
 // الطلب (POST): {}
@@ -31,6 +35,22 @@ const KEEP_DAYS = 10;
 const BIG_FRP_MW = 30;
 const CLUSTER_DEG = 0.03;              // نحو 3 كم
 const CLUSTER_MIN = 5;
+
+const SH_CLIENT_ID = Deno.env.get('SH_CLIENT_ID') ?? '';
+const SH_CLIENT_SECRET = Deno.env.get('SH_CLIENT_SECRET') ?? '';
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const IMAGE_HALF_DEG = 0.05;     // نصف ضلع الصورة: نحو 11×11 كم
+const IMAGE_PX = 600;
+const MAX_CLOUD = 60;            // نسبة الغيوم القصوى في المشهد
+const IMAGES_PER_RUN = 5;
+// ألوان طبيعية، واللهب النشط بالأحمر: انعكاس عالٍ في الأشعة تحت الحمراء القصيرة (B12) يفوق B11،
+// مع أزرق خافت (B02) يستبعد حواف الغيوم، فهي ساطعة في B12 أيضاً
+const EVALSCRIPT = `//VERSION=3
+function setup(){return{input:['B02','B03','B04','B11','B12'],output:{bands:3}}}
+function evaluatePixel(s){
+  if (s.B12 > 0.45 && s.B12 > 1.2 * s.B11 && s.B02 < 0.1) return [1, 0.1, 0];
+  return [2.5 * s.B04, 2.5 * s.B03, 2.5 * s.B02];
+}`;
 
 const json = (obj: unknown, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
@@ -81,6 +101,93 @@ async function tg(text: string) {
   }).catch(() => {});
 }
 
+// ── صور Sentinel-2 ────────────────────────────────────────────────────────
+async function shToken() {
+  const res = await fetch('https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token', {
+    method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'client_credentials', client_id: SH_CLIENT_ID, client_secret: SH_CLIENT_SECRET }),
+  });
+  const body = await res.json();
+  if (!body.access_token) throw new Error(`Copernicus token: ${JSON.stringify(body).slice(0, 120)}`);
+  return body.access_token as string;
+}
+
+const boxAround = (lat: number, lon: number) =>
+  [lon - IMAGE_HALF_DEG, lat - IMAGE_HALF_DEG, lon + IMAGE_HALF_DEG, lat + IMAGE_HALF_DEG];
+
+// أول مشهد بعد الرصد بغيوم مقبولة، أو undefined إن لم يمر القمر بعد
+async function firstSceneAfter(token: string, lat: number, lon: number, fromIso: string) {
+  const res = await fetch('https://sh.dataspace.copernicus.eu/api/v1/catalog/1.0.0/search', {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      collections: ['sentinel-2-l2a'], bbox: boxAround(lat, lon), datetime: `${fromIso}/${new Date().toISOString()}`,
+      limit: 20, fields: { include: ['properties.datetime', 'properties.eo:cloud_cover'] },
+    }),
+  });
+  const body = await res.json();
+  const scenes: { datetime: string; 'eo:cloud_cover': number }[] = (body.features ?? [])
+    .map((f: { properties: { datetime: string; 'eo:cloud_cover': number } }) => f.properties)
+    .filter((p: { 'eo:cloud_cover': number }) => p['eo:cloud_cover'] <= MAX_CLOUD)
+    .sort((a: { datetime: string }, b: { datetime: string }) => a.datetime.localeCompare(b.datetime));
+  return scenes[0]?.datetime;
+}
+
+async function sceneImage(token: string, lat: number, lon: number, sceneIso: string) {
+  const day = sceneIso.slice(0, 10);
+  const res = await fetch('https://sh.dataspace.copernicus.eu/api/v1/process', {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      input: {
+        bounds: { bbox: boxAround(lat, lon), properties: { crs: 'http://www.opengis.net/def/crs/EPSG/0/4326' } },
+        data: [{ type: 'sentinel-2-l2a', dataFilter: { timeRange: { from: `${day}T00:00:00Z`, to: `${day}T23:59:59Z` }, mosaickingOrder: 'mostRecent' } }],
+      },
+      output: { width: IMAGE_PX, height: IMAGE_PX, responses: [{ identifier: 'default', format: { type: 'image/jpeg' } }] },
+      evalscript: EVALSCRIPT,
+    }),
+  });
+  if (!res.ok) throw new Error(`Sentinel Hub ${res.status}: ${(await res.text()).slice(0, 120)}`);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+async function tgPhoto(photoUrl: string, caption: string) {
+  if (!BOT_TOKEN || !ADMIN_ID) return;
+  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ chat_id: ADMIN_ID, photo: photoUrl, caption }),
+  }).catch(() => {});
+}
+
+const MONTHS_AR = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+const arDate = (iso: string) => { const d = new Date(iso); return `${d.getUTCDate()} ${MONTHS_AR[d.getUTCMonth()]}`; };
+
+// الحرائق الكبيرة التي لم تصلها صورة بعد: يُبحث لكل منها عن أول مشهد صافٍ بعد رصده
+async function attachImages() {
+  if (!SH_CLIENT_ID || !SH_CLIENT_SECRET) return 'بلا مفتاح Copernicus';
+  const { data: pending } = await supabase.from('fire_hotspots')
+    .select('id, lat, lon, detected_at, wilaya, place, distance_km, direction, image_tries')
+    .eq('big', true).is('image_url', null).order('detected_at', { ascending: false }).limit(IMAGES_PER_RUN);
+  if (!pending?.length) return 0;
+  const token = await shToken();
+  let attached = 0;
+  for (const f of pending) {
+    const scene = await firstSceneAfter(token, f.lat, f.lon, f.detected_at);
+    await supabase.from('fire_hotspots').update({ image_tries: (f.image_tries ?? 0) + 1 }).eq('id', f.id);
+    if (!scene) continue;
+    const bytes = await sceneImage(token, f.lat, f.lon, scene);
+    const path = `${f.id}.jpg`;
+    const { error } = await supabase.storage.from('fire-images').upload(path, bytes, { contentType: 'image/jpeg', upsert: true });
+    if (error) throw error;
+    const url = `${SUPABASE_URL}/storage/v1/object/public/fire-images/${path}`;
+    await supabase.from('fire_hotspots').update({ image_url: url, image_date: scene }).eq('id', f.id);
+    attached++;
+    await tgPhoto(url,
+      `🛰️ صورة الحريق: ${f.wilaya} — على بعد ${f.distance_km} كم ${directionFrom(f.direction, f.place)}\n` +
+      `رُصد الحريق ${arDate(f.detected_at)}، والتقط Sentinel-2 الصورة ${arDate(scene)}.\n` +
+      'مركز الصورة موضع الحريق، والأحمر لهب نشط إن وُجد وقت مرور القمر. المصدر: Copernicus Sentinel-2');
+  }
+  return attached;
+}
+
 Deno.serve(async () => {
   try {
     if (!MAP_KEY) return json({ ok: false, error: 'FIRMS_MAP_KEY غير معرّف' }, 500);
@@ -118,8 +225,11 @@ Deno.serve(async () => {
       const { error } = await supabase.from('fire_hotspots').upsert(list.slice(i, i + 500), { onConflict: 'id' });
       if (error) throw error;
     }
-    await supabase.from('fire_hotspots').delete()
-      .lt('detected_at', new Date(Date.now() - KEEP_DAYS * 86400000).toISOString());
+    // ما قدُم عن 10 أيام يُحذف، ومعه صوره
+    const cutoff = new Date(Date.now() - KEEP_DAYS * 86400000).toISOString();
+    const { data: oldImages } = await supabase.from('fire_hotspots').select('id').lt('detected_at', cutoff).not('image_url', 'is', null);
+    if (oldImages?.length) await supabase.storage.from('fire-images').remove(oldImages.map((r) => `${r.id}.jpg`));
+    await supabase.from('fire_hotspots').delete().lt('detected_at', cutoff);
 
     // حرائق كبيرة جديدة: تجمّعات متقاربة أو بؤرة شديدة
     const cells = new Map<string, Record<string, unknown>[]>();
@@ -127,9 +237,13 @@ Deno.serve(async () => {
       const key = `${Math.round((r.lat as number) / CLUSTER_DEG)},${Math.round((r.lon as number) / CLUSTER_DEG)}`;
       (cells.get(key) || cells.set(key, []).get(key)!).push(r);
     }
-    const big = [...cells.values()]
-      .filter((c) => c.length >= CLUSTER_MIN || c.some((r) => (r.frp as number) >= BIG_FRP_MW))
-      .map((c) => c.reduce((a, b) => ((b.frp as number) > (a.frp as number) ? b : a)));
+    const bigCells = [...cells.values()]
+      .filter((c) => c.length >= CLUSTER_MIN || c.some((r) => (r.frp as number) >= BIG_FRP_MW));
+    const big = bigCells.map((c) => c.reduce((a, b) => ((b.frp as number) > (a.frp as number) ? b : a)));
+    // البؤرة الأشد في كل تجمّع تمثّل الحريق الكبير، وتُتابَع حتى تصلها صورة
+    for (let k = 0; k < big.length; k++) {
+      await supabase.from('fire_hotspots').update({ big: true, cluster_size: bigCells[k].length }).eq('id', big[k].id as string);
+    }
     if (big.length) {
       const lines = big.slice(0, 12).map((r) =>
         `🔥 ${r.wilaya}: على بعد ${r.distance_km} كم ${directionFrom(r.direction as string, r.place as string)} (${Math.round(r.frp as number)} ميغاواط)`);
@@ -137,7 +251,8 @@ Deno.serve(async () => {
         `${big.length > 12 ? `\n… و${big.length - 12} أخرى` : ''}\n\nالمصدر: NASA FIRMS\n🔗 ${SITE}/pastures`);
     }
 
-    return json({ ok: true, hotspots: list.length, fresh: fresh.length, big: big.length, failed });
+    const images = await attachImages().catch((e) => `صور: ${e}`);
+    return json({ ok: true, hotspots: list.length, fresh: fresh.length, big: big.length, images, failed });
   } catch (e) {
     return json({ ok: false, error: String(e) }, 500);
   }

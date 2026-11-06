@@ -815,9 +815,12 @@ export async function getSeasonalOutlook(slug) {
 export async function getFireHotspots(days = 7) {
   if (!isSupabaseConfigured) return [];
   const since = new Date(Date.now() - days * 86400000).toISOString();
-  const { data, error } = await supabase.from('fire_hotspots')
-    .select('id, lat, lon, detected_at, frp, wilaya, place, distance_km, direction')
+  const query = (cols) => supabase.from('fire_hotspots').select(cols)
     .gte('detected_at', since).order('detected_at', { ascending: false }).limit(3000);
+  const base = 'id, lat, lon, detected_at, frp, wilaya, place, distance_km, direction';
+  let { data, error } = await query(`${base}, big, cluster_size, image_url, image_date`);
+  // قبل تطبيق 030_fire_images.sql لا توجد أعمدة الصور
+  if (error) ({ data, error } = await query(base));
   if (error) { console.error('fire_hotspots:', error.message); return []; }
   return data || [];
 }

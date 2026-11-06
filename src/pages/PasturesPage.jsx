@@ -268,6 +268,48 @@ const FIRE_AGES = [
 ];
 const fireAge = (iso) => FIRE_AGES.find((a) => (Date.now() - new Date(iso).getTime()) / 3600000 <= a.maxH);
 
+// صور Sentinel-2 للحرائق الكبيرة (دقة 10 أمتار): أول صورة صافية بعد الرصد، والحريق في مركزها
+const DIR_PHRASE = {
+  'شمال شرق': 'الشمال الشرقي', 'شمال غرب': 'الشمال الغربي', 'جنوب شرق': 'الجنوب الشرقي', 'جنوب غرب': 'الجنوب الغربي',
+};
+const fireWhere = (f) => (f.distance_km <= 2 ? `قرب ${f.place}`
+  : `على بعد ${f.distance_km} كم ${DIR_PHRASE[f.direction] ? `في ${DIR_PHRASE[f.direction]} من ${f.place}` : `${f.direction} ${f.place}`}`);
+
+function FireImages({ fires }) {
+  const big = fires.filter((f) => f.big);
+  if (!big.length) return null;
+  const withImage = big.filter((f) => f.image_url);
+  const waiting = big.length - withImage.length;
+  return (
+    <div className="px-5 py-4 border-t border-gray-100">
+      <h3 className="font-black text-gray-800">🛰️ صور الحرائق الكبيرة</h3>
+      <p className="text-xs text-gray-500 mt-1">
+        من القمر الأوروبي Sentinel-2 بدقة 10 أمتار، الذي يمر كل يومين إلى ثلاثة. الحريق في مركز الصورة، واللهب النشط بالأحمر إن كان مشتعلاً لحظة مرور القمر.
+      </p>
+      {withImage.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+          {withImage.map((f) => (
+            <figure key={f.id} className="rounded-xl overflow-hidden border border-gray-100 bg-gray-50">
+              <div className="relative aspect-square">
+                <img src={f.image_url} alt={`صورة قمر صناعي لحريق ${fireWhere(f)}`} loading="lazy" className="w-full h-full object-cover" />
+                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full border-2 border-yellow-300 shadow-[0_0_0_2px_rgba(0,0,0,0.35)] pointer-events-none" />
+                <span className="absolute bottom-1.5 left-1.5 text-[9px] text-white/90 bg-black/40 px-1.5 py-0.5 rounded">Copernicus Sentinel-2</span>
+              </div>
+              <figcaption className="p-2.5 text-xs text-gray-700">
+                <p className="font-bold">{f.wilaya}: {fireWhere(f)}</p>
+                <p className="text-gray-500 mt-0.5">رُصد الحريق {fmtDay(f.detected_at)} · الصورة {fmtDay(f.image_date)}{f.cluster_size > 1 ? ` · ${f.cluster_size} بؤر` : ''}</p>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      )}
+      {waiting > 0 && (
+        <p className="text-xs text-gray-500 mt-2">⏳ {waiting === 1 ? 'حريق كبير ينتظر' : `${waiting} حرائق كبيرة تنتظر`} أول مرور صافٍ للقمر بعد رصده.</p>
+      )}
+    </div>
+  );
+}
+
 function FireSection({ fires }) {
   if (fires === null) return <div className="bg-white rounded-2xl h-96 animate-pulse border border-gray-100" />;
   const last24 = fires.filter((f) => Date.now() - new Date(f.detected_at).getTime() <= 24 * 3600000);
@@ -327,6 +369,7 @@ function FireSection({ fires }) {
       ) : (
         <p className="mx-5 mb-4 text-sm text-gray-500">لم تُرصد حرائق في آخر {FIRE_DAYS} أيام.</p>
       )}
+      <FireImages fires={fires} />
       <p className="text-[11px] text-gray-400 px-5 py-3 border-t border-gray-100 leading-relaxed">
         كل نقطة رصد حراري من قمر صناعي، وقد يرصد الحريقَ الواحد أكثر من قمر أو يرصد حرق الحقول المعتاد قرب النهر. السحب الكثيفة تحجب الرصد.
       </p>
@@ -374,7 +417,7 @@ export default function PasturesPage() {
         </section>
 
         <footer className="text-[11px] text-gray-400 leading-relaxed px-1">
-          المصادر: صور MODIS من ناسا (NASA GIBS)؛ الحرائق من NASA FIRMS؛ الأمطار من Open-Meteo؛ مسوحات الجراد من خدمة الإنذار بالجراد في الفاو (FAO DLIS)
+          المصادر: صور MODIS من ناسا (NASA GIBS)؛ الحرائق من NASA FIRMS وصورها من Copernicus Sentinel-2؛ الأمطار من Open-Meteo؛ مسوحات الجراد من خدمة الإنذار بالجراد في الفاو (FAO DLIS)
           والمركز الوطني لمكافحة الجراد الصحراوي؛ حدود الولايات من geoBoundaries (CC BY-SA 3.0).
         </footer>
       </main>
