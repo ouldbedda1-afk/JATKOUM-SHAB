@@ -4,8 +4,6 @@ import { getRecentRainReports, getRecentBawahReports, getUpcomingRainForecasts, 
 import { getRainingNowFromSatellite, getSameDayHeavyRainEventsFromSatellite, getRainingNowFromIMERG } from './satelliteRain';
 import { MAURITANIA_RADAR_GRID } from './mauritaniaRadarGrid';
 import { startLightning, subscribeLightning } from './lightningBlitzortung';
-import { updateTracks, clearTracks, removeTrack } from './cellTracking';
-import { getDeepCloudsFromEumetsat } from './satelliteCloudsEU';
 import { getEcmwfBriefs } from './ecmwfBriefs';
 
 const WeatherContext = createContext(null);
@@ -29,9 +27,6 @@ export const WeatherProvider = ({ children }) => {
   const [ecmwfBriefs,      setEcmwfBriefs]      = useState([]);
   const [rainingNow,       setRainingNow]       = useState([]);
   const [sameDayRainEvents, setSameDayRainEvents] = useState([]);
-  const [trackedCells,     setTrackedCells]     = useState([]);
-  const [stormClouds,      setStormClouds]      = useState([]);
-  const [stormCloudsUpdatedAt, setStormCloudsUpdatedAt] = useState(null);
   const [lightningStrikes, setLightningStrikes] = useState([]);
   const [loading,          setLoading]          = useState(true);
   const [lastUpdated,      setLastUpdated]      = useState(null);
@@ -93,27 +88,6 @@ export const WeatherProvider = ({ children }) => {
         });
       }, 3000);
 
-      // ☁️ الرصد الجديد فقط: قمم سحب Meteosat IR (EUMETSAT) — على البلديات (أسماء وولايات صحيحة)
-      if (weather && weather.length > 0) {
-        getDeepCloudsFromEumetsat(weather)
-          .then((clouds) => {
-            // التتبع في المتصفح وحده؛ لا يُحفظ في قاعدة البيانات
-            setStormClouds(clouds || []);
-            setStormCloudsUpdatedAt(new Date());
-            try {
-              const { active } = updateTracks(clouds || []);
-              setTrackedCells(active);
-            } catch (e) { console.warn('storm tracking:', e); }
-          })
-          .catch((e) => {
-            console.warn('🛰️ Meteosat clouds:', e);
-            setStormClouds([]);
-            setTrackedCells([]);
-          });
-      } else {
-        setStormClouds([]);
-        setTrackedCells([]);
-      }
       await sideSources;
       setLastUpdated(new Date());
       setError(null);
@@ -190,9 +164,6 @@ export const WeatherProvider = ({ children }) => {
     rainingNow,
     modelRainingNow,
     sameDayRainEvents,
-    trackedCells,
-    stormClouds,
-    stormCloudsUpdatedAt,
     lightningStrikes,
     loading,
     lastUpdated,
@@ -202,20 +173,10 @@ export const WeatherProvider = ({ children }) => {
       clearWeatherCache();
       refreshAllData(true);
     },
-    clearStormAlerts: () => {
-      clearTracks();
-      setTrackedCells([]);
-      setStormClouds([]);
-      setStormCloudsUpdatedAt(null);
-    },
-    removeStormCell: (id) => {
-      removeTrack(id);
-      setTrackedCells((prev) => prev.filter((t) => t.id !== id));
-    }
   }), [
     weatherData, fires, marineData,
     rainReports, bawahReports, rainForecasts, manualAlerts, approvedNews, ecmwfBriefs,
-    weatherBulletins, rainingNow, modelRainingNow, sameDayRainEvents, trackedCells, stormClouds, stormCloudsUpdatedAt, lightningStrikes, loading, lastUpdated, error,
+    weatherBulletins, rainingNow, modelRainingNow, sameDayRainEvents, lightningStrikes, loading, lastUpdated, error,
   ]);
 
   return (

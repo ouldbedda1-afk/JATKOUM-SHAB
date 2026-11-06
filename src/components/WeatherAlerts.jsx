@@ -440,7 +440,7 @@ function WilayaShareButtons({ wilaya, entries, compact = false }) {
 /* ══════════════════════════════════════════
    مكوّن النشرة الجوية الرسمية (3 أيام موحدة)
 ══════════════════════════════════════════ */
-function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNow, lightningStrikes, trackedCells, stormClouds, weatherBulletins }) {
+function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNow, lightningStrikes, weatherBulletins }) {
   const [isTodayObservationFlashing, setIsTodayObservationFlashing] = useState(false);
   const [confirmedForecasts, setConfirmedForecasts] = useState([]);
   const flashTimeoutRef = useRef(null);
@@ -1076,8 +1076,6 @@ const WeatherAlerts = () => {
     rainingNow,
     modelRainingNow,
     sameDayRainEvents,
-    trackedCells,
-    stormClouds,
     lightningStrikes,
     weatherBulletins,
     loading,
@@ -1317,8 +1315,6 @@ const WeatherAlerts = () => {
         sameDayRainEvents={sameDayRainEvents}
         modelRainingNow={modelRainingNow}
         lightningStrikes={lightningStrikes}
-        trackedCells={trackedCells}
-        stormClouds={stormClouds}
         weatherBulletins={weatherBulletins}
       />
 

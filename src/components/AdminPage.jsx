@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from './Navbar';
 import { adminListPending, adminModerate, adminDelete } from '../supabase';
-import { useWeatherContext } from '../WeatherContext';
 import NewsAdmin from './NewsAdmin';
 import ForecastPublisher from './ForecastPublisher';
 import SnapshotArchive from './SnapshotArchive';
@@ -9,7 +8,7 @@ import VisitorStats from './VisitorStats';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 
-const { FiLock, FiCheck, FiX, FiRefreshCw, FiInbox, FiShield, FiTrash2, FiCloudOff, FiFileText } = FiIcons;
+const { FiLock, FiCheck, FiX, FiRefreshCw, FiInbox, FiShield, FiTrash2, FiFileText } = FiIcons;
 
 const TABS = [
   { id: 'forecast',  label: '📡 نشر توقعات' },
@@ -23,7 +22,6 @@ const TABS = [
 const TOKEN_KEY = 'jatkoum_admin_token';
 
 export default function AdminPage() {
-  const { clearStormAlerts, removeStormCell, trackedCells } = useWeatherContext();
   const [token, setToken] = useState(() => sessionStorage.getItem(TOKEN_KEY) || '');
   const [authed, setAuthed] = useState(() => Boolean(sessionStorage.getItem(TOKEN_KEY)));
   const [tab, setTab] = useState('rain');
@@ -129,46 +127,6 @@ export default function AdminPage() {
           </div>
         ) : (
           <>
-            {/* إدارة خلايا العواصف */}
-            <div className="mb-4 bg-red-50 border border-red-200 rounded-2xl overflow-hidden">
-              <div className="flex items-center justify-between gap-4 p-4 border-b border-red-100">
-                <p className="font-black text-red-800 text-sm">
-                  {trackedCells.length > 0 ? `⛈️ ${trackedCells.length} خلية عاصفة نشطة` : '✅ لا توجد خلايا عاصفة نشطة'}
-                </p>
-                {trackedCells.length > 0 && (
-                  <button
-                    onClick={() => { if (window.confirm('مسح جميع الخلايا؟')) clearStormAlerts(); }}
-                    className="flex items-center gap-1.5 bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-black hover:bg-red-700 transition-all"
-                  >
-                    <SafeIcon icon={FiCloudOff} /> مسح الكل
-                  </button>
-                )}
-              </div>
-              {trackedCells.length > 0 && (
-                <div className="divide-y divide-red-100">
-                  {trackedCells.map((cell) => {
-                    const city = cell.cities?.[0]?.city || '—';
-                    const wilaya = cell.cities?.[0]?.wilaya || '';
-                    return (
-                      <div key={cell.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                        <div>
-                          <span className="font-bold text-sm text-red-900">⚡ {city}</span>
-                          {wilaya && <span className="text-xs text-red-600 mr-2">{wilaya}</span>}
-                          <span className="text-[10px] text-red-400 block">كثافة: {Math.round(cell.mmh || 0)} · lat {cell.lat?.toFixed(1)} lon {cell.lon?.toFixed(1)}</span>
-                        </div>
-                        <button
-                          onClick={() => removeStormCell(cell.id)}
-                          className="shrink-0 flex items-center gap-1 bg-white border border-red-300 text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-600 hover:text-white transition-all"
-                        >
-                          <SafeIcon icon={FiX} /> حذف
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
             <div className="flex items-center gap-2 mb-4">
               <div className="flex-1 overflow-x-auto">
                 <div className="flex bg-gray-100 p-1 rounded-xl w-max min-w-full">

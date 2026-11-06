@@ -799,13 +799,12 @@ export default function FloatingAIAgent({ onCitySelect }) {
 
   const {
     weatherData: allData,
-    stormClouds,
     rainForecasts,
     lightningStrikes,
-    trackedCells,
   } = useWeatherContext();
 
-  const ctx = { stormClouds, rainForecasts, lightningStrikes, trackedCells };
+  // تتبع سحب Meteosat حُذف من الموقع: الدوال أدناه تعدّ stormClouds وtrackedCells فارغتين
+  const ctx = { rainForecasts, lightningStrikes };
 
   // لا يُفتح تلقائياً، فلا يغطي الصفحة: فقاعة ترحيب مرة واحدة في الجلسة، بعد أن يرى الزائر الصفحة
   useEffect(() => {
