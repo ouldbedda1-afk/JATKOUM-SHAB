@@ -19,6 +19,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { WILAYA_SHAPES } from '../_shared/wilayaShapes.ts';
 import { PLACES } from '../_shared/mauritaniaPlaces.ts';
+import { Image } from 'https://deno.land/x/imagescript@1.3.0/mod.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -43,7 +44,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const IMAGE_HALF_DEG = 0.05;     // نصف ضلع الصورة: نحو 11×11 كم
 const IMAGE_PX = 600;
 const MAX_CLOUD = 60;            // نسبة الغيوم القصوى في المشهد
-const IMAGES_PER_RUN = 5;
+const IMAGES_PER_RUN = 10;
 // ألوان طبيعية، واللهب النشط بالأحمر: انعكاس عالٍ في الأشعة تحت الحمراء القصيرة (B12) يفوق B11،
 // مع أزرق خافت (B02) يستبعد حواف الغيوم، فهي ساطعة في B12 أيضاً
 const EVALSCRIPT = `//VERSION=3
@@ -145,7 +146,25 @@ async function latestSceneBefore(token: string, lat: number, lon: number, untilI
   return scenes[scenes.length - 1];
 }
 
-async function storeImage(path: string, bytes: Uint8Array) {
+// اسم الموقع وحلقة على موضع الحريق تُدمجان في الصورة نفسها، فتبقيان في نسخة تيليغرام وفي أي نسخة تُنزَّل.
+// الشريط (الشعار وجاتكم اسحاب والرابط ونسبة Copernicus) والحلقة صورتان في public/brand على الموقع
+let overlays: Promise<[Image, Image]> | null = null;
+const loadOverlays = () => (overlays ||= Promise.all(['fire-watermark.png', 'fire-ring.png'].map(async (f) => {
+  const res = await fetch(`${SITE}/brand/${f}`);
+  if (!res.ok) throw new Error(`${f}: ${res.status}`);
+  return Image.decode(new Uint8Array(await res.arrayBuffer()));
+})) as Promise<[Image, Image]>);
+
+async function brandImage(jpeg: Uint8Array) {
+  const [band, ring] = await loadOverlays();
+  const img = await Image.decode(jpeg) as Image;
+  img.composite(ring, Math.round((img.width - ring.width) / 2), Math.round((img.height - ring.height) / 2));
+  img.composite(band, Math.round((img.width - band.width) / 2), img.height - band.height);
+  return await img.encodeJPEG(85);
+}
+
+async function storeImage(path: string, raw: Uint8Array) {
+  const bytes = await brandImage(raw);
   const { error } = await supabase.storage.from('fire-images').upload(path, bytes, { contentType: 'image/jpeg', upsert: true });
   if (error) throw error;
   return `${SUPABASE_URL}/storage/v1/object/public/fire-images/${path}`;

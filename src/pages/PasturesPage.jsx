@@ -287,7 +287,7 @@ function FireImages({ fires }) {
         من القمر الأوروبي Sentinel-2 بدقة 10 أمتار، الذي يمر كل يومين إلى ثلاثة. الحريق في مركز الصورة، واللهب النشط بالأحمر إن كان مشتعلاً لحظة مرور القمر.
       </p>
       {withImage.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-3">
           {withImage.map((f) => {
             // قبل الحريق وبعده جنباً إلى جنب حين تتوفر الصورتان
             const shots = [
@@ -295,24 +295,24 @@ function FireImages({ fires }) {
               f.image_url && { url: f.image_url, label: `بعد الرصد · ${fmtDay(f.image_date)}` },
             ].filter(Boolean);
             return (
-              <figure key={f.id} className={`rounded-xl overflow-hidden border border-gray-100 bg-gray-50 ${shots.length > 1 ? 'sm:col-span-2' : ''}`}>
-                <div className={`grid ${shots.length > 1 ? 'grid-cols-2 gap-0.5' : 'grid-cols-1'}`}>
-                  {shots.map((shot) => (
-                    <div key={shot.url} className="relative aspect-square">
-                      <img src={shot.url} alt={`صورة قمر صناعي ${shot.label}: ${fireWhere(f)}`} loading="lazy" className="w-full h-full object-cover" />
-                      <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full border-2 border-yellow-300 shadow-[0_0_0_2px_rgba(0,0,0,0.35)] pointer-events-none" />
-                      <span className="absolute top-1.5 right-1.5 text-[10px] font-bold text-white bg-black/55 px-1.5 py-0.5 rounded">{shot.label}</span>
-                      <span className="absolute bottom-1.5 left-1.5 text-[9px] text-white/90 bg-black/40 px-1.5 py-0.5 rounded">Copernicus Sentinel-2</span>
-                    </div>
-                  ))}
-                </div>
-                <figcaption className="p-2.5 text-xs text-gray-700">
-                  <p className="font-bold">{f.wilaya}: {fireWhere(f)}</p>
+              <figure key={f.id} className={`rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm ${shots.length > 1 ? 'sm:col-span-2' : ''}`}>
+                {/* العنوان فوق الصورة، كي لا يُقرأ عنواناً للصورة التي تليه */}
+                <figcaption className="px-3 py-2.5 text-xs text-gray-700 bg-gray-50 border-b border-gray-100">
+                  <p className="font-black text-sm text-gray-800">🔥 {f.wilaya}: {fireWhere(f)}</p>
                   <p className="text-gray-500 mt-0.5">
                     رُصد الحريق {fmtDay(f.detected_at)}{f.cluster_size > 1 ? ` · ${f.cluster_size} بؤر` : ''}
                     {!f.image_url && ' · صورة ما بعد الحريق تصل بعد أول مرور صافٍ للقمر'}
                   </p>
                 </figcaption>
+                {/* الحلقة على موضع الحريق واسم الموقع مدمجان في الصورة نفسها (دالة fire-hotspots) */}
+                <div className={`grid ${shots.length > 1 ? 'grid-cols-2 gap-0.5' : 'grid-cols-1'}`}>
+                  {shots.map((shot) => (
+                    <div key={shot.url} className="relative aspect-square">
+                      <img src={shot.url} alt={`صورة قمر صناعي ${shot.label}: ${fireWhere(f)}`} loading="lazy" className="w-full h-full object-cover" />
+                      <span className="absolute top-1.5 right-1.5 text-[10px] font-bold text-white bg-black/55 px-1.5 py-0.5 rounded">{shot.label}</span>
+                    </div>
+                  ))}
+                </div>
               </figure>
             );
           })}
