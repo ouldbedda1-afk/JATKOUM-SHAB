@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { WILAYA_PAGES } from '../src/wilayaPages.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -23,6 +24,7 @@ const staticPages = [
   { loc: '/althala', changefreq: 'weekly', priority: '0.6' },
   { loc: '/pastures', changefreq: 'daily', priority: '0.7' },
   { loc: '/seasonal', changefreq: 'weekly', priority: '0.7' },
+  ...WILAYA_PAGES.map((w) => ({ loc: `/wilaya/${w.slug}`, changefreq: 'hourly', priority: '0.8' })),
 ];
 
 const { data: articles, error } = await supabase

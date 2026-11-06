@@ -11,7 +11,7 @@
     "generate:locust-habitat": "node scripts/generate-locust-habitat.mjs",
     "predeploy": "npm run generate:rss && npm run generate:sitemap && npm run build",
     "deploy": "gh-pages -d dist",
-    "build": "vite build",
+    "build": "vite build && node scripts/prerender-wilayas.mjs",
     "lint": "eslint .",
     "lint:error": "eslint . --quiet",
     "preview": "vite preview",

@@ -11,6 +11,7 @@ import Home from './pages/Home';
 const AlThalaPage = lazy(() => import('./components/AlThalaPage'));
 const PasturesPage = lazy(() => import('./pages/PasturesPage'));
 const SeasonalPage = lazy(() => import('./pages/SeasonalPage'));
+const WilayaPage = lazy(() => import('./pages/WilayaPage'));
 const AdminPage = lazy(() => import('./components/AdminPage'));
 const NewsPage              = lazy(() => import('./pages/NewsPage'));
 const NewsArticlePage       = lazy(() => import('./pages/NewsArticlePage'));
@@ -48,6 +49,7 @@ function App() {
               <Route path="/althala" element={<AlThalaPage />} />
               <Route path="/pastures" element={<PasturesPage />} />
               <Route path="/seasonal" element={<SeasonalPage />} />
+              <Route path="/wilaya/:slug" element={<WilayaPage />} />
               <Route path="/admin" element={<AdminPage />} />
               {/* صفحات المدوّنين حُذفت؛ الروابط القديمة إليها تذهب إلى الرئيسية */}
               <Route path="/bloggers" element={<Navigate to="/" replace />} />

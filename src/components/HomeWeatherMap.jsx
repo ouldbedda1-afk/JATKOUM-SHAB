@@ -53,14 +53,13 @@ export default function HomeWeatherMap() {
     return [w, mode === 'temp' ? `${Math.round(e.tmax)}°` : e.rain >= 0.5 ? `${Math.round(e.rain)} مم` : null];
   }));
   const used = new Set(wilayas.map((w) => stepFor(steps, valueOf(byWilaya[w]))[2]));
-  const today = new Date().toISOString().slice(0, 10);
 
   return (
     <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" dir="rtl">
       <div className="p-4 md:p-5 flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-lg font-black text-gray-800">🗺️ موريتانيا اليوم</h2>
-          <p className="text-xs text-gray-500 mt-0.5">اضغط على ولايتك لترى توقعاتها.</p>
+          <p className="text-xs text-gray-500 mt-0.5">اضغط على ولايتك لترى طقسها وتوقعاتها.</p>
         </div>
         <div className="flex bg-gray-100 rounded-full p-1 text-xs font-bold" role="tablist">
           {[['temp', '🌡️ الحرارة'], ['rain', '🌧️ الأمطار']].map(([k, label]) => (
@@ -75,7 +74,7 @@ export default function HomeWeatherMap() {
       <div className="bg-sky-50">
         <div className="max-w-[520px] mx-auto">
           <MauritaniaMap fills={fills} values={values}
-            onSelect={(w) => SLUGS[w] && navigate(`/forecast/${today}/${SLUGS[w]}`)} />
+            onSelect={(w) => SLUGS[w] && navigate(`/wilaya/${SLUGS[w]}`)} />
         </div>
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-1 px-4 py-2.5 text-[11px] text-gray-600">

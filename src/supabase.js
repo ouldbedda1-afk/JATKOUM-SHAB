@@ -827,6 +827,16 @@ export async function getFireHotspots(days = 7) {
   return data || [];
 }
 
+// آخر منشورات التوقعات (صفحات الولايات تختار منها منشورات ولايتها، فاسم الولاية يُكتب بأكثر من صيغة)
+export async function getRecentForecastPosts(limit = 120) {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await supabase.from('news_articles')
+    .select('slug, title, wilaya, published_at, featured_image').like('slug', 'forecast-%').eq('is_published', true)
+    .order('published_at', { ascending: false }).limit(limit);
+  if (error) { console.error('forecast posts:', error.message); return []; }
+  return data || [];
+}
+
 // آخر نشرة موسمية منشورة
 export async function getLatestSeasonalBulletin() {
   if (!isSupabaseConfigured) return null;

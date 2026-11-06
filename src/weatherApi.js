@@ -322,8 +322,8 @@ async function fetchWithRetry(url, options = {}, retries = 3, backoff = 3000, by
 
 
 const coreMauritanianCities = [
-  // نواكشوط
-  'نواكشوط',
+  // نواكشوط ومقاطعاتها (لصفحات ولاياتها الثلاث)
+  'نواكشوط', 'درنعيم', 'تيارت', 'توجنين', 'تفرغ زينة', 'السبخة', 'عرفات', 'المينة',
   // الترارزة
   'روصو', 'بوتلميت', 'كرمسين', 'المذرذرة', 'واد الناقة', 'اركيز', 'انتيكان',
   'Elb Adress', 'Ajoueir', "N'Teichet", 'Nebaghiye', 'Tenghadej', 'El Mouyessar',

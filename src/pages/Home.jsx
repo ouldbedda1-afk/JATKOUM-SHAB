@@ -10,6 +10,7 @@ import { getFbStats } from '../supabase';
 import TopRainRecordsCard from '../components/TopRainRecordsCard';
 import StationObservationsCard from '../components/StationObservationsCard';
 import HomeWeatherMap from '../components/HomeWeatherMap';
+import { WILAYA_PAGES } from '../wilayaPages';
 
 // مكونات ثقيلة — تُحمَّل عند الحاجة فقط
 const WeatherAlerts       = lazy(() => import('../components/WeatherAlerts'));
@@ -189,7 +190,19 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="border-t border-white/10 mt-10 pt-5 text-center">
+          {/* روابط صفحات الولايات: مدخل للزوار ولمحركات البحث */}
+          <div className="border-t border-white/10 mt-10 pt-6">
+            <h4 className="font-black text-sm text-blue-100 text-center md:text-right">🗺️ طقس الولايات</h4>
+            <div className="flex flex-wrap justify-center md:justify-start gap-x-4 gap-y-2 mt-3">
+              {WILAYA_PAGES.map((w) => (
+                <Link key={w.slug} to={`/wilaya/${w.slug}`} className="text-[13px] text-blue-200 hover:text-white transition-colors">
+                  {w.name}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t border-white/10 mt-6 pt-5 text-center">
             <p className="text-[11px] text-blue-200/80 font-bold">© 2026 جاتكم اسحاب — جميع الحقوق محفوظة</p>
             <p className="text-[10px] text-blue-200/50 mt-1">
               صوت الرعد: Bidgee / Wikimedia Commons (CC BY 3.0) · بيانات الصواعق: Blitzortung.org
