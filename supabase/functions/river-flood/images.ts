@@ -96,16 +96,16 @@ async function render(token: string, bbox: number[], kind: 'radar' | 'optical', 
 }
 
 let overlays: Promise<Image[]> | null = null;
-const loadOverlays = () => (overlays ||= Promise.all(['fire-mark.png', 'credit-s.png'].map(async (f) => {
+const loadOverlays = () => (overlays ||= Promise.all(['fire-mark.png', 'credit-s.png', 'center-mark.png'].map(async (f) => {
   const res = await fetch(`${SITE}/brand/${f}`);
   if (!res.ok) throw new Error(`${f}: ${res.status}`);
   return await Image.decode(new Uint8Array(await res.arrayBuffer())) as Image;
 })));
 
-// يدمج اسم الموقع شفافاً في الزاوية السفلى اليمنى ونسبة Copernicus في اليسرى، ويعدّ بكسلات المياه الجديدة
+// يدمج «جاتكم اسحاب» شفافاً في الوسط واسم الموقع في الزاوية السفلى اليمنى ونسبة Copernicus في اليسرى، ويعدّ بكسلات المياه الجديدة
 // (الحمراء) قبل ذلك ويحوّلها إلى كم²
 async function brand(png: Uint8Array, lat: number) {
-  const [mark, credit] = await loadOverlays();
+  const [mark, credit, centerMark] = await loadOverlays();
   const img = await Image.decode(png) as Image;
   let red = 0;
   for (let y = 1; y <= img.height; y++) {
@@ -115,6 +115,7 @@ async function brand(png: Uint8Array, lat: number) {
     }
   }
   const pxKm2 = ((2 * HALF_DEG * 111.32 * Math.cos(lat * Math.PI / 180)) / img.width) * ((2 * HALF_DEG * 110.57) / img.height);
+  img.composite(centerMark, Math.round((img.width - centerMark.width) / 2), Math.round((img.height - centerMark.height) / 2));
   img.composite(mark, img.width - mark.width - 6, img.height - mark.height - 6);
   img.composite(credit, 4, img.height - credit.height - 4);
   return { jpeg: await img.encodeJPEG(85), km2: Math.round(red * pxKm2 * 100) / 100 };
