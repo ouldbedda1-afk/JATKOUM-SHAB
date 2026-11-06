@@ -133,7 +133,7 @@ fs.writeFileSync(riverOut, [
   '// مولَّد آلياً من src/riverStations.js بالأمر npm run generate:places — لا تعدّله يدوياً.',
   '// محطات نهر السنغال على الضفة الموريتانية وعتبات تصريفها (م³/ث)، وبلديات الضفة وقراها مع أقرب محطة.',
   '',
-  'type Station = { name: string; wilaya: string; lat: number; lon: number; high: number; flood: number; major: number };',
+  'type Station = { name: string; wilaya: string; lat: number; lon: number; high: number; flood: number; major: number; view: [number, number] };',
   `export const RIVER_STATIONS: Station[] = ${JSON.stringify(RIVER_STATIONS.map(({ floods: _f, ...s }) => s))};`,
   `export const RIVER_PLACES: { name: string; wilaya: string; station: number }[] = ${JSON.stringify(RIVER_PLACES.map(({ name, wilaya, station }) => ({ name, wilaya, station })))};`,
   '',

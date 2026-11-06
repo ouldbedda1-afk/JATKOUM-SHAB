@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { WILAYA_SHAPES } from '../mauritaniaWilayaShapes';
 import { RIVER_STATIONS, RIVER_PLACES, RIVER_LINE, normalDischarge, riverLevel } from '../riverStations';
+import { getRiverImages } from '../supabase';
 
 // فيضان نهر السنغال على الضفة الموريتانية: تصريف النهر في سبع محطات من ݣوري إلى انجاݣو، آخر 30 يوماً
 // وتوقعات 30 يوماً من نموذج Copernicus GloFAS (عبر Open-Meteo)، ومستوى كل محطة مقارنةً بعتبات
@@ -202,6 +203,64 @@ function StationCard({ row }) {
   );
 }
 
+// صور الأقمار الصناعية عند كل محطة (دالة river-flood): الرادار Sentinel-1 يرى عبر الغيوم ويُظهر المياه الجديدة
+// بالأحمر مع مساحتها، وSentinel-2 بالألوان الطبيعية في أحدث يوم صافٍ
+function SatelliteCard({ st, shots }) {
+  const radar = shots.filter((r) => r.kind === 'radar');
+  const optical = shots.find((r) => r.kind === 'optical');
+  const [kind, setKind] = useState(radar.length ? 'radar' : 'optical');
+  const shot = kind === 'radar' ? radar[0] : optical;
+  const prev = radar[1];
+  return (
+    <article className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between gap-2 p-3">
+        <h3 className="font-black text-gray-900">{st.name} <span className="text-xs font-bold text-gray-400">· {st.wilaya}</span></h3>
+        {radar.length > 0 && optical && (
+          <div className="flex bg-gray-100 p-0.5 rounded-lg text-[11px] font-bold">
+            <button onClick={() => setKind('radar')} className={`px-2 py-1 rounded-md ${kind === 'radar' ? 'bg-white shadow-sm text-blue-700' : 'text-gray-500'}`}>رادار</button>
+            <button onClick={() => setKind('optical')} className={`px-2 py-1 rounded-md ${kind === 'optical' ? 'bg-white shadow-sm text-blue-700' : 'text-gray-500'}`}>صورة طبيعية</button>
+          </div>
+        )}
+      </div>
+      {shot && (
+        <a href={shot.image_url} target="_blank" rel="noreferrer">
+          <img src={shot.image_url} alt={`نهر السنغال عند ${st.name}`} loading="lazy" className="w-full aspect-square object-cover bg-gray-100" />
+        </a>
+      )}
+      <div className="p-3 text-[11px] text-gray-600 space-y-0.5">
+        {shot && <p>📅 التُقطت {fmtDay(shot.image_date.slice(0, 10))} · {kind === 'radar' ? 'Sentinel-1' : 'Sentinel-2'}</p>}
+        {kind === 'radar' && radar[0] && (
+          <p className="font-bold text-gray-800">
+            🔴 المياه الجديدة: <bdi dir="ltr">{radar[0].flood_km2 ?? 0}</bdi> كم²
+            {prev && <span className="font-normal text-gray-500"> (كانت <bdi dir="ltr">{prev.flood_km2 ?? 0}</bdi> كم² في {fmtDay(prev.image_date.slice(0, 10))})</span>}
+          </p>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function RiverSatellite() {
+  const [rows, setRows] = useState(null);
+  useEffect(() => { getRiverImages().then(setRows); }, []);
+  if (!rows?.length) return null;
+  return (
+    <section className="space-y-3">
+      <h2 className="text-lg font-black text-gray-800">🛰️ النهر من الأقمار الصناعية</h2>
+      <p className="text-xs text-gray-500 -mt-2 leading-relaxed">
+        صور رادار Sentinel-1 ترى النهر عبر الغيوم: الأحمر مياه غمرت أرضاً كانت جافة في موسم الجفاف (أبريل–مايو)، والداكن مجرى النهر والمياه الدائمة.
+        وصور Sentinel-2 بالألوان الطبيعية في أحدث يوم صافٍ. كل صورة نحو 13×13 كم حول المدينة، وتُحدَّث كلما مر القمر.
+      </p>
+      <div className="grid sm:grid-cols-2 gap-3">
+        {RIVER_STATIONS.map((st) => {
+          const shots = rows.filter((r) => r.station === st.name);
+          return shots.length ? <SatelliteCard key={st.name} st={st} shots={shots} /> : null;
+        })}
+      </div>
+    </section>
+  );
+}
+
 export default function RiverPage() {
   const [rows, setRows] = useState(null);
   const [error, setError] = useState('');
@@ -264,6 +323,8 @@ export default function RiverPage() {
           </div>
         </section>
 
+        <RiverSatellite />
+
         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-5">
           <h2 className="text-lg font-black text-gray-800">📍 المناطق المتوقع أن يبلغها الفيضان</h2>
           {!rows ? <div className="h-16 animate-pulse bg-gray-50 rounded-xl mt-3" /> : atRisk.length === 0 ? (
@@ -317,7 +378,7 @@ export default function RiverPage() {
         </section>
 
         <p className="text-[11px] text-gray-400 leading-relaxed">
-          المصدر: نظام Copernicus العالمي للإنذار بالفيضانات (GloFAS) عبر Open-Meteo، بدقة نحو 5 كم. الأرقام تقديرات نموذج للتصريف لا قراءات مقاييس المنسوب،
+          المصدر: نظام Copernicus العالمي للإنذار بالفيضانات (GloFAS) عبر Open-Meteo، بدقة نحو 5 كم، وصور Copernicus Sentinel-1 وSentinel-2. الأرقام تقديرات نموذج للتصريف لا قراءات مقاييس المنسوب،
           وقد تختلف عن نشرات منظمة استثمار نهر السنغال (OMVS). مستوى الفيضان لكل محطة ذروة يتجاوزها النهر سنة من كل خمس في النموذج نفسه. ‏
           <Link to="/pastures" className="text-blue-700 hover:underline">المراعي والحرائق ←</Link>
         </p>

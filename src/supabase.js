@@ -812,6 +812,15 @@ export async function getSeasonalOutlook(slug) {
 }
 
 // بؤر الحرائق في آخر `days` أيام (NASA FIRMS)، لصفحة المراعي
+/** صور الأقمار الصناعية لنهر السنغال (دالة river-flood): كل المشاهد، الأحدث أولاً، لصفحة /river */
+export async function getRiverImages() {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await supabase.from('river_images')
+    .select('station, kind, image_date, image_url, flood_km2').order('image_date', { ascending: false }).limit(500);
+  if (error) { console.error('river_images:', error.message); return []; }
+  return data || [];
+}
+
 export async function getFireHotspots(days = 7) {
   if (!isSupabaseConfigured) return [];
   const since = new Date(Date.now() - days * 86400000).toISOString();

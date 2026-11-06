@@ -5,12 +5,15 @@
 // العتبات والبلديات في _shared/riverStations.ts (مولَّد من src/riverStations.js)، وآخر مستوى لكل محطة
 // في جدول river_flood_state فلا يتكرر التنبيه كل يوم. الصفحة العامة: /river
 //
+// ويحدّث صور الأقمار الصناعية للنهر عند كل محطة (images.ts).
+//
 // يُستدعى عبر pg_cron يومياً (036_river_flood.sql).
 // النشر:  supabase functions deploy river-flood --no-verify-jwt
 // الطلب (POST): {}
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { RIVER_STATIONS, RIVER_PLACES } from '../_shared/riverStations.ts';
+import { updateRiverImages } from './images.ts';
 
 const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 const BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
@@ -75,7 +78,8 @@ Deno.serve(async () => {
       station: r.st.name, level: r.level, peak: Math.round(r.peak), peak_day: r.peakDay, updated_at: new Date().toISOString(),
     })), { onConflict: 'station' });
     if (error) throw error;
-    return json({ ok: true, alerts: rising.length, levels: Object.fromEntries(now.map((r) => [r.st.name, r.level])) });
+    const images = await updateRiverImages(supabase).catch((e) => `صور: ${e}`);
+    return json({ ok: true, alerts: rising.length, images, levels: Object.fromEntries(now.map((r) => [r.st.name, r.level])) });
   } catch (e) {
     return json({ ok: false, error: String(e) }, 500);
   }
