@@ -14,6 +14,7 @@ const NAV_LINKS = [
   { icon: '🌧️', label: 'مقاييس الأمطار',     short: 'المقاييس',  to: '/measurements' },
   { icon: '🌿', label: 'المراعي والجراد',   short: 'المراعي',   to: '/pastures' },
   { icon: '📅', label: 'النشرة الموسمية',   short: 'الموسمية',  to: '/seasonal' },
+  { icon: '🌊', label: 'فيضان النهر',       short: 'النهر',     to: '/river' },
   { icon: '🐫', label: 'الظالة',             to: '/althala'  },
 ];
 

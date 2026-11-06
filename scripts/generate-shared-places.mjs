@@ -19,7 +19,8 @@ export { wilayaToSlug } from './src/wilayaUrlSlugs.js';
 export { ERA5_CITIES, ERA5_REFERENCE, ERA5_SOURCE } from './src/rainEra5Normals.js';
 export { WILAYA_LANDMARKS } from './src/wilayaLandmarks.js';
 export { WILAYA_SHAPES } from './src/mauritaniaWilayaShapes.js';
-export { SNAPSHOT_POINTS } from './src/weatherApi.js';`,
+export { SNAPSHOT_POINTS } from './src/weatherApi.js';
+export { RIVER_STATIONS, RIVER_PLACES } from './src/riverStations.js';`,
     resolveDir: root,
   },
   bundle: true,
@@ -32,7 +33,7 @@ export { SNAPSHOT_POINTS } from './src/weatherApi.js';`,
   // src/weatherSnapshot.js يستورد Supabase استيراداً متأخراً لا يُنفَّذ هنا
   external: ['./supabase'],
 });
-const { mauritanianCities, toArabicCommune, wilayaToSlug, ERA5_CITIES, ERA5_REFERENCE, ERA5_SOURCE, WILAYA_LANDMARKS, WILAYA_SHAPES, SNAPSHOT_POINTS } = await import(pathToFileURL(bundle).href);
+const { mauritanianCities, toArabicCommune, wilayaToSlug, ERA5_CITIES, ERA5_REFERENCE, ERA5_SOURCE, WILAYA_LANDMARKS, WILAYA_SHAPES, SNAPSHOT_POINTS, RIVER_STATIONS, RIVER_PLACES } = await import(pathToFileURL(bundle).href);
 fs.rmSync(tmp, { recursive: true, force: true });
 
 // Same naming as the site: the Arabic commune name, else the key itself.
@@ -125,3 +126,16 @@ fs.writeFileSync(snapshotOut, [
   '',
 ].join('\n'));
 console.log(`${SNAPSHOT_POINTS.core.length} core + ${SNAPSHOT_POINTS.communes.length} commune weather points -> ${path.relative(root, snapshotOut)}`);
+
+// Senegal River flood stations and bank places (src/riverStations.js), for the river-flood alert function
+const riverOut = path.join(root, 'supabase/functions/_shared/riverStations.ts');
+fs.writeFileSync(riverOut, [
+  '// مولَّد آلياً من src/riverStations.js بالأمر npm run generate:places — لا تعدّله يدوياً.',
+  '// محطات نهر السنغال على الضفة الموريتانية وعتبات تصريفها (م³/ث)، وبلديات الضفة وقراها مع أقرب محطة.',
+  '',
+  'type Station = { name: string; wilaya: string; lat: number; lon: number; high: number; flood: number; major: number };',
+  `export const RIVER_STATIONS: Station[] = ${JSON.stringify(RIVER_STATIONS.map(({ floods: _f, ...s }) => s))};`,
+  `export const RIVER_PLACES: { name: string; wilaya: string; station: number }[] = ${JSON.stringify(RIVER_PLACES.map(({ name, wilaya, station }) => ({ name, wilaya, station })))};`,
+  '',
+].join('\n'));
+console.log(`${RIVER_STATIONS.length} river stations + ${RIVER_PLACES.length} bank places -> ${path.relative(root, riverOut)}`);

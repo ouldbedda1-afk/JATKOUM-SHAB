@@ -11,6 +11,7 @@ const TABS = [
 ];
 const MORE = [
   { icon: '📅', label: 'النشرة الموسمية', to: '/seasonal' },
+  { icon: '🌊', label: 'فيضان النهر', to: '/river' },
   { icon: '📰', label: 'الأخبار', to: '/news' },
   { icon: '🐫', label: 'الظالة', to: '/althala' },
 ];

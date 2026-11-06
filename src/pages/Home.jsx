@@ -184,6 +184,9 @@ export default function Home() {
               <Link to="/seasonal" className="block text-blue-200 hover:text-white text-sm font-bold transition-colors">
                 📅 النشرة الموسمية
               </Link>
+              <Link to="/river" className="block text-blue-200 hover:text-white text-sm font-bold transition-colors">
+                🌊 فيضان نهر السنغال
+              </Link>
               <div className="flex items-center justify-center md:justify-start gap-3">
                 <a href="https://www.facebook.com/Beddetiii/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center" aria-label="فيسبوك">f</a>
               </div>
