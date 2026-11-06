@@ -18,7 +18,7 @@ const supabase = createClient(
 );
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
-const ADMIN_ID = Deno.env.get('TELEGRAM_ADMIN_ID') ?? '';
+const ADMIN_ID = Deno.env.get('TELEGRAM_CHAT_ID') ?? '';
 const SITE = 'https://www.jatkoumshab.com';
 
 const LAYER = 'https://services5.arcgis.com/sjP4Ugu5s0dZWLjd/arcgis/rest/services/Ramses_Observations_Dashboard_View/FeatureServer/0/query';

@@ -231,10 +231,14 @@ const NewsTicker = () => {
         });
     }
 
-    // --- حرائق ---
-    const fireNews = (fires || []).map(
-      f => `عاجل: حريق على بعد ${f.distanceKm} كم ${f.direction} ${toArabicCommune(f.nearestCity) || f.nearestCity}`
-    );
+    // --- حرائق آخر 24 ساعة (NASA FIRMS): سطر واحد يلخصها حسب الولاية ---
+    const fireNews = [];
+    if (fires && fires.length > 0) {
+      const byWilaya = {};
+      fires.forEach((f) => { if (f.wilaya) byWilaya[f.wilaya] = (byWilaya[f.wilaya] || 0) + 1; });
+      const top = Object.entries(byWilaya).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([w, n]) => `${w} (${n})`).join('، ');
+      fireNews.push(`🔥 رصدت الأقمار الصناعية ${fires.length} بؤرة حريق في آخر 24 ساعة: ${top}.`);
+    }
 
     // ترتيب: عاجل → توقعات المركز الأوروبي → أخبار المستخدمين → حرائق → عام.
     // لا نصوص ثابتة: بلا أخبار حقيقية لا يظهر الشريط أصلاً

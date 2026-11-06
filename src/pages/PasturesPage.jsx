@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { getPastureNdvi, getLocustObservations, getLocustHabitat, getLatestSeasonalBulletin } from '../supabase';
+import { getPastureNdvi, getLocustObservations, getLocustHabitat, getLatestSeasonalBulletin, getFireHotspots } from '../supabase';
 import MauritaniaMap, { LON0, LAT1 } from '../components/MauritaniaMap';
 
 // الترتيب الرسمي للولايات (نواكشوط بلا مراعٍ)
@@ -259,10 +259,86 @@ function HabitatSection({ cells, obs }) {
   );
 }
 
+// ── الحرائق ──────────────────────────────────────────────────────────────
+const FIRE_DAYS = 7;
+const FIRE_AGES = [
+  { maxH: 24, color: '#dc2626', text: 'آخر 24 ساعة' },
+  { maxH: 72, color: '#f97316', text: 'من يوم إلى 3 أيام' },
+  { maxH: Infinity, color: '#facc15', text: `حتى ${FIRE_DAYS} أيام` },
+];
+const fireAge = (iso) => FIRE_AGES.find((a) => (Date.now() - new Date(iso).getTime()) / 3600000 <= a.maxH);
+
+function FireSection({ fires }) {
+  if (fires === null) return <div className="bg-white rounded-2xl h-96 animate-pulse border border-gray-100" />;
+  const last24 = fires.filter((f) => Date.now() - new Date(f.detected_at).getTime() <= 24 * 3600000);
+  const byWilaya = new Map();
+  for (const f of fires) {
+    const e = byWilaya.get(f.wilaya) || { wilaya: f.wilaya, total: 0, recent: 0, places: new Map() };
+    e.total++;
+    if (last24.includes(f)) e.recent++;
+    if (f.place) e.places.set(f.place, (e.places.get(f.place) || 0) + 1);
+    byWilaya.set(f.wilaya, e);
+  }
+  const rows = [...byWilaya.values()].sort((a, b) => b.recent - a.recent || b.total - a.total);
+  // الأحدث يُرسم أخيراً ليظهر فوق غيره
+  const dots = [...fires].sort((a, b) => new Date(a.detected_at) - new Date(b.detected_at));
+
+  return (
+    <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="p-5 pb-3">
+        <h2 className="text-lg font-black text-gray-800">🔥 حرائق المراعي</h2>
+        <p className="text-sm text-gray-500 mt-1">
+          بؤر الحرائق النشطة التي رصدتها الأقمار الصناعية في آخر {FIRE_DAYS} أيام (NASA FIRMS، دقة نحو 375 متراً، عدة مرات يومياً).
+        </p>
+      </div>
+      {fires.length ? (
+        <>
+          <div className="mx-5 mb-3 border rounded-xl p-3 bg-red-50 border-red-200 text-red-900 text-sm">
+            <strong>{last24.length} بؤرة حريق في آخر 24 ساعة</strong>، و{fires.length} في آخر {FIRE_DAYS} أيام.
+          </div>
+          <MauritaniaMap fill="#f8fafc">
+            {dots.map((f) => (
+              <circle key={f.id} cx={f.lon} cy={-f.lat} r="0.07" fill={fireAge(f.detected_at).color} fillOpacity="0.9" stroke="#fff" strokeWidth="0.012" />
+            ))}
+          </MauritaniaMap>
+          <div className="flex flex-wrap gap-3 px-5 py-2 text-[11px] text-gray-600">
+            {FIRE_AGES.map((a) => (
+              <span key={a.text} className="flex items-center gap-1">
+                <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: a.color }} />{a.text}
+              </span>
+            ))}
+          </div>
+          <div className="divide-y divide-gray-100 border-t border-gray-100">
+            {rows.map((w) => {
+              const near = [...w.places.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([p]) => p).join('، ');
+              return (
+                <div key={w.wilaya} className="px-5 py-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-gray-800">{w.wilaya}</span>
+                    {w.recent > 0 && <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-red-100 text-red-800">{w.recent} في آخر 24 ساعة</span>}
+                    <span className="text-xs text-gray-400 mr-auto">{w.total} في {FIRE_DAYS} أيام</span>
+                  </div>
+                  {near && <p className="text-sm text-gray-600 mt-1">أغلبها قرب: {near}.</p>}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <p className="mx-5 mb-4 text-sm text-gray-500">لم تُرصد حرائق في آخر {FIRE_DAYS} أيام.</p>
+      )}
+      <p className="text-[11px] text-gray-400 px-5 py-3 border-t border-gray-100 leading-relaxed">
+        كل نقطة رصد حراري من قمر صناعي، وقد يرصد الحريقَ الواحد أكثر من قمر أو يرصد حرق الحقول المعتاد قرب النهر. السحب الكثيفة تحجب الرصد.
+      </p>
+    </section>
+  );
+}
+
 export default function PasturesPage() {
   const [ndvi, setNdvi] = useState(null);
   const [obs, setObs] = useState(null);
   const [habitat, setHabitat] = useState(null);
+  const [fires, setFires] = useState(null);
   const [bulletin, setBulletin] = useState(undefined);
 
   useEffect(() => {
@@ -270,6 +346,7 @@ export default function PasturesPage() {
     getPastureNdvi().then(setNdvi);
     getLocustObservations(LOCUST_DAYS).then(setObs);
     getLocustHabitat().then(setHabitat);
+    getFireHotspots(FIRE_DAYS).then(setFires);
     getLatestSeasonalBulletin().then(setBulletin);
     return () => { document.title = 'جاتكم اسحاب | الطقس في موريتانيا'; };
   }, []);
@@ -284,6 +361,7 @@ export default function PasturesPage() {
         </header>
 
         <PastureSection rows={ndvi} />
+        <FireSection fires={fires} />
         <LocustSection obs={obs} />
         <HabitatSection cells={habitat} obs={obs} />
 
@@ -296,7 +374,7 @@ export default function PasturesPage() {
         </section>
 
         <footer className="text-[11px] text-gray-400 leading-relaxed px-1">
-          المصادر: صور MODIS من ناسا (NASA GIBS)؛ الأمطار من Open-Meteo؛ مسوحات الجراد من خدمة الإنذار بالجراد في الفاو (FAO DLIS)
+          المصادر: صور MODIS من ناسا (NASA GIBS)؛ الحرائق من NASA FIRMS؛ الأمطار من Open-Meteo؛ مسوحات الجراد من خدمة الإنذار بالجراد في الفاو (FAO DLIS)
           والمركز الوطني لمكافحة الجراد الصحراوي؛ حدود الولايات من geoBoundaries (CC BY-SA 3.0).
         </footer>
       </main>

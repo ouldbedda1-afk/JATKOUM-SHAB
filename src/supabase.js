@@ -811,6 +811,17 @@ export async function getSeasonalOutlook(slug) {
   return data;
 }
 
+// بؤر الحرائق في آخر `days` أيام (NASA FIRMS)، لصفحة المراعي
+export async function getFireHotspots(days = 7) {
+  if (!isSupabaseConfigured) return [];
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+  const { data, error } = await supabase.from('fire_hotspots')
+    .select('id, lat, lon, detected_at, frp, wilaya, place, distance_km, direction')
+    .gte('detected_at', since).order('detected_at', { ascending: false }).limit(3000);
+  if (error) { console.error('fire_hotspots:', error.message); return []; }
+  return data || [];
+}
+
 // آخر نشرة موسمية منشورة
 export async function getLatestSeasonalBulletin() {
   if (!isSupabaseConfigured) return null;

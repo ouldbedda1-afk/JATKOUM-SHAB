@@ -14,7 +14,7 @@ import {
 
 const OPEN_METEO_API = import.meta.env.VITE_OPENMETEO_API || 'https://api.open-meteo.com/v1/forecast';
 const MARINE_API = import.meta.env.VITE_MARINE_API_URL || 'https://marine-api.open-meteo.com/v1/marine';
-const NASA_EONET_API = import.meta.env.VITE_NASA_API_URL || 'https://eonet.gsfc.nasa.gov/api/v3/events';const WEATHERAPI_KEY = import.meta.env.VITE_WEATHERAPI_KEY || ''; // WeatherAPI.com كـ fallback provider
+const WEATHERAPI_KEY = import.meta.env.VITE_WEATHERAPI_KEY || ''; // WeatherAPI.com كـ fallback provider
 // إذا حُدِّد Proxy في بيئة البناء، استخدمه لتجميع الطلبات وتقليل 429.
 // بخلاف ذلك، اتصل مباشرةً بـ Open-Meteo.
 const PROXY_URL = import.meta.env.VITE_PROXY_URL && !import.meta.env.VITE_PROXY_URL.includes('example.workers.dev') 
@@ -682,86 +682,30 @@ async function fetchFromWeatherAPI(lat, lon, cityName = '') {
   }
 }
 
-function getCardinalDirection(fromLat, fromLon, toLat, toLon) {
-  const toRad = (deg) => (deg * Math.PI) / 180;
-  const dLon = toRad(toLon - fromLon);
-  const y = Math.sin(dLon) * Math.cos(toRad(toLat));
-  const x =
-    Math.cos(toRad(fromLat)) * Math.sin(toRad(toLat)) -
-    Math.sin(toRad(fromLat)) * Math.cos(toRad(toLat)) * Math.cos(dLon);
-  const degrees = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 
-  if (degrees >= 337.5 || degrees < 22.5) return 'شمال';
-  if (degrees < 67.5) return 'شمال شرقي';
-  if (degrees < 112.5) return 'شرق';
-  if (degrees < 157.5) return 'جنوب شرقي';
-  if (degrees < 202.5) return 'جنوب';
-  if (degrees < 247.5) return 'جنوب غربي';
-  if (degrees < 292.5) return 'غرب';
-  return 'شمال غربي';
-}
-
+// بؤر الحرائق النشطة في آخر 24 ساعة، من جدول fire_hotspots (دالة fire-hotspots: NASA FIRMS، أقمار VIIRS)
 export async function getActiveFires() {
   const cacheKey = 'active_fires';
   const cached = getCached(cacheKey);
   if (cached) return cached;
-
-  // منع الطلبات المتزامنة
-  if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey);
-
-  const promise = (async () => {
-    try {
-      const nasaUrl = `${NASA_EONET_API}?category=wildfires&status=open`;
-      const target = buildProxyTarget(nasaUrl);
-      const response = await enqueueFetch(target);
-      if (!response.ok) throw new Error('Failed to fetch fires');
-
-      const data = await response.json();
-      const mauritaniaFires = [];
-      const MR_BOUNDS = { minLat: 14.7, maxLat: 27.5, minLon: -17.1, maxLon: -4.8 };
-
-      if (data.events) {
-        for (const event of data.events) {
-          if (event.geometry) {
-            for (const geo of event.geometry) {
-              const [lon, lat] = geo.coordinates;
-              if (lat >= MR_BOUNDS.minLat && lat <= MR_BOUNDS.maxLat &&
-                lon >= MR_BOUNDS.minLon && lon <= MR_BOUNDS.maxLon) {
-
-                let nearestCity = 'نواكشوط';
-                let minDistance = Infinity;
-                for (const [name, coords] of Object.entries(mauritanianCities)) {
-                  const dist = Math.sqrt(Math.pow(lat - coords.lat, 2) + Math.pow(lon - coords.lon, 2));
-                  if (dist < minDistance) { minDistance = dist; nearestCity = name; }
-                }
-
-                if (minDistance < 2.0) {
-                  const cityCoords = mauritanianCities[nearestCity];
-                  mauritaniaFires.push({
-                    id: event.id, title: event.title, lat, lon, nearestCity,
-                    direction: getCardinalDirection(cityCoords.lat, cityCoords.lon, lat, lon),
-                    distanceKm: Math.round(minDistance * 111),
-                    date: geo.date
-                  });
-                }
-              }
-            }
-          }
-        }
-      }
-
-      setCached(cacheKey, mauritaniaFires);
-      return mauritaniaFires;
-    } catch (error) {
-      console.error('Error fetching fires:', error);
-      return [];
-    } finally {
-      pendingRequests.delete(cacheKey);
-    }
-  })();
-
-  pendingRequests.set(cacheKey, promise);
-  return promise;
+  try {
+    const { supabase, isSupabaseConfigured } = await import('./supabase');
+    if (!isSupabaseConfigured) return [];
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await supabase.from('fire_hotspots')
+      .select('id, lat, lon, detected_at, frp, wilaya, place, distance_km, direction')
+      .gte('detected_at', since).order('detected_at', { ascending: false }).limit(1000);
+    if (error) throw error;
+    const fires = (data || []).map((f) => ({
+      id: f.id, lat: f.lat, lon: f.lon, wilaya: f.wilaya, frp: f.frp, date: f.detected_at,
+      nearestCity: f.place, distanceKm: f.distance_km, direction: f.direction,
+    }));
+    setCached(cacheKey, fires);
+    return fires;
+  } catch (error) {
+    console.error('Error fetching fires:', error);
+    return [];
+  }
 }
 
 export async function getWeatherData(city = 'نواكشوط', customCoords = null, { forecastDays = 7, bypassCircuit = false } = {}) {
