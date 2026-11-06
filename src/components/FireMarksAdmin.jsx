@@ -7,7 +7,6 @@ import { supabase, adminFireAction } from '../supabase';
 // - بؤر لم تُعدّ حرائق كبيرة (بؤرة واحدة أو ضعيفة): زر «جلب صورة» يطلب صورتها من Sentinel-2 (request_image).
 
 const PX = 600;        // ضلع صورة الحريق بالبكسل (IMAGE_PX في الدالة)
-const BAND = 44;       // شريط الشعار أسفل الصورة: لا تُرسم فيه دوائر
 const HALF_DEG = 0.05; // نصف ضلع الصورة بالدرجات (IMAGE_HALF_DEG)
 const CELL_DEG = 0.03; // تجميع البؤر الصغيرة كما في الدالة (CLUSTER_DEG)
 const NEW_R = 30;
@@ -40,7 +39,7 @@ function MarksEditor({ fire, onSaved }) {
   const url = which === 'after' ? fire.image_url : fire.before_image_url;
   const toImg = (e) => {
     const b = svgRef.current.getBoundingClientRect();
-    return { x: Math.max(0, Math.min(PX, (e.clientX - b.left) / b.width * PX)), y: Math.max(0, Math.min(PX - BAND, (e.clientY - b.top) / b.height * PX)) };
+    return { x: Math.max(0, Math.min(PX, (e.clientX - b.left) / b.width * PX)), y: Math.max(0, Math.min(PX, (e.clientY - b.top) / b.height * PX)) };
   };
 
   const onBackground = (e) => {
@@ -96,7 +95,6 @@ function MarksEditor({ fire, onSaved }) {
           <img src={rawOf(url)} alt="" className="absolute inset-0 w-full h-full" draggable={false} />
           <svg ref={svgRef} viewBox={`0 0 ${PX} ${PX}`} className="absolute inset-0 w-full h-full cursor-crosshair"
             onPointerDown={onBackground} onPointerMove={onMove} onPointerUp={endDrag} onPointerCancel={endDrag}>
-            <rect x="0" y={PX - BAND} width={PX} height={BAND} fill="rgba(11,44,94,.55)" pointerEvents="none" />
             {marks.map((m, i) => (
               <g key={i} onPointerDown={(e) => onCircleDown(e, i)} className="cursor-move">
                 <circle cx={m.x} cy={m.y} r={m.r} fill="transparent" stroke="rgba(0,0,0,.5)" strokeWidth="5" />

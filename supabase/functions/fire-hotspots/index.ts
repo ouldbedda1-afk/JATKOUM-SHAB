@@ -154,10 +154,10 @@ async function latestSceneBefore(token: string, lat: number, lon: number, untilI
 }
 
 // اسم الموقع وعلامات البؤر تُدمج في الصورة نفسها، فتبقى في نسخة تيليغرام وفي أي نسخة تُنزَّل:
-// الشريط أسفلها (الشعار وجاتكم اسحاب والرابط ونسبة Copernicus)، واسم الموقع شفافاً في زاويتها العليا.
+// اسم الموقع شفافاً في زاويتها السفلى اليمنى ونسبة Copernicus خافتة في اليسرى، بلا شريط يحجب شيئاً منها.
 // كلاهما صورة في public/brand على الموقع
 let overlays: Promise<Image[]> | null = null;
-const loadOverlays = () => (overlays ||= Promise.all(['fire-watermark.png', 'fire-mark.png'].map(async (f) => {
+const loadOverlays = () => (overlays ||= Promise.all(['fire-mark.png', 'credit-s2.png'].map(async (f) => {
   const res = await fetch(`${SITE}/brand/${f}`);
   if (!res.ok) throw new Error(`${f}: ${res.status}`);
   return await Image.decode(new Uint8Array(await res.arrayBuffer())) as Image;
@@ -169,17 +169,17 @@ type Spot = { lat: number; lon: number; detected_at: string; manual_marks?: Ring
 type Ring = { x: number; y: number; r: number };
 
 async function brandImage(jpeg: Uint8Array, center: Spot, spots: Spot[]) {
-  const [band, mark] = await loadOverlays();
+  const [mark, credit] = await loadOverlays();
   const img = await Image.decode(jpeg) as Image;
-  const maxY = img.height - band.height;
+  const maxY = img.height;
   const points = spots.map((p) => ({
     x: (p.lon - (center.lon - IMAGE_HALF_DEG)) / (2 * IMAGE_HALF_DEG) * img.width,
     y: ((center.lat + IMAGE_HALF_DEG) - p.lat) / (2 * IMAGE_HALF_DEG) * img.height,
   })).filter((m) => m.x >= 0 && m.y >= 0 && m.x <= img.width && m.y <= maxY);
   const rings = center.manual_marks ?? fireClusters(img, points, maxY);
   for (const c of rings) drawRing(img, c.x, c.y, c.r, maxY);
-  img.composite(mark, img.width - mark.width - 6, 6);
-  img.composite(band, Math.round((img.width - band.width) / 2), maxY);
+  img.composite(mark, img.width - mark.width - 6, img.height - mark.height - 6);
+  img.composite(credit, 4, img.height - credit.height - 4);
   return await img.encodeJPEG(85);
 }
 
