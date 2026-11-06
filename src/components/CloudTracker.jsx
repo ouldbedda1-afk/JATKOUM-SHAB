@@ -420,7 +420,7 @@ const CloudTracker = () => {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-[2rem] p-6 shadow-xl border border-gray-100 animate-pulse">
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 animate-pulse">
         <div className="h-24 bg-gradient-to-r from-slate-100 via-blue-50 to-cyan-50 rounded-[1.5rem] mb-5"></div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
           {[...Array(4)].map((_, i) => (
@@ -442,7 +442,7 @@ const CloudTracker = () => {
   }
 
   return (
-    <div className="bg-white rounded-[2rem] p-6 shadow-xl border border-gray-100">
+    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
       <div
         className={`rounded-[1.75rem] border p-5 mb-6 ${
           bulletinToneClasses[autoBulletin.tone] || bulletinToneClasses.calm

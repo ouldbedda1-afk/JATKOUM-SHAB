@@ -955,7 +955,7 @@ export default function FloatingAIAgent({ onCitySelect }) {
   };
 
   return (
-    <div className="fixed bottom-5 right-5 z-[200] flex flex-col items-end gap-2" dir="rtl">
+    <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] md:bottom-5 right-5 z-[200] flex flex-col items-end gap-2" dir="rtl">
       {/* فقاعة الترحيب */}
       <AnimatePresence>
         {showBubble && !open && (

@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import MobileTabBar from './components/MobileTabBar';
 import { logPageVisit } from './supabase';
 import ErrorBoundary from './components/ErrorBoundary';
 import InstallPWA from './components/InstallPWA';
@@ -59,6 +60,7 @@ function App() {
               <Route path="/terms" element={<TermsPage />} />
             </Routes>
           </Suspense>
+          <MobileTabBar />
         </Router>
       </WeatherProvider>
     </ErrorBoundary>

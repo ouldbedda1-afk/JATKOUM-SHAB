@@ -30,9 +30,20 @@ function centroid(rings) {
 const LABEL_AT = {
   'لعصابه': [-11.75, 17.05], 'الحوض الغربي': [-9.45, 17.4], 'كوركول': [-13.05, 16.3], 'كيدماغا': [-11.95, 15.05],
 };
+// اسم الولاية كما في الخريطة، من أي كتابة (لبراكنه، كيدي ماغا، داخلت نواذيبو…)؛ ولايات نواكشوط الثلاث = نواكشوط
+const shapeKey = (w) => String(w || '')
+  .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ت(?=\s)/g, 'ه').replace(/ى/g, 'ي')
+  .replace(/^ال|^ل/, '').replace(/[اي]/g, '').replace(/\s+/g, '');
+const SHAPE_BY_KEY = Object.fromEntries(WILAYA_SHAPES.map((s) => [shapeKey(s.wilaya), s.wilaya]));
+export function mapWilayaName(wilaya) {
+  if (!wilaya) return null;
+  if (String(wilaya).startsWith('نواكشوط')) return 'نواكشوط';
+  return SHAPE_BY_KEY[shapeKey(wilaya)] ?? null;
+}
+
 const LABELS = WILAYA_SHAPES.map((s) => ({ wilaya: s.wilaya, at: LABEL_AT[s.wilaya] || centroid(s.rings) }));
 
-export default function MauritaniaMap({ image, under, children, labels = true, fill = 'none', fills = null }) {
+export default function MauritaniaMap({ image, under, children, labels = true, fill = 'none', fills = null, values = null, onSelect = null }) {
   const clipId = useId();
   return (
     <svg viewBox={`${LON0} ${-LAT1} ${SPAN_LON} ${SPAN_LAT}`} className="w-full h-auto block bg-sky-50" role="img"
@@ -57,7 +68,21 @@ export default function MauritaniaMap({ image, under, children, labels = true, f
       {children}
       {labels && LABELS.filter((l) => l.wilaya !== 'نواكشوط').map((l) => (
         <text key={l.wilaya} x={l.at[0]} y={-l.at[1]} fontSize="0.32" textAnchor="middle" fontWeight="700"
-          fill="#1e293b" stroke="#fff" strokeWidth="0.08" paintOrder="stroke">{l.wilaya}</text>
+          fill="#1e293b" stroke="#fff" strokeWidth="0.08" paintOrder="stroke" style={{ pointerEvents: 'none' }}>{l.wilaya}</text>
+      ))}
+      {/* قيمة تحت اسم كل ولاية (نواكشوط بلا اسم لصغرها، فقيمتها عند الساحل) */}
+      {values && LABELS.filter((l) => values[l.wilaya] != null).map((l) => (
+        <text key={`v-${l.wilaya}`} x={l.at[0] - (l.wilaya === 'نواكشوط' ? 0.4 : 0)} y={-l.at[1] + (l.wilaya === 'نواكشوط' ? 0.12 : 0.42)} fontSize="0.3" textAnchor="middle"
+          fontWeight="900" fill="#0f172a" stroke="#fff" strokeWidth="0.07" paintOrder="stroke" style={{ pointerEvents: 'none' }}>
+          {values[l.wilaya]}
+        </text>
+      ))}
+      {/* طبقة شفافة فوق الولايات تلتقط الضغط عليها */}
+      {onSelect && WILAYA_SHAPES.map((s) => (
+        <g key={`hit-${s.wilaya}`} onClick={() => onSelect(s.wilaya)} style={{ cursor: 'pointer' }}>
+          <title>{s.wilaya}</title>
+          {s.rings.map((r, i) => <path key={i} d={ringPath(r)} fill="transparent" />)}
+        </g>
       ))}
       {/* اسم الموقع على الخريطة: علامتان باهتتان مائلتان وشريط في الأسفل، تبقى في أي لقطة شاشة.
           السفلى فوق صحراء تكانت والحوض الشرقي، بعيداً عن الغطاء النباتي في الجنوب */}

@@ -806,7 +806,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
     return (
       <article
         key={`${day.dateStr}-${displayWilaya}`}
-        className="relative h-fit overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white text-slate-900 shadow-lg"
+        className="relative h-fit overflow-hidden rounded-2xl border border-gray-100 bg-white text-slate-900 shadow-sm"
       >
         <div className={`h-1.5 w-full bg-gradient-to-l ${theme.bar}`} />
         <div className="border-b border-slate-200 px-5 py-4">
@@ -924,7 +924,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
     return (
       <article
         key={wilaya}
-        className="relative overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white text-slate-900 shadow-lg"
+        className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white text-slate-900 shadow-sm"
       >
         <div className={`h-1.5 w-full bg-gradient-to-l ${theme.bar}`} />
         <div className="px-5 py-4" dir="rtl">
@@ -1022,7 +1022,7 @@ function WeatherBulletin({ cities, rainingNow, sameDayRainEvents, modelRainingNo
         {wilayaGroups.length > 0 ? (
           wilayaGroups.map(([wilaya, entries]) => renderWilayaCard(wilaya, entries))
         ) : (
-          <article className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-lg" dir="rtl">
+          <article className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm" dir="rtl">
             <p className="text-base font-black text-slate-800">توقعات الأيام الثلاثة القادمة</p>
             <p className="text-sm text-slate-600 mt-1">لا توقعات أمطار بارزة على الولايات خلال الأيام القادمة، بإذن الله.</p>
           </article>
@@ -1266,7 +1266,7 @@ const WeatherAlerts = () => {
       {/* تنبيهات فورية — أول تنبيهين فقط افتراضياً لتفادي تكرار المحتوى مع نشرة الأخبار الجوية أسفل الصفحة */}
       {(showAllAlerts ? weatherAlerts : weatherAlerts.slice(0, 2)).map(alert => (
         <div key={alert.id}
-          className={`${alert.color} text-white p-6 rounded-[2rem] shadow-xl relative overflow-hidden border-4 border-white/10`}>
+          className={`${alert.color} text-white p-6 rounded-2xl shadow-sm relative overflow-hidden border-4 border-white/10`}>
           <div className="relative z-10">
             <div className="flex items-center gap-2 mb-2">
               <span className="animate-ping w-2 h-2 bg-white rounded-full shrink-0" />

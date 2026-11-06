@@ -58,7 +58,7 @@ export default function LightningSoundAlert() {
         document.getElementById('today-observation')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setToast(null);
       }}
-      className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[60] inline-flex items-center gap-2 rounded-full border-2 border-white/30 bg-gradient-to-l from-amber-500 to-red-600 px-5 py-3 text-sm font-black text-white shadow-2xl animate-pulse"
+      className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] md:bottom-5 left-1/2 -translate-x-1/2 z-[60] inline-flex items-center gap-2 rounded-full border-2 border-white/30 bg-gradient-to-l from-amber-500 to-red-600 px-5 py-3 text-sm font-black text-white shadow-2xl animate-pulse"
       dir="rtl"
     >
       <span className="h-2.5 w-2.5 rounded-full bg-white animate-ping" />

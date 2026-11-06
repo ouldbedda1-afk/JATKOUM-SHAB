@@ -8,7 +8,7 @@ const WeeklyForecast = ({ city }) => {
 
   if (loading) {
     return (
-      <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-gray-100 animate-pulse">
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 animate-pulse">
         <div className="flex items-center justify-between mb-6">
           <div className="h-7 bg-gray-200 rounded-xl w-36"></div>
           <div className="h-5 bg-gray-100 rounded-full w-20"></div>
@@ -89,7 +89,7 @@ const WeeklyForecast = ({ city }) => {
   };
 
   return (
-    <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-gray-100">
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
       <div className="flex items-center justify-between mb-5">
         <div>
           <h3 className="text-2xl font-extrabold text-gray-800">توقعات {cityName} 🇲🇷</h3>

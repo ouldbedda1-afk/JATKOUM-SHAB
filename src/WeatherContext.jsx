@@ -62,30 +62,25 @@ export const WeatherProvider = ({ children }) => {
     try {
       console.log('🔄 جلب البيانات المركزية...');
 
-      // ✅ جلب كل البيانات دفعةً واحدة — weatherApi.js يتكفل بالـ cache ومنع التكرار
-      const [weather, activeFires, marine, reports, fieldBawahReports, forecasts, alerts, ecmwf, news, bulletins] = await Promise.all([
-        getAllCitiesWeather().catch(e => { console.error('weather:', e); return []; }),
-        getActiveFires().catch(e  => { console.error('fires:',   e); return []; }),
-        getMarineWeather().catch(e => { console.error('marine:',  e); return []; }),
-        getRecentRainReports().catch(e  => { console.error('rain:',  e); return []; }),
-        getRecentBawahReports().catch(e => { console.error('bawah:', e); return []; }),
-        getUpcomingRainForecasts().catch(e => { console.error('forecasts:', e); return []; }),
-        getActiveAlerts().catch(e => { console.error('alerts:', e); return []; }),
-        getEcmwfBriefs().catch(e => { console.error('ecmwf:', e); return []; }),
-        getApprovedNews().catch(e => { console.error('news:', e); return []; }),
-        getWeatherBulletins().catch(e => { console.error('bulletins:', e); return []; }),
+      // ✅ كل مصدر يظهر حين يصل: الطقس لا ينتظر أبطأ المصادر (حرائق ناسا تستغرق ثوانيَ أحياناً)
+      // — weatherApi.js يتكفل بالـ cache ومنع التكرار
+      const side = (promise, set, label) =>
+        promise.then((v) => set(v || [])).catch((e) => { console.error(label, e); set([]); });
+      const sideSources = Promise.allSettled([
+        side(getActiveFires(), setFires, 'fires:'),
+        side(getMarineWeather(), setMarineData, 'marine:'),
+        side(getRecentRainReports(), setRainReports, 'rain:'),
+        side(getRecentBawahReports(), setBawahReports, 'bawah:'),
+        side(getUpcomingRainForecasts(), setRainForecasts, 'forecasts:'),
+        side(getActiveAlerts(), setManualAlerts, 'alerts:'),
+        side(getEcmwfBriefs(), setEcmwfBriefs, 'ecmwf:'),
+        side(getApprovedNews(), setApprovedNews, 'news:'),
+        side(getWeatherBulletins(), setWeatherBulletins, 'bulletins:'),
       ]);
 
-      setWeatherData(weather   || []);
-      setFires(activeFires     || []);
-      setMarineData(marine     || []);
-      setRainReports(reports   || []);
-      setBawahReports(fieldBawahReports || []);
-      setRainForecasts(forecasts || []);
-      setManualAlerts(alerts || []);
-      setEcmwfBriefs(ecmwf || []);
-      setApprovedNews(news || []);
-      setWeatherBulletins(bulletins || []);
+      const weather = await getAllCitiesWeather().catch(e => { console.error('weather:', e); return []; });
+      setWeatherData(weather || []);
+      setLoading(false);
 
       // جلب دفعة دوّارة من البلديات الإضافية في الخلفية (بعد تحميل البيانات الأساسية)
       setTimeout(() => {
@@ -129,6 +124,7 @@ export const WeatherProvider = ({ children }) => {
         setStormClouds([]);
         setTrackedCells([]);
       }
+      await sideSources;
       setLastUpdated(new Date());
       setError(null);
       console.log('✅ تم تحديث البيانات المركزية بنجاح');

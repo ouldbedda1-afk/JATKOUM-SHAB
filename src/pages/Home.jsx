@@ -9,6 +9,7 @@ import TodaySummaryStrip from '../components/TodaySummaryStrip';
 import { getFbStats } from '../supabase';
 import TopRainRecordsCard from '../components/TopRainRecordsCard';
 import StationObservationsCard from '../components/StationObservationsCard';
+import HomeWeatherMap from '../components/HomeWeatherMap';
 
 // مكونات ثقيلة — تُحمَّل عند الحاجة فقط
 const WeatherAlerts       = lazy(() => import('../components/WeatherAlerts'));
@@ -111,6 +112,7 @@ export default function Home() {
           {/* Main Content */}
           <div className="lg:col-span-8 space-y-6 md:space-y-8">
             <WeatherHero city={selectedCity} favCity={favCity} onFavCity={saveFavCity} onLocate={requestLocation} locating={locLoading} />
+            <HomeWeatherMap />
             <Suspense fallback={<LazyFallback />}><WeatherAlerts /></Suspense>
             <Suspense fallback={<LazyFallback />}><NewsSection /></Suspense>
             <Suspense fallback={<LazyFallback />}><LivestockHomePreview /></Suspense>

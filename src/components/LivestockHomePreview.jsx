@@ -21,12 +21,12 @@ export default function LivestockHomePreview() {
   }, []);
 
   if (loading) {
-    return <div className="bg-white rounded-[2rem] h-44 animate-pulse border border-gray-100" />;
+    return <div className="bg-white rounded-2xl h-44 animate-pulse border border-gray-100" />;
   }
   if (reports.length === 0) return null; // لا نعرض القسم إن لم توجد بلاغات معتمدة
 
   return (
-    <div className="bg-white rounded-[2rem] p-6 shadow-xl border border-gray-100">
+    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 bg-gradient-to-br from-amber-600 to-amber-800 text-white rounded-xl flex items-center justify-center shadow-lg text-2xl">

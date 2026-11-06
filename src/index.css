@@ -51,3 +51,8 @@ body {
   animation-iteration-count: infinite;
   will-change: transform;
 }
+
+/* مساحة شريط التنقل السفلي على الهاتف (MobileTabBar) */
+@media (max-width: 767px) {
+  body { padding-bottom: calc(4rem + env(safe-area-inset-bottom)); }
+}
