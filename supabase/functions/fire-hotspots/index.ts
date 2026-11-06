@@ -9,7 +9,8 @@
 //
 // صور الحرائق الكبيرة: يتابع كل حريق كبير حتى تلتقط أقمار Sentinel-2 (دقة 10 أمتار، كل يومين إلى ثلاثة)
 // أول صورة صافية بعد رصده، فيحفظها في الحاوية fire-images (نحو 11×11 كم، اللهب النشط بالأحمر) ويرسلها
-// إلى المشرف. عبر Copernicus Data Space (السرّان SH_CLIENT_ID وSH_CLIENT_SECRET).
+// إلى المشرف. وإلى أن يمر القمر تُحفظ أحدث صورة صافية للمكان قبل الحريق (‎<id>-before.jpg) تُعرض
+// بدلها ثم معها للمقارنة. عبر Copernicus Data Space (السرّان SH_CLIENT_ID وSH_CLIENT_SECRET).
 //
 // يُستدعى عبر pg_cron كل ثلاث ساعات. مفتاح FIRMS في السر FIRMS_MAP_KEY.
 // النشر:  supabase functions deploy fire-hotspots --no-verify-jwt
@@ -115,21 +116,39 @@ async function shToken() {
 const boxAround = (lat: number, lon: number) =>
   [lon - IMAGE_HALF_DEG, lat - IMAGE_HALF_DEG, lon + IMAGE_HALF_DEG, lat + IMAGE_HALF_DEG];
 
-// أول مشهد بعد الرصد بغيوم مقبولة، أو undefined إن لم يمر القمر بعد
-async function firstSceneAfter(token: string, lat: number, lon: number, fromIso: string) {
+// مشاهد Sentinel-2 فوق الموضع بين تاريخين بغيوم لا تتجاوز maxCloud، من الأقدم إلى الأحدث
+async function scenesBetween(token: string, lat: number, lon: number, fromIso: string, toIso: string, maxCloud: number) {
   const res = await fetch('https://sh.dataspace.copernicus.eu/api/v1/catalog/1.0.0/search', {
     method: 'POST', headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
     body: JSON.stringify({
-      collections: ['sentinel-2-l2a'], bbox: boxAround(lat, lon), datetime: `${fromIso}/${new Date().toISOString()}`,
-      limit: 20, fields: { include: ['properties.datetime', 'properties.eo:cloud_cover'] },
+      collections: ['sentinel-2-l2a'], bbox: boxAround(lat, lon), datetime: `${fromIso}/${toIso}`,
+      limit: 50, fields: { include: ['properties.datetime', 'properties.eo:cloud_cover'] },
     }),
   });
   const body = await res.json();
-  const scenes: { datetime: string; 'eo:cloud_cover': number }[] = (body.features ?? [])
+  return (body.features ?? [])
     .map((f: { properties: { datetime: string; 'eo:cloud_cover': number } }) => f.properties)
-    .filter((p: { 'eo:cloud_cover': number }) => p['eo:cloud_cover'] <= MAX_CLOUD)
-    .sort((a: { datetime: string }, b: { datetime: string }) => a.datetime.localeCompare(b.datetime));
-  return scenes[0]?.datetime;
+    .filter((p: { 'eo:cloud_cover': number }) => p['eo:cloud_cover'] <= maxCloud)
+    .map((p: { datetime: string }) => p.datetime)
+    .sort() as string[];
+}
+
+// أول مشهد بعد الرصد، أو undefined إن لم يمر القمر بعد
+const firstSceneAfter = async (token: string, lat: number, lon: number, fromIso: string) =>
+  (await scenesBetween(token, lat, lon, fromIso, new Date().toISOString(), MAX_CLOUD))[0];
+
+// أحدث مشهد صافٍ قبل الرصد (خلال 30 يوماً)، لصورة المكان قبل الحريق
+const BEFORE_MAX_CLOUD = 30;
+async function latestSceneBefore(token: string, lat: number, lon: number, untilIso: string) {
+  const from = new Date(new Date(untilIso).getTime() - 30 * 86400000).toISOString();
+  const scenes = await scenesBetween(token, lat, lon, from, untilIso, BEFORE_MAX_CLOUD);
+  return scenes[scenes.length - 1];
+}
+
+async function storeImage(path: string, bytes: Uint8Array) {
+  const { error } = await supabase.storage.from('fire-images').upload(path, bytes, { contentType: 'image/jpeg', upsert: true });
+  if (error) throw error;
+  return `${SUPABASE_URL}/storage/v1/object/public/fire-images/${path}`;
 }
 
 async function sceneImage(token: string, lat: number, lon: number, sceneIso: string) {
@@ -160,24 +179,32 @@ async function tgPhoto(photoUrl: string, caption: string) {
 const MONTHS_AR = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 const arDate = (iso: string) => { const d = new Date(iso); return `${d.getUTCDate()} ${MONTHS_AR[d.getUTCMonth()]}`; };
 
-// الحرائق الكبيرة التي لم تصلها صورة بعد: يُبحث لكل منها عن أول مشهد صافٍ بعد رصده
+// الحرائق الكبيرة التي لم تصلها صورة بعد: يُبحث لكل منها عن أول مشهد صافٍ بعد رصده؛ وإلى أن يمر
+// القمر تُحفظ أحدث صورة صافية للمكان قبل الحريق (لا تُرسل إلى تيليغرام)
 async function attachImages() {
   if (!SH_CLIENT_ID || !SH_CLIENT_SECRET) return 'بلا مفتاح Copernicus';
   const { data: pending } = await supabase.from('fire_hotspots')
-    .select('id, lat, lon, detected_at, wilaya, place, distance_km, direction, image_tries')
-    .eq('big', true).is('image_url', null).order('detected_at', { ascending: false }).limit(IMAGES_PER_RUN);
+    .select('id, lat, lon, detected_at, wilaya, place, distance_km, direction, image_tries, before_image_url')
+    .eq('big', true).is('image_url', null)
+    // الأقل بحثاً أولاً، فلا تبقى حرائق خارج الدفعة دائماً
+    .order('image_tries', { ascending: true }).order('detected_at', { ascending: false }).limit(IMAGES_PER_RUN);
   if (!pending?.length) return 0;
   const token = await shToken();
   let attached = 0;
   for (const f of pending) {
     const scene = await firstSceneAfter(token, f.lat, f.lon, f.detected_at);
     await supabase.from('fire_hotspots').update({ image_tries: (f.image_tries ?? 0) + 1 }).eq('id', f.id);
-    if (!scene) continue;
-    const bytes = await sceneImage(token, f.lat, f.lon, scene);
-    const path = `${f.id}.jpg`;
-    const { error } = await supabase.storage.from('fire-images').upload(path, bytes, { contentType: 'image/jpeg', upsert: true });
-    if (error) throw error;
-    const url = `${SUPABASE_URL}/storage/v1/object/public/fire-images/${path}`;
+    if (!scene) {
+      if (!f.before_image_url) {
+        const before = await latestSceneBefore(token, f.lat, f.lon, f.detected_at);
+        if (before) {
+          const beforeUrl = await storeImage(`${f.id}-before.jpg`, await sceneImage(token, f.lat, f.lon, before));
+          await supabase.from('fire_hotspots').update({ before_image_url: beforeUrl, before_image_date: before }).eq('id', f.id);
+        }
+      }
+      continue;
+    }
+    const url = await storeImage(`${f.id}.jpg`, await sceneImage(token, f.lat, f.lon, scene));
     await supabase.from('fire_hotspots').update({ image_url: url, image_date: scene }).eq('id', f.id);
     attached++;
     await tgPhoto(url,
@@ -227,8 +254,10 @@ Deno.serve(async () => {
     }
     // ما قدُم عن 10 أيام يُحذف، ومعه صوره
     const cutoff = new Date(Date.now() - KEEP_DAYS * 86400000).toISOString();
-    const { data: oldImages } = await supabase.from('fire_hotspots').select('id').lt('detected_at', cutoff).not('image_url', 'is', null);
-    if (oldImages?.length) await supabase.storage.from('fire-images').remove(oldImages.map((r) => `${r.id}.jpg`));
+    const { data: oldImages } = await supabase.from('fire_hotspots').select('id').lt('detected_at', cutoff).eq('big', true);
+    if (oldImages?.length) {
+      await supabase.storage.from('fire-images').remove(oldImages.flatMap((r) => [`${r.id}.jpg`, `${r.id}-before.jpg`]));
+    }
     await supabase.from('fire_hotspots').delete().lt('detected_at', cutoff);
 
     // حرائق كبيرة: تجمّعات متقاربة أو بؤرة شديدة، في كل بؤر اليومين (لا الجديدة وحدها،

@@ -818,8 +818,10 @@ export async function getFireHotspots(days = 7) {
   const query = (cols) => supabase.from('fire_hotspots').select(cols)
     .gte('detected_at', since).order('detected_at', { ascending: false }).limit(3000);
   const base = 'id, lat, lon, detected_at, frp, wilaya, place, distance_km, direction';
-  let { data, error } = await query(`${base}, big, cluster_size, image_url, image_date`);
-  // قبل تطبيق 030_fire_images.sql لا توجد أعمدة الصور
+  const images = `${base}, big, cluster_size, image_url, image_date`;
+  let { data, error } = await query(`${images}, before_image_url, before_image_date`);
+  // قبل تطبيق 031 ثم 030 لا توجد أعمدة الصور
+  if (error) ({ data, error } = await query(images));
   if (error) ({ data, error } = await query(base));
   if (error) { console.error('fire_hotspots:', error.message); return []; }
   return data || [];
