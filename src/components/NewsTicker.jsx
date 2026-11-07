@@ -1,5 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useWeatherContext } from '../WeatherContext';
+import { loadRiverForecast, floodRisks, fmtDay } from '../riverFlood';
+import { locustAlert, LOCUST_LEVEL_TEXT, sitesText } from '../locustAlert';
+import { getLocustObservations } from '../supabase';
 import { toArabicCommune } from '../mauritaniaCommuneNamesAr';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
@@ -22,6 +25,21 @@ function fmtDateTime(dateStr) {
 
 // أكثر المواضع بؤراً في الشريط؛ والبقية في قسم الحرائق بصفحة المراعي
 const MAX_FIRE_NEWS = 6;
+const MAX_RIVER_NEWS = 4;
+
+// فيضان نهر السنغال: محطة يُتوقع أن تبلغ «خطر فيضان» فأعلى خلال 30 يوماً (src/riverFlood.js)
+function riverNews(risks) {
+  return risks.slice(0, MAX_RIVER_NEWS).map((r) =>
+    `🌊 عاجل: يتوقع بإذن الله أن يبلغ نهر السنغال مستوى ${r.level === 3 ? 'الفيضان الكبير' : 'الفيضان'} قرب ${r.st.name} (${r.st.wilaya}) ابتداءً من ${fmtDay(r.from)}`);
+}
+
+// الجراد الصحراوي: تجمعات فأشد أو انتشار في مسوحات الفاو (src/locustAlert.js)
+function locustNews(alert) {
+  if (!alert) return [];
+  return [alert.level >= 2
+    ? `🦗 تنبيه: رُصدت ${LOCUST_LEVEL_TEXT[alert.level]} في ${alert.worst.slice(0, 3).join('، ')} (آخر مسح ${fmtDay(alert.last)})`
+    : `🦗 تنبيه: الجراد في انتشار، وُجد في ${sitesText(alert.recent)} خلال أسبوعين مقابل ${alert.previous} قبلهما (${alert.wilayas.slice(0, 3).join('، ')})`];
+}
 
 // الاتجاه من البلدية: «غرب اركيز»، والمركّب «في الجنوب الغربي من اركيز»
 const COMPOUND_DIRECTIONS = {
@@ -75,6 +93,14 @@ const NewsTicker = () => {
     refreshAllData,
     lastUpdated,
   } = useWeatherContext();
+
+  // الفيضان والجراد لا يمرّان بسياق الطقس: يُجلبان مرة عند فتح الصفحة
+  const [risks, setRisks] = useState([]);
+  const [locust, setLocust] = useState(null);
+  useEffect(() => {
+    loadRiverForecast().then((rows) => setRisks(floodRisks(rows))).catch(() => {});
+    getLocustObservations(30).then((obs) => setLocust(locustAlert(obs)));
+  }, []);
 
   const newsItems = useMemo(() => {
     if (loading || !weatherData) return [];
@@ -268,17 +294,19 @@ const NewsTicker = () => {
         });
     }
 
-    // ترتيب: عاجل → توقعات المركز الأوروبي → أخبار المستخدمين → حرائق → عام.
+    // ترتيب: عاجل → توقعات المركز الأوروبي → أخبار المستخدمين → فيضان النهر → حرائق → جراد → عام.
     // لا نصوص ثابتة: بلا أخبار حقيقية لا يظهر الشريط أصلاً
     return [
       ...(sameDayHeadline ? [sameDayHeadline] : []),
       ...externalAlerts,
       ...urgentAlerts,
       ...forecastAlerts.slice(0, 6),
+      ...riverNews(risks),
       ...fireNews,
+      ...locustNews(locust),
       ...generalAlerts.slice(0, 3),
     ];
-  }, [loading, weatherData, fires, rainReports, rainingNow, modelRainingNow, sameDayRainEvents, ecmwfBriefs, weatherBulletins, lastUpdated]);
+  }, [risks, locust, loading, weatherData, fires, rainReports, rainingNow, modelRainingNow, sameDayRainEvents, ecmwfBriefs, weatherBulletins, lastUpdated]);
 
   if (newsItems.length === 0) return null;
 

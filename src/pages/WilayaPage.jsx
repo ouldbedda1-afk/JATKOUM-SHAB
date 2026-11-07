@@ -9,7 +9,9 @@ import { useWeatherContext } from '../WeatherContext';
 import { getWeatherIcon, getWeatherDescription } from '../weatherApi';
 import { toArabicCommune } from '../mauritaniaCommuneNamesAr';
 import { getWilayaLandmark } from '../wilayaLandmarks';
-import { getPastureNdvi, getFireHotspots, getRecentForecastPosts } from '../supabase';
+import { getPastureNdvi, getFireHotspots, getRecentForecastPosts, getLocustObservations } from '../supabase';
+import { loadRiverForecast, floodRisks, RIVER_WILAYAS, LEVELS, fmtDay as fmtRiverDay, fmtQ } from '../riverFlood';
+import { locustAlert, LOCUST_LEVEL_TEXT, sitesText } from '../locustAlert';
 import { WILAYA_PAGES, wilayaPageBySlug, wilayaPageTitle, wilayaPageDescription } from '../wilayaPages';
 
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
@@ -92,15 +94,62 @@ function ForecastPosts({ page }) {
   );
 }
 
+// نهر السنغال في ولايات الضفة الأربع: تنبيه بارز حين يُتوقع «خطر فيضان»، وإلا سطر بحال النهر
+function RiverCard({ page }) {
+  const [rows, setRows] = useState(null);
+  const onBank = RIVER_WILAYAS.includes(page.mapName);
+  useEffect(() => {
+    if (!onBank) return;
+    loadRiverForecast().then((all) => setRows(all.filter((r) => r.st.wilaya === page.mapName))).catch(() => setRows([]));
+  }, [page, onBank]);
+  if (!onBank || !rows?.length) return null;
+
+  const risks = floodRisks(rows);
+  if (risks.length) {
+    const worst = Math.max(...risks.map((r) => r.level));
+    return (
+      <section className={`rounded-2xl border-2 p-4 md:p-5 ${worst === 3 ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'}`}>
+        <h2 className="text-lg font-black text-gray-900">{LEVELS[worst].icon} نهر السنغال: {LEVELS[worst].label}</h2>
+        <ul className="mt-2 space-y-2 text-sm text-gray-800">
+          {risks.map((r) => (
+            <li key={r.st.name}>
+              يتوقع بإذن الله أن يبلغ النهر مستوى {r.level === 3 ? 'الفيضان الكبير' : 'الفيضان'} قرب <strong>{r.st.name}</strong> ابتداءً
+              من {fmtRiverDay(r.from)}، وذروته نحو <bdi dir="ltr">{fmtQ(r.peak)}</bdi> م³/ث في {fmtRiverDay(r.peakDay)}.
+              {r.places.length > 0 && <span className="block text-xs text-gray-600 mt-0.5">المناطق القريبة: {r.places.join('، ')}</span>}
+            </li>
+          ))}
+        </ul>
+        <p className="text-xs text-gray-600 mt-2">يُنصح سكان الضفة والمزارعون بالحذر ومتابعة تعليمات السلطات.</p>
+        <Link to="/river" className="inline-block mt-2 text-xs font-bold text-blue-700 hover:underline">تفاصيل النهر وصور الأقمار الصناعية ←</Link>
+      </section>
+    );
+  }
+  const up = rows.some((r) => r.trend === 'up');
+  return (
+    <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-5">
+      <h2 className="text-lg font-black text-gray-800">🌊 نهر السنغال</h2>
+      <p className="text-sm text-gray-700 mt-1">
+        {rows.map((r) => `${r.st.name} ${fmtQ(r.now)} م³/ث`).join('، ')}: النهر {up ? 'في ارتفاع' : 'في انحسار أو مستقر'}،
+        ولا خطر فيضان متوقعاً خلال الثلاثين يوماً القادمة.
+      </p>
+      <Link to="/river" className="inline-block mt-1 text-xs font-bold text-blue-700 hover:underline">صفحة فيضان النهر ←</Link>
+    </section>
+  );
+}
+
 function PastureAndFires({ page }) {
   const [ndvi, setNdvi] = useState(null);
   const [fires, setFires] = useState(null);
+  const [locust, setLocust] = useState(null);
   useEffect(() => {
     if (page.mapName === 'نواكشوط') return;
     getPastureNdvi().then((rows) => setNdvi(rows.find((r) => r.wilaya === page.mapName) || null));
     getFireHotspots(7).then((rows) => setFires(rows.filter((f) => f.wilaya === page.mapName)));
+    getLocustObservations(30).then((obs) => setLocust(obs.filter((o) => o.wilaya === page.mapName)));
   }, [page]);
-  if (page.mapName === 'نواكشوط' || (!ndvi && !fires?.length)) return null;
+  const locustWarn = locustAlert(locust);
+  const locustSeen = (locust || []).filter((o) => o.severity > 0);
+  if (page.mapName === 'نواكشوط' || (!ndvi && !fires?.length && !locustSeen.length)) return null;
 
   const diff = ndvi ? ndvi.ndvi - ndvi.mean_ndvi : 0;
   const z = ndvi?.std_ndvi > 0 ? diff / ndvi.std_ndvi : 0;
@@ -117,6 +166,12 @@ function PastureAndFires({ page }) {
       {fires?.length > 0 && (
         <p className="text-sm text-gray-700">
           🔥 {fires.length} بؤرة حريق في آخر 7 أيام{recent ? `، منها ${recent} في آخر 24 ساعة` : ''}{near ? `، أغلبها قرب ${near}` : ''}.
+        </p>
+      )}
+      {locustSeen.length > 0 && (
+        <p className={`text-sm ${locustWarn ? 'font-bold text-orange-800' : 'text-gray-700'}`}>
+          🦗 {locustWarn ? 'تنبيه: ' : ''}وُجد الجراد في {sitesText(locustSeen.length)} خلال 30 يوماً
+          ({LOCUST_LEVEL_TEXT[Math.max(...locustSeen.map((o) => o.severity))]}){locustWarn?.spreading ? '، وهو في انتشار' : ''}.
         </p>
       )}
       <Link to="/pastures" className="inline-block text-xs font-bold text-blue-700 hover:underline">صفحة المراعي والجراد ←</Link>
@@ -163,6 +218,7 @@ export default function WilayaPage() {
           </Link>
         </div>
 
+        <RiverCard page={page} />
         <CommunesNow page={page} />
         <WeeklyForecast city={{ name: page.capital.name, lat: page.capital.lat, lon: page.capital.lon }} />
         <ForecastPosts page={page} />

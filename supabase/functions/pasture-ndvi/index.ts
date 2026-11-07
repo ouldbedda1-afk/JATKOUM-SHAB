@@ -3,7 +3,8 @@
 // كما تنشرها ناسا عبر GIBS (خدمة WMS مفتوحة، بلا مفتاح). تُحفظ في جدول pasture_ndvi.
 //
 // MODIS Terra L3 NDVI: صورة مركّبة كل 16 يوماً (تبدأ في اليوم 1، 17، 33… من السنة)،
-// متاحة منذ سنة 2000. نقارن كل فترة بالفترة نفسها في السنوات العشر السابقة، وبالفترة التي قبلها.
+// متاحة منذ سنة 2000. نقارن كل فترة بالفترة نفسها في السنوات العشر السابقة (وتُحفظ قيمة كل سنة في history)،
+// وبالفترة التي قبلها.
 //
 // الطريقة: نطلب صورة لموريتانيا كلها بدقة 0.03°، ونحوّل لون كل نقطة إلى قيمة NDVI
 // بجدول ألوان GIBS (كل لون يقابل مجالاً عرضه 0.005)، ثم نأخذ متوسط النقاط داخل حدود كل ولاية.
@@ -98,8 +99,9 @@ Deno.serve(async (req) => {
     let current: Awaited<ReturnType<typeof wilayaMeans>> | null = null;
     for (let tries = 0; tries < 4 && !current; tries++) {
       const date = periodDate(year, doy);
-      const { data: done } = await supabase.from('pasture_ndvi').select('wilaya').eq('period', date).limit(1);
-      if (done?.length && !force) return json({ ok: true, skipped: date });
+      // فترة محسوبة قبل حفظ قيم السنوات (038) تُعاد مرة لتُملأ history
+      const { data: done } = await supabase.from('pasture_ndvi').select('wilaya, history').eq('period', date).limit(1);
+      if (done?.length && done[0].history && !force) return json({ ok: true, skipped: date });
       const means = await wilayaMeans(date, mask, colors);
       if (means.reduce((n, m) => n + m.pixels, 0) >= minPixels) { current = means; break; }
       doy -= 16;
@@ -130,6 +132,8 @@ Deno.serve(async (req) => {
         min_ndvi: past.length ? +Math.min(...past).toFixed(4) : null,
         max_ndvi: past.length ? +Math.max(...past).toFixed(4) : null,
         baseline_years: past.length, pixels: current![wi].pixels,
+        // قيمة الفترة نفسها في كل سنة من السنوات العشر، لمقارنة السنوات في صفحة المراعي
+        history: Object.fromEntries(history.flatMap((h, k) => (h[wi] === null ? [] : [[String(year - BASELINE_YEARS + k), +h[wi]!.toFixed(4)]]))),
         updated_at: new Date().toISOString(),
       }];
     });

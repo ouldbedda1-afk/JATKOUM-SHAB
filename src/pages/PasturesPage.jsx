@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { getPastureNdvi, getLocustObservations, getLocustHabitat, getLatestSeasonalBulletin, getFireHotspots } from '../supabase';
 import MauritaniaMap, { LON0, LAT1 } from '../components/MauritaniaMap';
+import { locustAlert, LOCUST_LEVEL_TEXT, sitesText } from '../locustAlert';
 
 // الترتيب الرسمي للولايات (نواكشوط بلا مراعٍ)
 const ORDER = ['الحوض الشرقي', 'الحوض الغربي', 'لعصابه', 'كوركول', 'البراكنة', 'الترارزة', 'آدرار',
@@ -75,6 +76,88 @@ const STATUS = [
   { title: 'خطر: رُصدت أسراب أو حشود يرقات', box: 'bg-red-50 border-red-200 text-red-900', icon: '🔴' },
 ];
 
+// ── مقارنة السنوات: الفترة نفسها في كل سنة من السنوات العشر الماضية (history) وهذه السنة ──
+function yearsCompared(r) {
+  const year = Number(r.period.slice(0, 4));
+  const past = Object.entries(r.history || {}).map(([y, v]) => ({ year: Number(y), v })).sort((a, b) => a.year - b.year);
+  if (past.length < 3) return null;
+  const all = [...past, { year, v: r.ndvi, now: true }];
+  const rank = 1 + past.filter((p) => p.v > r.ndvi).length;
+  const lastBetter = [...past].reverse().find((p) => p.v > r.ndvi);
+  const lastWorse = [...past].reverse().find((p) => p.v < r.ndvi);
+  let text;
+  if (!lastBetter) text = `الأفضل في ${all.length} سنة`;
+  else if (!lastWorse) text = `الأضعف في ${all.length} سنة`;
+  else if (lastBetter.year <= year - 2) text = `الأفضل منذ ${lastBetter.year}`;
+  else if (lastWorse.year <= year - 2) text = `الأضعف منذ ${lastWorse.year}`;
+  else text = `المرتبة ${rank} من ${all.length}`;
+  return { all, text, best: rank === 1, worst: !lastWorse };
+}
+
+function YearBars({ all }) {
+  const W = 160, H = 34, gap = 2;
+  const max = Math.max(...all.map((p) => p.v)) || 1;
+  const bw = (W - gap * (all.length - 1)) / all.length;
+  return (
+    <svg viewBox={`0 0 ${W} ${H + 11}`} className="flex-1 min-w-0 max-w-[10rem] h-auto" style={{ direction: 'ltr' }} role="img"
+      aria-label={all.map((p) => `${p.year}: ${p.v}`).join('، ')}>
+      {all.map((p, k) => {
+        const h = Math.max(2, (p.v / max) * H);
+        return (
+          <rect key={p.year} x={k * (bw + gap)} y={H - h} width={bw} height={h} rx="2"
+            fill={p.now ? '#15803d' : '#bbf7d0'}><title>{`${p.year}: ${p.v.toFixed(3)}`}</title></rect>
+        );
+      })}
+      <text x="0" y={H + 10} fontSize="8" fill="#9ca3af">{all[0].year}</text>
+      <text x={W} y={H + 10} fontSize="8" fill="#15803d" textAnchor="end" fontWeight="700">{all[all.length - 1].year}</text>
+    </svg>
+  );
+}
+
+function YearsSection({ rows }) {
+  const list = (rows || []).map((r) => ({ r, c: yearsCompared(r) })).filter((x) => x.c)
+    .sort((a, b) => ORDER.indexOf(a.r.wilaya) - ORDER.indexOf(b.r.wilaya));
+  if (!list.length) return null;
+  return (
+    <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="p-5 pb-3">
+        <h2 className="text-lg font-black text-gray-800">📊 المراعي مقارنةً بالسنوات السابقة</h2>
+        <p className="text-sm text-gray-500 mt-1">
+          الغطاء النباتي في الفترة نفسها ({periodLabel(list[0].r.period).replace(/ \d{4}$/, '')}) من كل سنة منذ {list[0].c.all[0].year}؛
+          العمود الداكن هذه السنة.
+        </p>
+      </div>
+      <div className="divide-y divide-gray-100 border-t border-gray-100">
+        {list.map(({ r, c }) => (
+          <div key={r.wilaya} className="px-4 md:px-5 py-2.5 flex items-center gap-2 md:gap-3">
+            <span className="font-bold text-sm text-gray-800 w-24 md:w-28 shrink-0">{r.wilaya}</span>
+            <YearBars all={c.all} />
+            <span className={`text-[11px] md:text-xs whitespace-nowrap shrink-0 font-bold ${c.best ? 'text-green-700' : c.worst ? 'text-red-700' : 'text-gray-600'}`}>{c.text}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// تنبيه الجراد أعلى الصفحة: تجمعات فأشد أو انتشار في مسوحات آخر 30 يوماً
+function LocustBanner({ obs }) {
+  const a = locustAlert(obs);
+  if (!a) return null;
+  return (
+    <a href="#locust" className={`block rounded-2xl border-2 p-4 ${a.level >= 3 ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'}`}>
+      <p className="font-black text-gray-900">🦗 تنبيه الجراد الصحراوي</p>
+      <p className="text-sm text-gray-800 mt-1">
+        {a.level >= 2
+          ? `رُصدت ${LOCUST_LEVEL_TEXT[a.level]} في ${a.worst.join('، ')}${a.others.length ? `، وأفراد أقل كثافة في ${a.others.slice(0, 4).join('، ')}` : ''}. `
+          : `رُصد الجراد في ${a.wilayas.slice(0, 4).join('، ')}. `}
+        {a.spreading ? `وهو في انتشار: وُجد في ${sitesText(a.recent)} خلال الأسبوعين الأخيرين مقابل ${a.previous} في الأسبوعين قبلهما. ` : ''}
+        آخر مسح {fmtDay(a.last)}. ننصح المنمّين والمزارعين بالإبلاغ عن أي جراد للمركز الوطني لمكافحة الجراد الصحراوي.
+      </p>
+    </a>
+  );
+}
+
 // ── الأقسام ──────────────────────────────────────────────────────────────
 function PastureSection({ rows }) {
   if (rows === null) return <div className="bg-white rounded-2xl h-96 animate-pulse border border-gray-100" />;
@@ -145,7 +228,7 @@ function LocustSection({ obs }) {
   const dots = [...obs].sort((a, b) => a.severity - b.severity);
 
   return (
-    <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <section id="locust" className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden scroll-mt-20">
       <div className="p-5 pb-3">
         <h2 className="text-lg font-black text-gray-800">🦗 الجراد الصحراوي</h2>
         <p className="text-sm text-gray-500 mt-1">نتائج مسوحات المركز الوطني لمكافحة الجراد الصحراوي خلال آخر {LOCUST_DAYS} يوماً، كما تنشرها منظمة الفاو.</p>
@@ -418,7 +501,9 @@ export default function PasturesPage() {
           <p className="text-sm text-gray-500 mt-1">للمنمّين والمزارعين: حالة الغطاء النباتي في كل ولاية، ومسوحات الجراد الصحراوي، والنشرة الموسمية.</p>
         </header>
 
+        <LocustBanner obs={obs} />
         <PastureSection rows={ndvi} />
+        <YearsSection rows={ndvi} />
         <FireSection fires={fires} />
         <LocustSection obs={obs} />
         <HabitatSection cells={habitat} obs={obs} />
